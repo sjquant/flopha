@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -10,24 +10,34 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Start { name: String },
-    Finish { name: String },
+    Start(Start),
+    Finish(Finish),
+}
+
+#[derive(Args)]
+struct Start {
+    name: String,
+}
+
+#[derive(Args)]
+struct Finish {
+    name: String,
 }
 
 fn main() {
     let cli = Cli::parse();
-    match &cli.command {
-        Commands::Start { name } => {
-            on_start(name);
+    match cli.command {
+        Commands::Start(command) => {
+            on_start(command);
         }
-        Commands::Finish { name } => {
-            on_finish(name);
+        Commands::Finish(command) => {
+            on_finish(command);
         }
     }
 }
 
-fn on_start(name: &String) {
-    match name.to_lowercase().as_str() {
+fn on_start(command: Start) {
+    match command.name.to_lowercase().as_str() {
         "feature" => {
             println!("Create or Move to the feature branch");
         }
@@ -42,8 +52,8 @@ fn on_start(name: &String) {
     }
 }
 
-fn on_finish(name: &String) {
-    match name.to_lowercase().as_str() {
+fn on_finish(command: Finish) {
+    match command.name.to_lowercase().as_str() {
         "feature" => {
             println!("Push branch to remote");
             println!("Create a pull request to main branch if not already done");
