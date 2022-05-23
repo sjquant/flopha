@@ -1,4 +1,5 @@
 use clap::{Args, Parser, Subcommand};
+use git2::{Branch, Repository};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -17,6 +18,10 @@ enum Commands {
 #[derive(Args)]
 struct Start {
     name: String,
+
+    /// Feature branch name to move to or create if not exists
+    #[clap(short, long)]
+    branch: Option<String>,
 }
 
 #[derive(Args)]
@@ -39,7 +44,7 @@ fn main() {
 fn on_start(command: Start) {
     match command.name.to_lowercase().as_str() {
         "feature" => {
-            println!("Create or Move to the feature branch");
+            handle_feature_start(command);
         }
         "hotfix" => {
             println!("Move to the latest tag");
@@ -50,6 +55,10 @@ fn on_start(command: Start) {
             std::process::exit(1);
         }
     }
+}
+
+fn handle_feature_start(command: Start) {
+    todo!()
 }
 
 fn on_finish(command: Finish) {
@@ -67,5 +76,30 @@ fn on_finish(command: Finish) {
             println!("feature and hotfix are only valid names");
             std::process::exit(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::BranchType;
+    use tempfile::TempDir;
+
+    #[test]
+    fn feature_start_creates_new_branch_if_not_exists() {
+        // Given
+        let td = TempDir::new().unwrap();
+        let path = td.path();
+        let repo = Repository::init(path).unwrap();
+        let command = Start {
+            name: "feature".to_string(),
+            branch: Some("new-feature".to_string()),
+        };
+
+        // When
+        on_start(command);
+
+        // Then
+        assert!(repo.find_branch("new-feature", BranchType::Local).is_ok())
     }
 }

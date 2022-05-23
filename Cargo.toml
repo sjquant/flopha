@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 git2 = "0.14"
 clap = { version = "3.1.18", features = ["derive"] }
+tempfile = "3"
