@@ -1,5 +1,7 @@
+use std::path::Path;
+
 use clap::{Args, Parser, Subcommand};
-use git2::{Branch, Repository};
+use git2::Repository;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -11,12 +13,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Start(Start),
-    Finish(Finish),
+    Start(StartCommand),
+    Finish(FinishCommand),
 }
 
 #[derive(Args)]
-struct Start {
+struct StartCommand {
     name: String,
 
     /// Feature branch name to move to or create if not exists
@@ -25,15 +27,15 @@ struct Start {
 }
 
 #[derive(Args)]
-struct Finish {
+struct FinishCommand {
     name: String,
 }
 
 fn main() {
     let cli = Cli::parse();
-    match cli.command {
+    match &cli.command {
         Commands::Start(command) => {
-            on_start(command);
+            on_start(command, Path::new("."));
         }
         Commands::Finish(command) => {
             on_finish(command);
@@ -41,10 +43,16 @@ fn main() {
     }
 }
 
-fn on_start(command: Start) {
+fn on_start(command: &StartCommand, path: &Path) {
     match command.name.to_lowercase().as_str() {
         "feature" => {
-            handle_feature_start(command);
+            let repo = Repository::open(path).unwrap();
+            repo.branch(
+                command.branch.as_ref().unwrap().as_str(),
+                &repo.head().unwrap().peel_to_commit().unwrap(),
+                true,
+            )
+            .unwrap();
         }
         "hotfix" => {
             println!("Move to the latest tag");
@@ -57,11 +65,7 @@ fn on_start(command: Start) {
     }
 }
 
-fn handle_feature_start(command: Start) {
-    todo!()
-}
-
-fn on_finish(command: Finish) {
+fn on_finish(command: &FinishCommand) {
     match command.name.to_lowercase().as_str() {
         "feature" => {
             println!("Push branch to remote");
@@ -82,22 +86,40 @@ fn on_finish(command: Finish) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use git2::BranchType;
+    use git2::{BranchType, RepositoryInitOptions};
     use tempfile::TempDir;
+
+    pub fn repo_init() -> (TempDir, Repository) {
+        let td = TempDir::new().unwrap();
+        let mut opts = RepositoryInitOptions::new();
+        opts.initial_head("main");
+        let repo = Repository::init_opts(td.path(), &opts).unwrap();
+        {
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "name").unwrap();
+            config.set_str("user.email", "email").unwrap();
+            let mut index = repo.index().unwrap();
+            let id = index.write_tree().unwrap();
+            let tree = repo.find_tree(id).unwrap();
+            let sig = repo.signature().unwrap();
+            repo.commit(Some("HEAD"), &sig, &sig, "initial\n\nbody", &tree, &[])
+                .unwrap();
+        }
+        (td, repo)
+    }
 
     #[test]
     fn feature_start_creates_new_branch_if_not_exists() {
         // Given
-        let td = TempDir::new().unwrap();
-        let path = td.path();
-        let repo = Repository::init(path).unwrap();
-        let command = Start {
+        let command = StartCommand {
             name: "feature".to_string(),
             branch: Some("new-feature".to_string()),
         };
 
+        let (td, repo) = repo_init();
+
         // When
-        on_start(command);
+        on_start(&command, td.path());
 
         // Then
         assert!(repo.find_branch("new-feature", BranchType::Local).is_ok())
