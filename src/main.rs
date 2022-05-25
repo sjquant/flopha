@@ -111,17 +111,45 @@ mod tests {
     #[test]
     fn feature_start_creates_new_branch_if_not_exists() {
         // Given
+        let (td, repo) = repo_init();
+        
+        // When
         let command = StartCommand {
             name: "feature".to_string(),
             branch: Some("new-feature".to_string()),
         };
-
-        let (td, repo) = repo_init();
-
-        // When
         on_start(&command, td.path());
 
         // Then
         assert!(repo.find_branch("new-feature", BranchType::Local).is_ok())
+    }
+
+    #[test]
+    fn feature_start_moves_to_the_branch_if_exists() {
+        // Given
+        let (td, repo) = repo_init();
+        let target = repo.head().unwrap().peel_to_commit().unwrap();
+        let branch = repo.branch("existing-feature", &target, true).unwrap();
+        let mut index = repo.index().unwrap();
+        let id = index.write_tree().unwrap();
+        let tree = repo.find_tree(id).unwrap();
+        let sig = repo.signature().unwrap();
+        let branch_ref = branch.into_reference();
+        let parent = branch_ref.peel_to_commit().unwrap();
+        repo.commit(Some(branch_ref.name().unwrap()), &sig, &sig, "commit to existing branch", &tree, &[&parent])
+            .unwrap();
+
+        // When
+        let command = StartCommand {
+            name: "feature".to_string(),
+            branch: Some("existing-feature".to_string()),
+        };
+        on_start(&command, td.path());
+
+        // Then
+        let branch = repo.find_branch("existing-feature", BranchType::Local).unwrap();
+        let commit = branch.into_reference().peel_to_commit().unwrap();
+        assert_eq!(commit.message().unwrap(), "commit to existing branch");
+
     }
 }
