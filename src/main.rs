@@ -47,12 +47,16 @@ fn on_start(command: &StartCommand, path: &Path) {
     match command.name.to_lowercase().as_str() {
         "feature" => {
             let repo = Repository::open(path).unwrap();
-            repo.branch(
-                command.branch.as_ref().unwrap().as_str(),
-                &repo.head().unwrap().peel_to_commit().unwrap(),
-                true,
-            )
-            .unwrap();
+            let branch_name = command.branch.as_ref().unwrap().as_str();
+            let branch = repo.find_branch(branch_name, git2::BranchType::Local);
+            if let Err(_) = branch {
+                let branch_name = command.branch.as_ref().unwrap().as_str();
+                let commit = repo.head().unwrap().peel_to_commit().unwrap();
+                repo.branch(branch_name, &commit, true).unwrap();
+            }
+            let (object, reference) = repo.revparse_ext(branch_name).expect("Object not found");
+            repo.checkout_tree(&object, None).expect("Failed to checkout");
+            let _ = repo.set_head(reference.unwrap().name().unwrap());
         }
         "hotfix" => {
             println!("Move to the latest tag");
@@ -121,7 +125,9 @@ mod tests {
         on_start(&command, td.path());
 
         // Then
-        assert!(repo.find_branch("new-feature", BranchType::Local).is_ok())
+        let head = repo.head().unwrap();
+        let current_branch_name = head.name().unwrap();
+        assert_eq!(current_branch_name, "refs/heads/new-feature")
     }
 
     #[test]
@@ -149,7 +155,9 @@ mod tests {
         // Then
         let branch = repo.find_branch("existing-feature", BranchType::Local).unwrap();
         let commit = branch.into_reference().peel_to_commit().unwrap();
+        let head = repo.head().unwrap();
+        let current_branch_name = head.name().unwrap();
+        assert_eq!(current_branch_name, "refs/heads/existing-feature");
         assert_eq!(commit.message().unwrap(), "commit to existing branch");
-
     }
 }
