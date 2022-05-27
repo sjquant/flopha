@@ -46,17 +46,7 @@ fn main() {
 fn on_start(command: &StartCommand, path: &Path) {
     match command.name.to_lowercase().as_str() {
         "feature" => {
-            let repo = Repository::open(path).unwrap();
-            let branch_name = command.branch.as_ref().unwrap().as_str();
-            let branch = repo.find_branch(branch_name, git2::BranchType::Local);
-            if let Err(_) = branch {
-                let branch_name = command.branch.as_ref().unwrap().as_str();
-                let commit = repo.head().unwrap().peel_to_commit().unwrap();
-                repo.branch(branch_name, &commit, true).unwrap();
-            }
-            let (object, reference) = repo.revparse_ext(branch_name).expect("Object not found");
-            repo.checkout_tree(&object, None).expect("Failed to checkout");
-            let _ = repo.set_head(reference.unwrap().name().unwrap());
+            start_feature(path, command);
         }
         "hotfix" => {
             println!("Move to the latest tag");
@@ -67,6 +57,20 @@ fn on_start(command: &StartCommand, path: &Path) {
             std::process::exit(1);
         }
     }
+}
+
+fn start_feature(path: &Path, command: &StartCommand) {
+    let repo = Repository::open(path).expect("Repository not found");
+    let branch_name = command.branch.as_ref().expect("Branch not found").as_str();
+    let branch = repo.find_branch(branch_name, git2::BranchType::Local);
+    if let Err(_) = branch {
+        let branch_name = command.branch.as_ref().unwrap().as_str();
+        let commit = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch(branch_name, &commit, true).unwrap();
+    }
+    let (object, reference) = repo.revparse_ext(branch_name).expect("Object not found");
+    repo.checkout_tree(&object, None).expect("Failed to checkout");
+    let _ = repo.set_head(reference.unwrap().name().unwrap());
 }
 
 fn on_finish(command: &FinishCommand) {
@@ -93,7 +97,7 @@ mod tests {
     use git2::{BranchType, RepositoryInitOptions};
     use tempfile::TempDir;
 
-    pub fn repo_init() -> (TempDir, Repository) {
+    fn repo_init() -> (TempDir, Repository) {
         let td = TempDir::new().unwrap();
         let mut opts = RepositoryInitOptions::new();
         opts.initial_head("main");
@@ -111,6 +115,7 @@ mod tests {
         }
         (td, repo)
     }
+    
 
     #[test]
     fn feature_start_creates_new_branch_if_not_exists() {
@@ -134,8 +139,8 @@ mod tests {
     fn feature_start_moves_to_the_branch_if_exists() {
         // Given
         let (td, repo) = repo_init();
-        let target = repo.head().unwrap().peel_to_commit().unwrap();
-        let branch = repo.branch("existing-feature", &target, true).unwrap();
+        let head_commit = repo.head().unwrap().peel_to_commit().unwrap();
+        let branch = repo.branch("existing-feature", &head_commit, true).unwrap();
         let mut index = repo.index().unwrap();
         let id = index.write_tree().unwrap();
         let tree = repo.find_tree(id).unwrap();
