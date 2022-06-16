@@ -3,7 +3,7 @@ use std::path::Path;
 use git2::{Repository, FetchOptions, AutotagOption};
 
 use crate::gitutils::{checkout_branch, checkout_tag};
-use crate::cli::{StartCommand};
+use crate::cli::{StartCommand, FinishCommand};
 
 
 pub fn start_hotfix(path: &Path, _command: &StartCommand) {
@@ -29,6 +29,17 @@ pub fn start_feature(path: &Path, command: &StartCommand) {
         repo.branch(branch_name, &commit, true).unwrap();
     }
     checkout_branch(&repo, branch_name, true).unwrap();
+}
+
+fn finish_feature(path: &Path, command: &FinishCommand) {
+    let repo = Repository::open(path).expect("Repository not found");
+    let mut remote = repo.find_remote("origin").expect("origin not found");
+    let head = repo.head().unwrap();
+    let branch_name = head.shorthand().unwrap();
+    let mut branch = repo.find_branch(repo.head().unwrap().shorthand().unwrap(), git2::BranchType::Local).expect("Branch not found");
+    branch.set_upstream(Some(format!("origin/{}", branch_name).as_str())).unwrap();
+    let mut po = git2::PushOptions::new();
+    remote.push(&[&branch_name], Some(&mut po)).unwrap();
 }
 
 
@@ -78,6 +89,33 @@ mod tests {
         let current_branch_name = head.name().unwrap();
         assert_eq!(current_branch_name, "refs/heads/existing-feature");
         assert_eq!(commit.message().unwrap(), "commit on existing feature branch");
+    }
+
+    #[test]
+    fn feature_fisish_should_push_commits_to_remote() {
+        // Given
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+        
+        let command = StartCommand {
+            name: "feature".to_string(),
+            branch: Some("a-feature".to_string()),
+        };
+        start_feature(td.path(), &command);
+        commit(&repo, "first commit on feature branch").unwrap();
+        commit(&repo, "second commit on feature branch").unwrap();
+
+        // When
+        let command = FinishCommand {
+            name: "feature".to_string(),
+        };
+        finish_feature(td.path(), &command);
+
+        // Then
+        let conn = remote.connect_auth(git2::Direction::Fetch, None, None).unwrap();
+        let remote_branch_head = conn.list().unwrap().iter().find(|x| x.name() == "refs/heads/a-feature");
+        assert!(remote_branch_head.is_some());
+        
     }
 
      #[test]
