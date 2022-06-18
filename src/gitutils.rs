@@ -45,3 +45,10 @@ pub fn checkout_tag(repo: &Repository, tag: &str) -> Result<(), git2::Error> {
 pub fn get_head_branch(repo: &Repository) -> Result<Branch, git2::Error> {
     Ok(Branch::wrap(repo.head()?))
 }
+
+pub fn fetch_all(remote: &mut git2::Remote) -> Result<(), git2::Error>{
+    let mut fo = git2::FetchOptions::new();
+    fo.download_tags(git2::AutotagOption::All);
+    remote.fetch(&["refs/heads/*:refs/heads/*"],  Some(&mut fo), None)?;
+    Result::Ok(())
+}

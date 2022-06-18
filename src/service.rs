@@ -1,27 +1,25 @@
 use std::path::Path;
 
-use git2::{Repository, FetchOptions, AutotagOption};
+use git2::Repository;
 
-use crate::gitutils::{checkout_branch, checkout_tag, get_head_branch};
+use crate::gitutils::{checkout_branch, checkout_tag, get_head_branch, fetch_all};
 use crate::cli::{StartCommand, FinishCommand};
 
 
-pub fn start_hotfix(path: &Path, _command: &StartCommand) {
+fn get_repo(path: &Path) -> Repository {
     let repo = Repository::open(path).expect("Repository not found");
-    let mut remote = repo.find_remote("origin").expect("origin not found");
-    let mut fo = FetchOptions::new();
-    fo.download_tags(AutotagOption::All);
-    let _ = remote.fetch(&["refs/heads/*:refs/heads/*"],  Some(&mut fo), None);
+    repo
+}
 
-    let tag_names = repo.tag_names(Some("*")).unwrap();
-    let max_tag = tag_names.iter().map(|x| x.unwrap()).max().unwrap();
-    checkout_tag(&repo, max_tag).unwrap();
 
+fn get_remote(repo: &Repository) -> git2::Remote {
+    let remote = repo.find_remote("origin").expect("Remote 'origin' not found");
+    remote
 }
 
 pub fn start_feature(path: &Path, command: &StartCommand) {
-    let repo = Repository::open(path).expect("Repository not found");
-    let branch_name = command.branch.as_ref().expect("Branch not found").as_str();
+    let repo = get_repo(path);
+    let branch_name = command.branch.as_ref().expect("'branch' is required to start feature").as_str();
     let branch = repo.find_branch(branch_name, git2::BranchType::Local);
     if let Err(_) = branch {
         let branch_name = command.branch.as_ref().unwrap().as_str();
@@ -32,12 +30,21 @@ pub fn start_feature(path: &Path, command: &StartCommand) {
 }
 
 pub fn finish_feature(path: &Path, command: &FinishCommand) {
-    let repo = Repository::open(path).expect("Repository not found");
-    let mut remote = repo.find_remote("origin").expect("origin not found");
-    let branch = get_head_branch(&repo).unwrap();
-    let branch_name = branch.name().unwrap().unwrap();
+    let repo = get_repo(path);
+    let mut remote = get_remote(&repo);
+    let branch = get_head_branch(&repo).expect("Branch not found");
+    let branch_name = branch.name().unwrap().expect("Failed to get branch name");
     let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
-    remote.push(&[&refspec], None).unwrap();
+    remote.push(&[&refspec], None).expect("Failed to push branch");
+}
+
+pub fn start_hotfix(path: &Path, _command: &StartCommand) {
+    let repo = get_repo(path);
+    let mut remote = get_remote(&repo);
+    fetch_all(&mut remote).expect("Failed to fetch from remote");
+    let tag_names = repo.tag_names(Some("*")).expect("Failed to get tags");
+    let max_tag = tag_names.iter().map(|x| x.unwrap()).max().unwrap();
+    checkout_tag(&repo, max_tag).expect("Failed to checkout");
 }
 
 
