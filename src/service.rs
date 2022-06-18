@@ -2,7 +2,7 @@ use std::path::Path;
 
 use git2::{Repository, FetchOptions, AutotagOption};
 
-use crate::gitutils::{checkout_branch, checkout_tag};
+use crate::gitutils::{checkout_branch, checkout_tag, get_head_branch};
 use crate::cli::{StartCommand, FinishCommand};
 
 
@@ -31,15 +31,13 @@ pub fn start_feature(path: &Path, command: &StartCommand) {
     checkout_branch(&repo, branch_name, true).unwrap();
 }
 
-fn finish_feature(path: &Path, command: &FinishCommand) {
+pub fn finish_feature(path: &Path, command: &FinishCommand) {
     let repo = Repository::open(path).expect("Repository not found");
     let mut remote = repo.find_remote("origin").expect("origin not found");
-    let head = repo.head().unwrap();
-    let branch_name = head.shorthand().unwrap();
-    let mut branch = repo.find_branch(repo.head().unwrap().shorthand().unwrap(), git2::BranchType::Local).expect("Branch not found");
-    branch.set_upstream(Some(format!("origin/{}", branch_name).as_str())).unwrap();
-    let mut po = git2::PushOptions::new();
-    remote.push(&[&branch_name], Some(&mut po)).unwrap();
+    let branch = get_head_branch(&repo).unwrap();
+    let branch_name = branch.name().unwrap().unwrap();
+    let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
+    remote.push(&[&refspec], None).unwrap();
 }
 
 
@@ -97,11 +95,7 @@ mod tests {
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
         
-        let command = StartCommand {
-            name: "feature".to_string(),
-            branch: Some("a-feature".to_string()),
-        };
-        start_feature(td.path(), &command);
+        checkout_branch(&repo, "a-feature", true).unwrap();
         commit(&repo, "first commit on feature branch").unwrap();
         commit(&repo, "second commit on feature branch").unwrap();
 

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use clap::Parser;
-use flopha::{cli::{Cli, FinishCommand, Commands, StartCommand}, service::{start_feature, start_hotfix}};
+use flopha::{cli::{Cli, FinishCommand, Commands, StartCommand}, service::{start_feature, start_hotfix, finish_feature}};
 
 
 
@@ -34,10 +34,10 @@ fn on_start(command: &StartCommand) {
 }
 
 fn on_finish(command: &FinishCommand) {
+    let path = Path::new(".");
     match command.name.to_lowercase().as_str() {
         "feature" => {
-            println!("Push branch to remote");
-            println!("Create a pull request to main branch if not already done");
+            finish_feature(path, command)
         }
         "hotfix" => {
             println!("Validate whether it's from tag, not feature branch");

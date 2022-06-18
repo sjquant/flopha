@@ -1,4 +1,4 @@
-use git2::{Repository};
+use git2::{Repository, Branch};
 
 
 pub fn tag_oid(repo: &Repository, id: git2::Oid, tagname: &str) -> Result<git2::Oid, git2::Error> {
@@ -39,4 +39,9 @@ pub fn checkout_tag(repo: &Repository, tag: &str) -> Result<(), git2::Error> {
     repo.checkout_tree(&object, None).expect("Failed to checkout");
     repo.set_head(reference.unwrap().name().unwrap())?;
     Result::Ok(())
+}
+
+
+pub fn get_head_branch(repo: &Repository) -> Result<Branch, git2::Error> {
+    Ok(Branch::wrap(repo.head()?))
 }
