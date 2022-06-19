@@ -1,9 +1,9 @@
-use git2::{Repository, Branch};
+use git2::{Repository, Branch, Tag, DescribeOptions, DescribeFormatOptions};
 
 
-pub fn tag_oid(repo: &Repository, id: git2::Oid, tagname: &str) -> Result<git2::Oid, git2::Error> {
+pub fn tag_oid(repo: &Repository, id: git2::Oid, tagname: &str, force: bool) -> Result<git2::Oid, git2::Error> {
         let obj = repo.find_object(id, None).unwrap();
-        repo.tag_lightweight(tagname, &obj, false)
+        repo.tag_lightweight(tagname, &obj, force)
     }
 
 pub fn commit(repo: &Repository, message: &str) -> Result<git2::Oid, git2::Error> {
@@ -44,6 +44,11 @@ pub fn checkout_tag(repo: &Repository, tag: &str) -> Result<(), git2::Error> {
 
 pub fn get_head_branch(repo: &Repository) -> Result<Branch, git2::Error> {
     Ok(Branch::wrap(repo.head()?))
+}
+
+pub fn get_last_tag_name(repo: &Repository) -> Result<String, git2::Error> {
+    let describe = repo.describe(DescribeOptions::new().describe_tags())?;
+    Ok(describe.format(Some(DescribeFormatOptions::new().abbreviated_size(0)))?)
 }
 
 pub fn fetch_all(remote: &mut git2::Remote) -> Result<(), git2::Error>{

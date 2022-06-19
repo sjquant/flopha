@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use git2::Repository;
+use git2::{Repository};
 
-use crate::gitutils::{checkout_branch, checkout_tag, get_head_branch, fetch_all};
+use crate::gitutils::{checkout_branch, checkout_tag, get_head_branch, fetch_all, get_last_tag_name, tag_oid};
 use crate::cli::{StartCommand, FinishCommand};
 
 
@@ -29,7 +29,7 @@ pub fn start_feature(path: &Path, command: &StartCommand) {
     checkout_branch(&repo, branch_name, true).unwrap();
 }
 
-pub fn finish_feature(path: &Path, command: &FinishCommand) {
+pub fn finish_feature(path: &Path, _command: &FinishCommand) {
     let repo = get_repo(path);
     let mut remote = get_remote(&repo);
     let branch = get_head_branch(&repo).expect("Branch not found");
@@ -46,6 +46,21 @@ pub fn start_hotfix(path: &Path, _command: &StartCommand) {
     let max_tag = tag_names.iter().map(|x| x.unwrap()).max().unwrap();
     checkout_tag(&repo, max_tag).expect("Failed to checkout");
 }
+
+pub fn finish_hotfix(path: &Path, _command: &FinishCommand) {
+    let repo = get_repo(path);
+    let mut remote = get_remote(&repo);
+    let last_tag = get_last_tag_name(&repo).expect("Failed to get last tag");
+
+    let tag_parts = last_tag.rsplit_once(".").expect("Failed to parse tag");
+    let next_tag = format!("{}.{}", tag_parts.0, tag_parts.1.parse::<u32>().expect("Failed to parse tag") + 1);
+    let head_id = repo.head().unwrap().target().unwrap();
+    tag_oid(&repo, head_id, &next_tag, false).expect("Failed to create tag");
+
+    let ref_spec = format!("refs/tags/{}:refs/tags/{}", next_tag, next_tag);
+    remote.push(&[&ref_spec], None).expect("Failed to push tag");
+}   
+
 
 
 #[cfg(test)]
@@ -126,12 +141,12 @@ mod tests {
         let (_remote_td, mut remote)= testutils::init_remote(&repo);
         // 1. Tag the commit v0.1.0, and push to remote
         let id = repo.head().unwrap().target().unwrap();
-        tag_oid(&repo, id, "v0.1.0").unwrap();
+        tag_oid(&repo, id, "v0.1.0", false).unwrap();
         remote.push(&["refs/tags/v0.1.0"], None).unwrap();
         // 2. Add a commit to tag v0.1.0, tag the commit v0.1.1, and push to remote
         checkout_tag(&repo, "v0.1.0").unwrap();
         let commit_id = commit(&repo, "commit v0.1.1").unwrap();
-        tag_oid(&repo, commit_id, "v0.1.1").unwrap();
+        tag_oid(&repo, commit_id, "v0.1.1", false).unwrap();
         remote.push(&["refs/tags/v0.1.1"], None).unwrap();
         // 3. Add new commit to main, and push to remote
         checkout_branch(&repo, "main", false).unwrap();
@@ -152,5 +167,33 @@ mod tests {
         let tag_id = repo.revparse_single("refs/tags/v0.1.1").unwrap().id();
         let head_id = repo.head().unwrap().peel_to_commit().unwrap().id();
         assert_eq!(tag_id, head_id);
+    }
+
+    #[test]
+    fn hotfix_finish_should_push_new_tag_to_remote() {
+        // Given
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+        // 1. Tag the commit v0.1.0, and push to remote
+        let id = repo.head().unwrap().target().unwrap();
+        tag_oid(&repo, id, "v0.1.0", false).unwrap();
+        remote.push(&["refs/tags/v0.1.0"], None).unwrap();
+        // 2. Checkout to tag v0.1.0
+        checkout_tag(&repo, "v0.1.0").unwrap();
+        // 3. Add commits to tag v0.1.0
+        commit(&repo, "First fix").unwrap();
+        commit(&repo, "Second fix").unwrap();
+
+        // When
+        let command = FinishCommand {
+            name: "hotfix".to_string(),
+        };
+        finish_hotfix(td.path(), &command);
+
+        // Then
+        let conn = remote.connect_auth(git2::Direction::Fetch, None, None).unwrap();
+        let remote_tag_head = conn.list().unwrap().iter().find(|x| x.name() == "refs/tags/v0.1.1");
+        assert!(remote_tag_head.is_some());
+        
     }
 }
