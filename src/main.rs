@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use clap::Parser;
-use flopha::{cli::{Cli, FinishCommand, Commands, StartCommand}, service::{start_feature, start_hotfix, finish_feature}};
+use flopha::{cli::{Cli, FinishCommand, Commands, StartCommand}, service::{start_feature, start_hotfix, finish_feature, finish_hotfix}};
 
 
 
@@ -40,9 +40,7 @@ fn on_finish(command: &FinishCommand) {
             finish_feature(path, command)
         }
         "hotfix" => {
-            println!("Validate whether it's from tag, not feature branch");
-            println!("Tag the commit");
-            println!("Push the tag to the remote");
+            finish_hotfix(path, command)
         }
         _ => {
             println!("feature and hotfix are only valid names");

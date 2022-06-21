@@ -1,4 +1,4 @@
-use git2::{Repository, Branch, Tag, DescribeOptions, DescribeFormatOptions};
+use git2::{Repository, Branch, DescribeOptions, DescribeFormatOptions};
 
 
 pub fn tag_oid(repo: &Repository, id: git2::Oid, tagname: &str, force: bool) -> Result<git2::Oid, git2::Error> {

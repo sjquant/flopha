@@ -42,7 +42,10 @@ pub fn start_hotfix(path: &Path, _command: &StartCommand) {
     let repo = get_repo(path);
     let mut remote = get_remote(&repo);
     fetch_all(&mut remote).expect("Failed to fetch from remote");
-    let tag_names = repo.tag_names(Some("*")).expect("Failed to get tags");
+    let tag_names = repo.tag_names(Some("*")).expect("Failed to fetch tags");
+    if tag_names.len() == 0 {
+        panic!("No tags found");
+    }
     let max_tag = tag_names.iter().map(|x| x.unwrap()).max().unwrap();
     checkout_tag(&repo, max_tag).expect("Failed to checkout");
 }
