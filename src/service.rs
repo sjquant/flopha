@@ -2,7 +2,7 @@ use std::path::Path;
 
 use git2::{Repository};
 
-use crate::gitutils::{checkout_branch, checkout_tag, get_head_branch, fetch_all, get_last_tag_name, tag_oid};
+use crate::gitutils::{checkout_branch, checkout_tag, get_head_branch, fetch_all, get_last_tag_name, tag_oid, push_tag, push_branch};
 use crate::cli::{StartCommand, FinishCommand};
 
 
@@ -34,8 +34,7 @@ pub fn finish_feature(path: &Path, _command: &FinishCommand) {
     let mut remote = get_remote(&repo);
     let branch = get_head_branch(&repo).expect("Branch not found");
     let branch_name = branch.name().unwrap().expect("Failed to get branch name");
-    let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
-    remote.push(&[&refspec], None).expect("Failed to push branch");
+    push_branch(&mut remote, branch_name).expect("Failed to push tag");
 }
 
 pub fn start_hotfix(path: &Path, _command: &StartCommand) {
@@ -59,9 +58,7 @@ pub fn finish_hotfix(path: &Path, _command: &FinishCommand) {
     let next_tag = format!("{}.{}", tag_parts.0, tag_parts.1.parse::<u32>().expect("Failed to parse tag") + 1);
     let head_id = repo.head().unwrap().target().unwrap();
     tag_oid(&repo, head_id, &next_tag, false).expect("Failed to create tag");
-
-    let ref_spec = format!("refs/tags/{}:refs/tags/{}", next_tag, next_tag);
-    remote.push(&[&ref_spec], None).expect("Failed to push tag");
+    push_tag(&mut remote, next_tag.as_str()).expect("Failed to push tag");
 }   
 
 
