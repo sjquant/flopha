@@ -52,47 +52,59 @@ pub fn get_last_tag_name(repo: &Repository) -> Result<String, git2::Error> {
 }
 
 pub fn fetch_all(remote: &mut git2::Remote) -> Result<(), git2::Error>{
-    let mut fo = git2::FetchOptions::new();
-    fo.download_tags(git2::AutotagOption::All);
-    let cb = git_callbacks();
-    fo.remote_callbacks(cb);
+    let mut fo = fetch_options();
     remote.fetch(&["refs/heads/*:refs/heads/*"],  Some(&mut fo), None)?;
     Result::Ok(())
 }
 
-pub fn push_tag(remote: &mut git2::Remote, tag: &str) -> Result<(), git2::Error>{
-    let mut po = git2::PushOptions::new();
+fn fetch_options() -> git2::FetchOptions<'static> {
+    let mut fo = git2::FetchOptions::new();
+    fo.download_tags(git2::AutotagOption::All);
     let cb = git_callbacks();
-    po.remote_callbacks(cb);
+    fo.remote_callbacks(cb);
+    fo
+}
+
+pub fn push_tag(remote: &mut git2::Remote, tag: &str) -> Result<(), git2::Error>{
+    let mut po = push_options();
     let ref_spec = format!("refs/tags/{}:refs/tags/{}", tag, tag);
     remote.push(&[&ref_spec], Some(&mut po))?;
     Result::Ok(())
 }
 
-
 pub fn push_branch(remote: &mut git2::Remote, branch_name: &str) -> Result<(), git2::Error>{
-    let mut po = git2::PushOptions::new();
-    let cb = git_callbacks();
-    po.remote_callbacks(cb);
+    let mut po = push_options();
     let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
     remote.push(&[&refspec], Some(&mut po))?;
     Result::Ok(())
 }
 
+fn push_options() -> git2::PushOptions<'static> {
+    let mut po = git2::PushOptions::new();
+    let cb = git_callbacks();
+    po.remote_callbacks(cb);
+    po
+}
 
-// I almost brought this from https://github.com/AchetaGames/Epic-Asset-Manager/blob/c8377966d984d34786f5baeddb0c6ca33e38c5bd/src/models/engine_data.rs#L427
+
 fn git_callbacks() -> git2::RemoteCallbacks<'static> {
     let git_config = git2::Config::open_default().unwrap();
     let mut cb = git2::RemoteCallbacks::new();
     cb.credentials(move |url, username, allowed| {
         let mut cred_helper = git2::CredentialHelper::new(url);
         cred_helper.config(&git_config);
-        if allowed.is_user_pass_plaintext() {
+        if allowed.is_ssh_key() {
+            let user = username
+                .map(std::string::ToString::to_string)
+                .or_else(|| cred_helper.username.clone())
+                .unwrap_or_else(|| "git".to_string());
+            git2::Cred::ssh_key_from_agent(&user)
+        } else if allowed.is_user_pass_plaintext() {
             git2::Cred::credential_helper(&git_config, url, username)
         } else if allowed.is_default() {
             git2::Cred::default()
         } else {
-            Err(git2::Error::from_str("no authentication available"))
+            Err(git2::Error::from_str("Remote authentication is required but none available"))
         }
     });
     cb
