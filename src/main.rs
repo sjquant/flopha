@@ -1,50 +1,25 @@
 use std::path::Path;
 
 use clap::Parser;
-use flopha::{cli::{Cli, FinishCommand, Commands, StartCommand}, service::{start_feature, start_hotfix, finish_feature, finish_hotfix}};
+use flopha::{cli::{Cli, Commands, StartFeatureArgs}, service::{start_feature, start_hotfix, finish_feature, finish_hotfix}};
 
 
 
 fn main() {
     let cli = Cli::parse();
+    let path = Path::new(".");
     match &cli.command {
-        Commands::Start(command) => {
-            on_start(command);
+        Commands::StartFeature(args) => {
+            start_feature(path, args);
         }
-        Commands::Finish(command) => {
-            on_finish(command);
+        Commands::FinishFeature(args) => {
+            finish_feature(path, args);
         }
-    }
-}
-
-fn on_start(command: &StartCommand) {
-    let path = Path::new(".");
-    match command.name.to_lowercase().as_str() {
-        "feature" => {
-            start_feature(path, command);
+        Commands::StartHotfix(args) => {
+            start_hotfix(path, args);
         }
-        "hotfix" => {
-            start_hotfix(path, command);
-        }
-        _ => {
-            println!("feature and hotfix are only valid names");
-            std::process::exit(1);
-        }
-    }
-}
-
-fn on_finish(command: &FinishCommand) {
-    let path = Path::new(".");
-    match command.name.to_lowercase().as_str() {
-        "feature" => {
-            finish_feature(path, command)
-        }
-        "hotfix" => {
-            finish_hotfix(path, command)
-        }
-        _ => {
-            println!("feature and hotfix are only valid names");
-            std::process::exit(1);
+        Commands::FinishHotfix(args) => {
+            finish_hotfix(path, args);
         }
     }
 }

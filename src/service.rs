@@ -3,7 +3,7 @@ use std::path::Path;
 use git2::{Repository};
 
 use crate::gitutils::{checkout_branch, checkout_tag, get_head_branch, fetch_all, get_last_tag_name, tag_oid, push_tag, push_branch};
-use crate::cli::{StartCommand, FinishCommand};
+use crate::cli::{StartFeatureArgs, FinishFeatureArgs, StartHotfixArgs, FinishHotfixArgs};
 
 
 fn get_repo(path: &Path) -> Repository {
@@ -17,19 +17,19 @@ fn get_remote(repo: &Repository) -> git2::Remote {
     remote
 }
 
-pub fn start_feature(path: &Path, command: &StartCommand) {
+pub fn start_feature(path: &Path, args: &StartFeatureArgs) {
     let repo = get_repo(path);
-    let branch_name = command.branch.as_ref().expect("'branch' is required to start feature").as_str();
+    let branch_name = args.branch.as_str();
     let branch = repo.find_branch(branch_name, git2::BranchType::Local);
     if let Err(_) = branch {
-        let branch_name = command.branch.as_ref().unwrap().as_str();
+        let branch_name = args.branch.as_str();
         let commit = repo.head().unwrap().peel_to_commit().unwrap();
         repo.branch(branch_name, &commit, true).unwrap();
     }
     checkout_branch(&repo, branch_name, true).unwrap();
 }
 
-pub fn finish_feature(path: &Path, _command: &FinishCommand) {
+pub fn finish_feature(path: &Path, _args: &FinishFeatureArgs) {
     let repo = get_repo(path);
     let mut remote = get_remote(&repo);
     let branch = get_head_branch(&repo).expect("Branch not found");
@@ -37,7 +37,7 @@ pub fn finish_feature(path: &Path, _command: &FinishCommand) {
     push_branch(&mut remote, branch_name).expect("Failed to push tag");
 }
 
-pub fn start_hotfix(path: &Path, _command: &StartCommand) {
+pub fn start_hotfix(path: &Path, _args: &StartHotfixArgs) {
     let repo = get_repo(path);
     let mut remote = get_remote(&repo);
     fetch_all(&mut remote).expect("Failed to fetch from remote");
@@ -49,7 +49,7 @@ pub fn start_hotfix(path: &Path, _command: &StartCommand) {
     checkout_tag(&repo, max_tag).expect("Failed to checkout");
 }
 
-pub fn finish_hotfix(path: &Path, _command: &FinishCommand) {
+pub fn finish_hotfix(path: &Path, _args: &FinishHotfixArgs) {
     let repo = get_repo(path);
     let mut remote = get_remote(&repo);
     let last_tag = get_last_tag_name(&repo).expect("Failed to get last tag");
@@ -75,9 +75,8 @@ mod tests {
         let (td, repo) = testutils::init_repo();
         
         // When
-        let command = StartCommand {
-            name: "feature".to_string(),
-            branch: Some("new-feature".to_string()),
+        let command = StartFeatureArgs {
+            branch: "new-feature".to_string(),
         };
         start_feature(td.path(), &command);
 
@@ -96,11 +95,10 @@ mod tests {
         checkout_branch(&repo, "main", false).unwrap();
 
         // When
-        let command = StartCommand {
-            name: "feature".to_string(),
-            branch: Some("existing-feature".to_string()),
+        let args = StartFeatureArgs {
+            branch: "existing-feature".to_string(),
         };
-        start_feature(td.path(), &command);
+        start_feature(td.path(), &args);
 
         // Then
         let branch = repo.find_branch("existing-feature", BranchType::Local).unwrap();
@@ -122,10 +120,8 @@ mod tests {
         commit(&repo, "second commit on feature branch").unwrap();
 
         // When
-        let command = FinishCommand {
-            name: "feature".to_string(),
-        };
-        finish_feature(td.path(), &command);
+        let args = FinishFeatureArgs {};
+        finish_feature(td.path(), &args);
 
         // Then
         let conn = remote.connect_auth(git2::Direction::Fetch, None, None).unwrap();
@@ -157,11 +153,8 @@ mod tests {
         repo.tag_delete("v0.1.1").unwrap();
 
         // When
-        let command = StartCommand {
-            name: "hotfix".to_string(),
-            branch: None,
-        };
-        start_hotfix(td.path(), &command);
+        let args = StartHotfixArgs {};
+        start_hotfix(td.path(), &args);
 
         // Then
         let tag_id = repo.revparse_single("refs/tags/v0.1.1").unwrap().id();
@@ -185,15 +178,12 @@ mod tests {
         commit(&repo, "Second fix").unwrap();
 
         // When
-        let command = FinishCommand {
-            name: "hotfix".to_string(),
-        };
-        finish_hotfix(td.path(), &command);
+        let args = FinishHotfixArgs {};
+        finish_hotfix(td.path(), &args);
 
         // Then
         let conn = remote.connect_auth(git2::Direction::Fetch, None, None).unwrap();
         let remote_tag_head = conn.list().unwrap().iter().find(|x| x.name() == "refs/tags/v0.1.1");
         assert!(remote_tag_head.is_some());
-        
     }
 }

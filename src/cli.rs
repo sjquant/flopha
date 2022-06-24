@@ -12,20 +12,28 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    Start(StartCommand),
-    Finish(FinishCommand),
+    StartFeature(StartFeatureArgs),
+    FinishFeature(FinishFeatureArgs),
+    StartHotfix(StartHotfixArgs),
+    FinishHotfix(FinishHotfixArgs),
 }
 
 #[derive(Args)]
-pub struct StartCommand {
-    pub name: String,
-
+pub struct StartFeatureArgs {
     /// Feature branch name to move to or create if not exists
     #[clap(short, long)]
-    pub branch: Option<String>,
+    pub branch: String,
 }
 
 #[derive(Args)]
-pub struct FinishCommand {
-    pub name: String,
+pub struct FinishFeatureArgs {
+}
+
+#[derive(Args)]
+pub struct StartHotfixArgs {
+}
+
+
+#[derive(Args)]
+pub struct FinishHotfixArgs {
 }
