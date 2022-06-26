@@ -49,18 +49,39 @@ pub fn start_hotfix(path: &Path, _args: &StartHotfixArgs) {
     checkout_tag(&repo, max_tag).expect("Failed to checkout");
 }
 
-pub fn finish_hotfix(path: &Path, _args: &FinishHotfixArgs) {
+pub fn finish_hotfix(path: &Path, args: &FinishHotfixArgs) {
     let repo = get_repo(path);
-    let mut remote = get_remote(&repo);
     let last_tag = get_last_tag_name(&repo).expect("Failed to get last tag");
-
     let tag_parts = last_tag.rsplit_once(".").expect("Failed to parse tag");
     let next_tag = format!("{}.{}", tag_parts.0, tag_parts.1.parse::<u32>().expect("Failed to parse tag") + 1);
-    let head_id = repo.head().unwrap().target().unwrap();
-    tag_oid(&repo, head_id, &next_tag, false).expect("Failed to create tag");
-    push_tag(&mut remote, next_tag.as_str()).expect("Failed to push tag");
-}   
 
+    if args.force {
+        push_hotfix(&repo, next_tag.as_str());
+        return
+    }
+
+    println!("Do you want to release hotfix as '{}'?", next_tag);
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).expect("Failed to read input");
+    if input.to_lowercase().trim() == "y" {
+        push_hotfix(&repo, next_tag.as_str());
+    }
+}
+
+fn push_hotfix(repo: &Repository, tag_name: &str) {
+    let mut remote = get_remote(&repo);
+    let head = repo.head().unwrap();
+    let head_id = head.target().unwrap();
+    let is_on_branch = head.is_branch();
+
+    // TODO: later on, we should allow it on prod branch used for release)
+    if is_on_branch {
+        panic!("Cannot push hotfix on branch. Please checkout to tag");
+    }
+
+    tag_oid(&repo, head_id, tag_name, false).expect("Failed to create tag");
+    push_tag(&mut remote, tag_name).expect("Failed to push tag");
+}
 
 
 #[cfg(test)]
@@ -178,12 +199,39 @@ mod tests {
         commit(&repo, "Second fix").unwrap();
 
         // When
-        let args = FinishHotfixArgs {};
+        let args = FinishHotfixArgs {
+            force: true
+        };
         finish_hotfix(td.path(), &args);
 
         // Then
         let conn = remote.connect_auth(git2::Direction::Fetch, None, None).unwrap();
         let remote_tag_head = conn.list().unwrap().iter().find(|x| x.name() == "refs/tags/v0.1.1");
         assert!(remote_tag_head.is_some());
+    }
+
+    #[test]
+    fn cannot_finish_hotfix_on_branch() {
+        // Given
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+        // 1. Tag the commit v0.1.0, and push to remote
+        let id = repo.head().unwrap().target().unwrap();
+        tag_oid(&repo, id, "v0.1.0", false).unwrap();
+        remote.push(&["refs/tags/v0.1.0"], None).unwrap();
+        // 2. Checkout to a branch
+        checkout_branch(&repo, "a-branch", true).unwrap();
+        // 3. Add commits to the branch
+        commit(&repo, "First fix").unwrap();
+        commit(&repo, "Second fix").unwrap();
+
+        // When
+        let args = FinishHotfixArgs {
+            force: true
+        };
+        let result = std::panic::catch_unwind(|| finish_hotfix(td.path(), &args));
+        
+        // Then
+        assert!(result.is_err());
     }
 }

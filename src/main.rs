@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use clap::Parser;
-use flopha::{cli::{Cli, Commands, StartFeatureArgs}, service::{start_feature, start_hotfix, finish_feature, finish_hotfix}};
+use flopha::{cli::{Cli, Commands}, service::{start_feature, start_hotfix, finish_feature, finish_hotfix}};
 
 
 

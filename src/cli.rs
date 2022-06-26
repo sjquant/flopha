@@ -36,4 +36,6 @@ pub struct StartHotfixArgs {
 
 #[derive(Args)]
 pub struct FinishHotfixArgs {
+    #[clap(short, long)]
+    pub force: bool,
 }
