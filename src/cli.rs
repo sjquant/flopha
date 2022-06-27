@@ -12,9 +12,13 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Create a feature branch and start working on it.
     StartFeature(StartFeatureArgs),
+    /// Push a feature branch to origin
     FinishFeature(FinishFeatureArgs),
+    /// Start hotfix from the latest tag
     StartHotfix(StartHotfixArgs),
+    /// Finish hotfix, bump up tag, and push it to origin
     FinishHotfix(FinishHotfixArgs),
 }
 
