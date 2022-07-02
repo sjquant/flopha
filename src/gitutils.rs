@@ -31,6 +31,7 @@ pub fn checkout_branch(repo: &Repository, name: &str, force: bool) -> Result<(),
     let (object, reference) = repo.revparse_ext(name).expect("Branch not found");
     repo.checkout_tree(&object, None).expect("Failed to checkout");
     repo.set_head(reference.unwrap().name().unwrap())?;
+    println!("Switched to branch '{}'", name);
     Result::Ok(())
 }
 
@@ -38,6 +39,7 @@ pub fn checkout_tag(repo: &Repository, tag: &str) -> Result<(), git2::Error> {
     let (object, reference) = repo.revparse_ext(tag).expect("Tag not found");
     repo.checkout_tree(&object, None).expect("Failed to checkout");
     repo.set_head(reference.unwrap().name().unwrap())?;
+    println!("Switched to tag '{}'", tag);
     Result::Ok(())
 }
 
@@ -52,8 +54,10 @@ pub fn get_last_tag_name(repo: &Repository) -> Result<String, git2::Error> {
 }
 
 pub fn fetch_all(remote: &mut git2::Remote) -> Result<(), git2::Error>{
+    println!("Fetching all branches and tags from remote...");
     let mut fo = fetch_options();
     remote.fetch(&["refs/heads/*:refs/heads/*"],  Some(&mut fo), None)?;
+    println!("Successfully fetched all branches and tags from remote.");
     Result::Ok(())
 }
 
@@ -66,16 +70,20 @@ fn fetch_options() -> git2::FetchOptions<'static> {
 }
 
 pub fn push_tag(remote: &mut git2::Remote, tag: &str) -> Result<(), git2::Error>{
+    println!("Pushing tag '{}' to remote...", tag);
     let mut po = push_options();
     let ref_spec = format!("refs/tags/{}:refs/tags/{}", tag, tag);
     remote.push(&[&ref_spec], Some(&mut po))?;
+    println!("Successfully pushed tag '{}' to remote.", tag);
     Result::Ok(())
 }
 
 pub fn push_branch(remote: &mut git2::Remote, branch_name: &str) -> Result<(), git2::Error>{
+    println!("Pushing branch '{}' to remote...", branch_name);
     let mut po = push_options();
     let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
     remote.push(&[&refspec], Some(&mut po))?;
+    println!("Successfully pushed branch '{}' to remote.", branch_name);
     Result::Ok(())
 }
 
