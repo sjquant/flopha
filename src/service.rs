@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use git2::{Repository};
+use regex::Regex;
 
 use crate::gitutils::{checkout_branch, checkout_tag, get_head_branch, fetch_all, get_last_tag_name, tag_oid, push_tag, push_branch};
 use crate::cli::{StartFeatureArgs, FinishFeatureArgs, StartHotfixArgs, FinishHotfixArgs};
@@ -45,8 +46,21 @@ pub fn start_hotfix(path: &Path, _args: &StartHotfixArgs) {
     if tag_names.len() == 0 {
         panic!("No tags found");
     }
-    let max_tag = tag_names.iter().map(|x| x.unwrap()).max().unwrap();
-    checkout_tag(&repo, max_tag).expect("Failed to checkout");
+    let latest_tag = get_latest_tag(tag_names);
+    checkout_tag(&repo, latest_tag.as_str()).expect("Failed to checkout");
+}
+
+fn get_latest_tag(tag_names: git2::string_array::StringArray) -> String {
+    let version_tags = tag_names.iter().filter_map(|tag_name| {
+        let tag_name = tag_name.unwrap();
+        let re = Regex::new(r"^v?\d+\.\d+\.\d+$").unwrap();
+        if re.is_match(tag_name) {
+            Some(tag_name)
+        } else {
+            None
+        }
+    });
+    version_tags.max().unwrap().to_string()
 }
 
 pub fn finish_hotfix(path: &Path, args: &FinishHotfixArgs) {
@@ -165,11 +179,15 @@ mod tests {
         let commit_id = commit(&repo, "commit v0.1.1").unwrap();
         tag_oid(&repo, commit_id, "v0.1.1", false).unwrap();
         remote.push(&["refs/tags/v0.1.1"], None).unwrap();
-        // 3. Add new commit to main, and push to remote
+        // 3. Add a commit to tag v0.1.1, tag the commit zzzzz, and push to remote
+        let commit_id = commit(&repo, "commit zzzzz").unwrap();
+        tag_oid(&repo, commit_id, "zzzzz", false).unwrap();
+        remote.push(&["refs/tags/zzzzz"], None).unwrap();
+        // 4. Add new commit to main, and push to remote
         checkout_branch(&repo, "main", false).unwrap();
         commit(&repo, "new commit").unwrap();
         remote.push(&["refs/heads/main"], None).unwrap();
-        // 4. Remove all tags from local
+        // 5. Remove all tags from local
         repo.tag_delete("v0.1.0").unwrap();
         repo.tag_delete("v0.1.1").unwrap();
 

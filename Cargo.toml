@@ -9,6 +9,7 @@ edition = "2021"
 git2 = "0.14"
 clap = { version = "3.1.18", features = ["derive"] }
 openssl = { version = "0.10", features = ["vendored"] }  # to fix build error
+regex = "1.5"
 
 [dev-dependencies]
 url = "2.0"
