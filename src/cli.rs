@@ -1,7 +1,5 @@
 use clap::{Args, Parser, Subcommand};
 
-
-
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
@@ -30,13 +28,10 @@ pub struct StartFeatureArgs {
 }
 
 #[derive(Args)]
-pub struct FinishFeatureArgs {
-}
+pub struct FinishFeatureArgs {}
 
 #[derive(Args)]
-pub struct StartHotfixArgs {
-}
-
+pub struct StartHotfixArgs {}
 
 #[derive(Args)]
 pub struct FinishHotfixArgs {

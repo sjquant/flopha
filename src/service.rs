@@ -1,20 +1,23 @@
 use std::path::Path;
 
-use git2::{Repository};
+use git2::Repository;
 use regex::Regex;
 
-use crate::gitutils::{checkout_branch, checkout_tag, get_head_branch, fetch_all, get_last_tag_name, tag_oid, push_tag, push_branch};
-use crate::cli::{StartFeatureArgs, FinishFeatureArgs, StartHotfixArgs, FinishHotfixArgs};
-
+use crate::cli::{FinishFeatureArgs, FinishHotfixArgs, StartFeatureArgs, StartHotfixArgs};
+use crate::gitutils::{
+    checkout_branch, checkout_tag, fetch_all, get_head_branch, get_last_tag_name, push_branch,
+    push_tag, tag_oid,
+};
 
 fn get_repo(path: &Path) -> Repository {
     let repo = Repository::open(path).expect("Repository not found");
     repo
 }
 
-
 fn get_remote(repo: &Repository) -> git2::Remote {
-    let remote = repo.find_remote("origin").expect("Remote 'origin' not found");
+    let remote = repo
+        .find_remote("origin")
+        .expect("Remote 'origin' not found");
     remote
 }
 
@@ -67,16 +70,22 @@ pub fn finish_hotfix(path: &Path, args: &FinishHotfixArgs) {
     let repo = get_repo(path);
     let last_tag = get_last_tag_name(&repo).expect("Failed to get last tag");
     let tag_parts = last_tag.rsplit_once(".").expect("Failed to parse tag");
-    let next_tag = format!("{}.{}", tag_parts.0, tag_parts.1.parse::<u32>().expect("Failed to parse tag") + 1);
+    let next_tag = format!(
+        "{}.{}",
+        tag_parts.0,
+        tag_parts.1.parse::<u32>().expect("Failed to parse tag") + 1
+    );
 
     if args.force {
         push_hotfix(&repo, next_tag.as_str());
-        return
+        return;
     }
 
     println!("Do you want to release hotfix as '{}'?", next_tag);
     let mut input = String::new();
-    std::io::stdin().read_line(&mut input).expect("Failed to read input");
+    std::io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read input");
     if input.to_lowercase().trim() == "y" {
         push_hotfix(&repo, next_tag.as_str());
     }
@@ -97,18 +106,20 @@ fn push_hotfix(repo: &Repository, tag_name: &str) {
     push_tag(&mut remote, tag_name).expect("Failed to push tag");
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::{testutils, gitutils::{commit, tag_oid}};
     use super::*;
-    use git2::{BranchType};
+    use crate::{
+        gitutils::{commit, tag_oid},
+        testutils,
+    };
+    use git2::BranchType;
 
     #[test]
     fn feature_start_creates_new_branch_if_not_exists() {
         // Given
         let (td, repo) = testutils::init_repo();
-        
+
         // When
         let command = StartFeatureArgs {
             branch: "new-feature".to_string(),
@@ -136,12 +147,17 @@ mod tests {
         start_feature(td.path(), &args);
 
         // Then
-        let branch = repo.find_branch("existing-feature", BranchType::Local).unwrap();
+        let branch = repo
+            .find_branch("existing-feature", BranchType::Local)
+            .unwrap();
         let commit = branch.into_reference().peel_to_commit().unwrap();
         let head = repo.head().unwrap();
         let current_branch_name = head.name().unwrap();
         assert_eq!(current_branch_name, "refs/heads/existing-feature");
-        assert_eq!(commit.message().unwrap(), "commit on existing feature branch");
+        assert_eq!(
+            commit.message().unwrap(),
+            "commit on existing feature branch"
+        );
     }
 
     #[test]
@@ -149,7 +165,7 @@ mod tests {
         // Given
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
-        
+
         checkout_branch(&repo, "a-feature", true).unwrap();
         commit(&repo, "first commit on feature branch").unwrap();
         commit(&repo, "second commit on feature branch").unwrap();
@@ -159,17 +175,22 @@ mod tests {
         finish_feature(td.path(), &args);
 
         // Then
-        let conn = remote.connect_auth(git2::Direction::Fetch, None, None).unwrap();
-        let remote_branch_head = conn.list().unwrap().iter().find(|x| x.name() == "refs/heads/a-feature");
+        let conn = remote
+            .connect_auth(git2::Direction::Fetch, None, None)
+            .unwrap();
+        let remote_branch_head = conn
+            .list()
+            .unwrap()
+            .iter()
+            .find(|x| x.name() == "refs/heads/a-feature");
         assert!(remote_branch_head.is_some());
-        
     }
 
-     #[test]
+    #[test]
     fn hotfix_start_checkout_to_remote_latest_tag() {
         // Given
         let (td, repo) = testutils::init_repo();
-        let (_remote_td, mut remote)= testutils::init_remote(&repo);
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
         // 1. Tag the commit v0.1.0, and push to remote
         let id = repo.head().unwrap().target().unwrap();
         tag_oid(&repo, id, "v0.1.0", false).unwrap();
@@ -217,14 +238,18 @@ mod tests {
         commit(&repo, "Second fix").unwrap();
 
         // When
-        let args = FinishHotfixArgs {
-            force: true
-        };
+        let args = FinishHotfixArgs { force: true };
         finish_hotfix(td.path(), &args);
 
         // Then
-        let conn = remote.connect_auth(git2::Direction::Fetch, None, None).unwrap();
-        let remote_tag_head = conn.list().unwrap().iter().find(|x| x.name() == "refs/tags/v0.1.1");
+        let conn = remote
+            .connect_auth(git2::Direction::Fetch, None, None)
+            .unwrap();
+        let remote_tag_head = conn
+            .list()
+            .unwrap()
+            .iter()
+            .find(|x| x.name() == "refs/tags/v0.1.1");
         assert!(remote_tag_head.is_some());
     }
 
@@ -244,11 +269,9 @@ mod tests {
         commit(&repo, "Second fix").unwrap();
 
         // When
-        let args = FinishHotfixArgs {
-            force: true
-        };
+        let args = FinishHotfixArgs { force: true };
         let result = std::panic::catch_unwind(|| finish_hotfix(td.path(), &args));
-        
+
         // Then
         assert!(result.is_err());
     }
