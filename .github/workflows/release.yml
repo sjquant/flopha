@@ -59,7 +59,7 @@ jobs:
     - name: Build archive
       shell: bash
       run: |
-        staging="flopha-${{ env.FLOPHA_VERSION }}-${{ matrix.target }}"
+        staging="flopha-${{ matrix.target }}"
         mkdir "$staging"
         cp {README.md,LICENSE} "$staging"
         cp "target/${{ matrix.target }}/release/flopha" "$staging/"
