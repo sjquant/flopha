@@ -13,9 +13,9 @@ case $(uname -sm) in
 esac
 
 if [ $# -eq 0 ]; then
-	flopha_uri="https://github.com/sjquant/flopha/releases/download/latest/flopha-${target}.zip"
+	flopha_uri="https://github.com/sjquant/flopha/releases/latest/download/flopha-${target}.tar.gz"
 else
-	flopha_uri="https://github.com/sjquant/flopha/releases/download/${1}/flopha-${target}.zip"
+	flopha_uri="https://github.com/sjquant/flopha/releases/download/${1}/flopha-${target}.tar.gz"
 fi
 
 flopha_install="${FLOPHA_INSTALL:-$HOME/.flopha}"
@@ -26,10 +26,10 @@ if [ ! -d "$bin_dir" ]; then
 	mkdir -p "$bin_dir"
 fi
 
-curl --fail --location --progress-bar --output "$exe.zip" "$flopha_uri"
-unzip -d "$bin_dir" -o "$exe.zip"
+curl --fail --location --progress-bar --output "$exe.tar.gz" "$flopha_uri"
+tar -xvzf "$exe.tar.gz" -C "$bin_dir"
 chmod +x "$exe"
-rm "$exe.zip"
+rm "$exe.tar.gz"
 
 echo "Flopha was installed successfully to $exe"
 if command -v flopha >/dev/null; then

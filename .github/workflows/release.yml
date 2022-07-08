@@ -1,0 +1,74 @@
+name: release
+on:
+  push:
+    tags:
+    - "v[0-9]+.[0-9]+.[0-9]+"
+
+concurrency:
+  group: ${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build-release:
+    name: build-release ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        include:
+        - build: linux
+          os: ubuntu-18.04
+          rust: stable
+          target: x86_64-unknown-linux-musl
+        - build: macos
+          os: macos-latest
+          rust: stable
+          target: x86_64-apple-darwin
+    env:
+      RUST_BACKTRACE: full
+      TARGET_DIR: ./target
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Get the release version from the tag
+      shell: bash
+      if: env.FLOPHA_VERSION == ''
+      run: |
+        echo "FLOPHA_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        echo "version is: ${{ env.FLOPHA_VERSION }}"
+
+    - name: Install packages (Ubuntu)
+      if: matrix.os == 'ubuntu-18.04'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y musl-tools
+  
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+
+    - name: Build release binary
+      run: |
+        rustup target add ${{ matrix.target }}
+        cargo build --verbose --release --target ${{ matrix.target }}
+
+    - name: Build archive
+      shell: bash
+      run: |
+        staging="flopha-${{ env.FLOPHA_VERSION }}-${{ matrix.target }}"
+        mkdir "$staging"
+        cp {README.md,LICENSE} "$staging"
+        cp "target/${{ matrix.target }}/release/flopha" "$staging/"
+        tar -C "$staging" -cvzf "$staging.tar.gz" .
+        echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
+
+    - name: Upload release archive
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        token: ${{ secrets.FLOPHA_GITHUB_TOKEN }}
+        files: ${{ env.ASSET }}
