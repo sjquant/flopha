@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-if ! command -v unzip >/dev/null; then
-	echo "Error: unzip is required to install 'flopha'" 1>&2
+if ! command -v tar >/dev/null; then
+	echo "Error: tar is required to install 'flopha'" 1>&2
 	exit 1
 fi
 
@@ -27,7 +27,7 @@ if [ ! -d "$bin_dir" ]; then
 fi
 
 curl --fail --location --progress-bar --output "$exe.tar.gz" "$flopha_uri"
-tar -xvzf "$exe.tar.gz" -C "$bin_dir"
+tar -xzf "$exe.tar.gz" -C "$bin_dir"
 chmod +x "$exe"
 rm "$exe.tar.gz"
 
