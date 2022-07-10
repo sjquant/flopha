@@ -54,16 +54,26 @@ pub fn start_hotfix(path: &Path, _args: &StartHotfixArgs) {
 }
 
 fn get_latest_tag(tag_names: git2::string_array::StringArray) -> String {
-    let version_tags = tag_names.iter().filter_map(|tag_name| {
+    let plain_version_tags = tag_names.iter().filter_map(|tag_name| {
         let tag_name = tag_name.unwrap();
         let re = Regex::new(r"^v?\d+\.\d+\.\d+$").unwrap();
         if re.is_match(tag_name) {
-            Some(tag_name)
+            Some(tag_name.replace("v", "").replace(".", ""))
         } else {
             None
         }
     });
-    version_tags.max().unwrap().to_string()
+    let max_version_tag = plain_version_tags.filter_map(|tag| {
+        let version: u64 = tag.parse().unwrap();
+        Some(version)
+    }
+    ).max().unwrap();
+
+    tag_names.iter().find(|tag_name| {
+        let tag_name = tag_name.unwrap();
+        let version: u64 = tag_name.replace("v", "").replace(".", "").parse().unwrap();
+        version == max_version_tag
+    }).unwrap().unwrap().to_string()
 }
 
 pub fn finish_hotfix(path: &Path, args: &FinishHotfixArgs) {
