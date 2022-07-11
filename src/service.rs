@@ -49,31 +49,45 @@ pub fn start_hotfix(path: &Path, _args: &StartHotfixArgs) {
     if tag_names.len() == 0 {
         panic!("No tags found");
     }
-    let latest_tag = get_latest_tag(tag_names);
-    checkout_tag(&repo, latest_tag.as_str()).expect("Failed to checkout");
+    let max_version = get_max_version(tag_names);
+    checkout_tag(&repo, max_version.as_str()).expect("Failed to checkout");
 }
 
-fn get_latest_tag(tag_names: git2::string_array::StringArray) -> String {
-    let plain_version_tags = tag_names.iter().filter_map(|tag_name| {
+fn get_max_version(tag_names: git2::string_array::StringArray) -> String {
+    let mut max_version = "";
+    for tag_name in tag_names.iter() {
         let tag_name = tag_name.unwrap();
-        let re = Regex::new(r"^v?\d+\.\d+\.\d+$").unwrap();
-        if re.is_match(tag_name) {
-            Some(tag_name.replace("v", "").replace(".", ""))
-        } else {
-            None
-        }
-    });
-    let max_version_tag = plain_version_tags.filter_map(|tag| {
-        let version: u64 = tag.parse().unwrap();
-        Some(version)
-    }
-    ).max().unwrap();
+        let re = Regex::new(r"^v?(\d+)\.(\d+)\.(\d+)").unwrap();
+        let max_captures = re.captures(max_version);
 
-    tag_names.iter().find(|tag_name| {
-        let tag_name = tag_name.unwrap();
-        let version: u64 = tag_name.replace("v", "").replace(".", "").parse().unwrap();
-        version == max_version_tag
-    }).unwrap().unwrap().to_string()
+        if max_captures.is_none() {
+            max_version = tag_name;
+            continue;
+        }
+
+        if let Some(captures) = re.captures(tag_name) {
+            let major = captures.get(1).unwrap().as_str().parse::<i32>().unwrap();
+            let minor = captures.get(2).unwrap().as_str().parse::<i32>().unwrap();
+            let patch = captures.get(3).unwrap().as_str().parse::<i32>().unwrap();
+            
+            let max_captures = max_captures.unwrap();
+            let max_major = max_captures.get(1).unwrap().as_str().parse::<i32>().unwrap();
+            let max_minor = max_captures.get(2).unwrap().as_str().parse::<i32>().unwrap();
+            let max_patch = max_captures.get(3).unwrap().as_str().parse::<i32>().unwrap();
+
+            if major > max_major {
+                max_version = tag_name;
+            } else if major == max_major && minor > max_minor {
+                max_version = tag_name;
+            } else if major == max_major && minor == max_minor && patch > max_patch {
+                max_version = tag_name;
+            }
+        }
+    }
+    if max_version == "" {
+        panic!("No version tags found");
+    }
+    max_version.to_string()
 }
 
 pub fn finish_hotfix(path: &Path, args: &FinishHotfixArgs) {
@@ -201,16 +215,16 @@ mod tests {
         // Given
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
-        // 1. Tag the commit v0.1.0, and push to remote
+        // 1. Tag the commit v0.1.9, and push to remote
         let id = repo.head().unwrap().target().unwrap();
-        tag_oid(&repo, id, "v0.1.0", false).unwrap();
-        remote.push(&["refs/tags/v0.1.0"], None).unwrap();
-        // 2. Add a commit to tag v0.1.0, tag the commit v0.1.1, and push to remote
-        checkout_tag(&repo, "v0.1.0").unwrap();
-        let commit_id = commit(&repo, "commit v0.1.1").unwrap();
-        tag_oid(&repo, commit_id, "v0.1.1", false).unwrap();
-        remote.push(&["refs/tags/v0.1.1"], None).unwrap();
-        // 3. Add a commit to tag v0.1.1, tag the commit zzzzz, and push to remote
+        tag_oid(&repo, id, "v0.1.9", false).unwrap();
+        remote.push(&["refs/tags/v0.1.9"], None).unwrap();
+        // 2. Add a commit to tag v0.1.9, tag the commit v0.1.10, and push to remote
+        checkout_tag(&repo, "v0.1.9").unwrap();
+        let commit_id = commit(&repo, "commit v0.1.10").unwrap();
+        tag_oid(&repo, commit_id, "v0.1.10", false).unwrap();
+        remote.push(&["refs/tags/v0.1.10"], None).unwrap();
+        // 3. Add a commit to tag v0.1.10, tag the commit zzzzz, and push to remote
         let commit_id = commit(&repo, "commit zzzzz").unwrap();
         tag_oid(&repo, commit_id, "zzzzz", false).unwrap();
         remote.push(&["refs/tags/zzzzz"], None).unwrap();
@@ -219,15 +233,15 @@ mod tests {
         commit(&repo, "new commit").unwrap();
         remote.push(&["refs/heads/main"], None).unwrap();
         // 5. Remove all tags from local
-        repo.tag_delete("v0.1.0").unwrap();
-        repo.tag_delete("v0.1.1").unwrap();
+        repo.tag_delete("v0.1.9").unwrap();
+        repo.tag_delete("v0.1.10").unwrap();
 
         // When
         let args = StartHotfixArgs {};
         start_hotfix(td.path(), &args);
 
         // Then
-        let tag_id = repo.revparse_single("refs/tags/v0.1.1").unwrap().id();
+        let tag_id = repo.revparse_single("refs/tags/v0.1.10").unwrap().id();
         let head_id = repo.head().unwrap().peel_to_commit().unwrap().id();
         assert_eq!(tag_id, head_id);
     }
