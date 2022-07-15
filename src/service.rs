@@ -66,14 +66,14 @@ fn get_max_version(tag_names: git2::string_array::StringArray) -> String {
         }
 
         if let Some(captures) = re.captures(tag_name) {
-            let major = captures.get(1).unwrap().as_str().parse::<i32>().unwrap();
-            let minor = captures.get(2).unwrap().as_str().parse::<i32>().unwrap();
-            let patch = captures.get(3).unwrap().as_str().parse::<i32>().unwrap();
+            let major = captures.get(1).unwrap().as_str().parse::<u32>().unwrap();
+            let minor = captures.get(2).unwrap().as_str().parse::<u32>().unwrap();
+            let patch = captures.get(3).unwrap().as_str().parse::<u32>().unwrap();
             
             let max_captures = max_captures.unwrap();
-            let max_major = max_captures.get(1).unwrap().as_str().parse::<i32>().unwrap();
-            let max_minor = max_captures.get(2).unwrap().as_str().parse::<i32>().unwrap();
-            let max_patch = max_captures.get(3).unwrap().as_str().parse::<i32>().unwrap();
+            let max_major = max_captures.get(1).unwrap().as_str().parse::<u32>().unwrap();
+            let max_minor = max_captures.get(2).unwrap().as_str().parse::<u32>().unwrap();
+            let max_patch = max_captures.get(3).unwrap().as_str().parse::<u32>().unwrap();
 
             if major > max_major {
                 max_version = tag_name;
