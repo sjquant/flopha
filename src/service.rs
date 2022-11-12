@@ -36,9 +36,8 @@ pub fn start_feature(path: &Path, args: &StartFeatureArgs) {
 pub fn finish_feature(path: &Path, _args: &FinishFeatureArgs) {
     let repo = get_repo(path);
     let mut remote = get_remote(&repo);
-    let branch = get_head_branch(&repo).expect("Branch not found");
-    let branch_name = branch.name().unwrap().expect("Failed to get branch name");
-    push_branch(&mut remote, branch_name).expect("Failed to push feature");
+    let mut branch = get_head_branch(&repo).expect("Branch not found");
+    push_branch(&mut remote, &mut branch).expect("Failed to push feature");
 }
 
 pub fn start_hotfix(path: &Path, _args: &StartHotfixArgs) {
