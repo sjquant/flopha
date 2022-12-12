@@ -92,11 +92,13 @@ pub fn push_tag(remote: &mut git2::Remote, tag: &str) -> Result<(), git2::Error>
 
 pub fn push_branch(remote: &mut git2::Remote, branch: &mut Branch) -> Result<(), git2::Error> {
     let branch_name = branch.name().unwrap().expect("Failed to get branch name").to_string();
-    branch.set_upstream(Some(branch_name.as_str()))?;
+    let remote_name = remote.name().unwrap();
+    let upstream_name = format!("{}/{}", remote_name, branch_name.as_str());
     println!("Pushing branch '{}' to remote...", branch_name);
     let mut po = push_options();
     let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
     remote.push(&[&refspec], Some(&mut po))?;
+    branch.set_upstream(Some(&upstream_name))?;
     println!("Successfully pushed branch '{}' to remote.", branch_name);
     Result::Ok(())
 }
