@@ -31,10 +31,17 @@ pub struct StartFeatureArgs {
 pub struct FinishFeatureArgs {}
 
 #[derive(Args)]
-pub struct StartHotfixArgs {}
+pub struct StartHotfixArgs {
+
+    #[clap(long, default_value = "*")]
+    pub pattern: String,
+}
 
 #[derive(Args)]
 pub struct FinishHotfixArgs {
     #[clap(short, long)]
     pub force: bool,
+
+    #[clap(long, default_value = "*")]
+    pub pattern: String,
 }

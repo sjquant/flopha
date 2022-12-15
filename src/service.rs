@@ -44,7 +44,8 @@ pub fn start_hotfix(path: &Path, _args: &StartHotfixArgs) {
     let repo = get_repo(path);
     let mut remote = get_remote(&repo);
     fetch_all(&mut remote).expect("Failed to fetch from remote");
-    let tag_names = repo.tag_names(Some("*")).expect("Failed to fetch tags");
+    let pattern = _args.pattern.as_str();
+    let tag_names = repo.tag_names(Some(pattern)).expect("Failed to fetch tags");
     if tag_names.len() == 0 {
         panic!("No tags found");
     }
@@ -56,7 +57,7 @@ fn get_max_version(tag_names: git2::string_array::StringArray) -> String {
     let mut max_version = "";
     for tag_name in tag_names.iter() {
         let tag_name = tag_name.unwrap();
-        let re = Regex::new(r"^v?(\d+)\.(\d+)\.(\d+)").unwrap();
+        let re = Regex::new(r"(\d+)\.(\d+)\.(\d+)").unwrap();
         let max_captures = re.captures(max_version);
 
         if max_captures.is_none() {
@@ -236,7 +237,9 @@ mod tests {
         repo.tag_delete("v0.1.10").unwrap();
 
         // When
-        let args = StartHotfixArgs {};
+        let args = StartHotfixArgs {
+            pattern: "*".to_string(),
+        };
         start_hotfix(td.path(), &args);
 
         // Then
@@ -261,7 +264,7 @@ mod tests {
         commit(&repo, "Second fix").unwrap();
 
         // When
-        let args = FinishHotfixArgs { force: true };
+        let args = FinishHotfixArgs { force: true, pattern: "*".to_string() };
         finish_hotfix(td.path(), &args);
 
         // Then
@@ -292,7 +295,7 @@ mod tests {
         commit(&repo, "Second fix").unwrap();
 
         // When
-        let args = FinishHotfixArgs { force: true };
+        let args = FinishHotfixArgs { force: true, pattern: "*".to_string() };
         let result = std::panic::catch_unwind(|| finish_hotfix(td.path(), &args));
 
         // Then
