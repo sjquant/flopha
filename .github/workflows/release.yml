@@ -51,20 +51,11 @@ jobs:
         profile: minimal
         override: true
 
-    - name: Build release binary
-      run: |
-        rustup target add ${{ matrix.target }}
-        cargo build --verbose --release --target ${{ matrix.target }}
-
-    - name: Build archive
+    - name: Build and Package
       shell: bash
       run: |
-        staging="flopha-${{ matrix.target }}"
-        mkdir "$staging"
-        cp {README.md,LICENSE} "$staging"
-        cp "target/${{ matrix.target }}/release/flopha" "$staging/"
-        tar -C "$staging" -cvzf "$staging.tar.gz" .
-        echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
+        scrtips/package.sh --target ${{ matrix.target }}
+        echo "ASSET=dist/flopha-${{ matrix.target }}.tar.gz" >> $GITHUB_ENV
 
     - name: Upload release archive
       uses: softprops/action-gh-release@v1
