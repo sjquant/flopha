@@ -10,31 +10,32 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Create a feature branch and start working on it.
-    StartFeature(StartFeatureArgs),
-    /// Push a feature branch to origin
-    FinishFeature(FinishFeatureArgs),
-    /// Start hotfix from the latest tag
-    StartHotfix(StartHotfixArgs),
-    /// Finish hotfix, bump up tag, and push it to origin
-    FinishHotfix(FinishHotfixArgs),
+    #[clap(about = "Versioning based on the current tag")]
+    Versioning(VersioningArgs),
+    #[clap(about = "Move to the last version")]
+    Teleport(TeleportArgs),
 }
 
-#[derive(Args)]
-pub struct StartFeatureArgs {
-    /// Feature branch name to move to or create if not exists
-    #[clap(short, long)]
-    pub branch: String,
+#[derive(Args, Debug)]
+pub struct VersioningArgs {
+    #[clap(long, action)]
+    pub major: bool,
+    #[clap(long, action)]
+    pub minor: bool,
+    #[clap(long, action)]
+    pub patch: bool,
+    #[clap(long)]
+    pub pattern: Option<String>,
 }
 
-#[derive(Args)]
-pub struct FinishFeatureArgs {}
-
-#[derive(Args)]
-pub struct StartHotfixArgs {}
-
-#[derive(Args)]
-pub struct FinishHotfixArgs {
-    #[clap(short, long)]
-    pub force: bool,
+#[derive(Args, Debug)]
+pub struct TeleportArgs {
+    #[clap(long, action)]
+    pub major: bool,
+    #[clap(long, action)]
+    pub minor: bool,
+    #[clap(long, action)]
+    pub patch: bool,
+    #[clap(long)]
+    pub pattern: Option<String>,
 }
