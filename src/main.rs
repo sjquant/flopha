@@ -7,10 +7,10 @@ fn main() {
     let cli = Cli::parse();
     let path = Path::new(".");
     match &cli.command {
-        Commands::Versioning(args) => {
+        Commands::NextVersion(args) => {
             println!("{:?}", args)
         }
-        Commands::Teleport(args) => {
+        Commands::LastVersion(args) => {
             println!("{:?}", args)
         }
     }
