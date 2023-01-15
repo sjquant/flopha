@@ -38,24 +38,6 @@ pub struct NextVersionArgs {
 
 #[derive(Args, Debug)]
 pub struct LastVersionArgs {
-    #[clap(
-        help = "Get last version in the context of major version",
-        long,
-        action
-    )]
-    pub major: bool,
-    #[clap(
-        help = "Get last version in the context of minor version",
-        long,
-        action
-    )]
-    pub minor: bool,
-    #[clap(
-        help = "Get last version in the context of patch version",
-        long,
-        action
-    )]
-    pub patch: bool,
     #[clap(help = "Get last version based on last version", long)]
     pub pattern: Option<String>,
     #[clap(help = "Check out to last version", long, action)]

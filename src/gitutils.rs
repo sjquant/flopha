@@ -1,4 +1,16 @@
+use std::path::Path;
+
 use git2::{Branch, DescribeFormatOptions, DescribeOptions, Repository};
+
+pub fn get_repo(path: &Path) -> Repository {
+    let repo = Repository::open(path).expect("Repository not found");
+    repo
+}
+
+pub fn get_remote<'a>(repo: &'a Repository, name: &str) -> git2::Remote<'a> {
+    let remote = repo.find_remote(name).expect("Remote 'origin' not found");
+    remote
+}
 
 pub fn tag_oid(
     repo: &Repository,
@@ -91,7 +103,11 @@ pub fn push_tag(remote: &mut git2::Remote, tag: &str) -> Result<(), git2::Error>
 }
 
 pub fn push_branch(remote: &mut git2::Remote, branch: &mut Branch) -> Result<(), git2::Error> {
-    let branch_name = branch.name().unwrap().expect("Failed to get branch name").to_string();
+    let branch_name = branch
+        .name()
+        .unwrap()
+        .expect("Failed to get branch name")
+        .to_string();
     let remote_name = remote.name().unwrap();
     let upstream_name = format!("{}/{}", remote_name, branch_name.as_str());
     println!("Pushing branch '{}' to remote...", branch_name);

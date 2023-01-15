@@ -1,6 +1,6 @@
 use regex::Regex;
 
-struct Versioner {
+pub struct Versioner {
     tags: Vec<String>,
     pattern: String,
 }
