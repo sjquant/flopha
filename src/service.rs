@@ -68,6 +68,29 @@ mod tests {
         assert_eq!(result, b"flopha@2.10.11\n");
     }
 
+    #[test]
+    fn test_last_version_without_matching_version_print_no_version_found() {
+        // Given
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        let tags = vec!["v0.1.0", "v1.0.0", "v1.0.1"];
+        for tag in tags {
+            create_new_remote_tag(&repo, &mut remote, tag);
+        }
+
+        // When
+        let mut result = Vec::new();
+        let args = LastVersionArgs {
+            pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
+            checkout: false,
+        };
+        last_version(td.path(), &args, &mut result);
+
+        // Then
+        assert_eq!(result, b"No version found\n");
+    }
+
     fn create_new_remote_tag(repo: &git2::Repository, remote: &mut git2::Remote, tag: &str) {
         let commit_id = gitutils::commit(&repo, "New commit").unwrap();
         gitutils::tag_oid(&repo, commit_id, tag, false).unwrap();
