@@ -12,7 +12,7 @@ impl Versioner {
 
     pub fn last_version(&self) -> Option<String> {
         let regex = self.get_regex();
-        let mut versions: Vec<(String, u32, u32, u32)> = Vec::new();
+        let mut versions: Vec<(String, Option<u32>, Option<u32>, Option<u32>)> = Vec::new();
         for tag in self.tags.iter() {
             if let Some(caps) = regex.captures(tag) {
                 let major = parse_version(&caps, "major");
@@ -62,14 +62,12 @@ impl Versioner {
     }
 }
 
-fn parse_version(caps: &regex::Captures, name: &str) -> u32 {
-    let major = match caps.name(name) {
-        Some(major) => major.as_str(),
-        None => "0",
+fn parse_version(caps: &regex::Captures, name: &str) -> Option<u32> {
+    if let Some(version) = caps.name(name) {
+        Some(version.as_str().parse::<u32>().unwrap())
+    } else {
+        None
     }
-    .parse::<u32>()
-    .unwrap();
-    major
 }
 
 #[cfg(test)]

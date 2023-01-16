@@ -9,7 +9,7 @@ fn main() {
     let path = Path::new(".");
     match &cli.command {
         Commands::LastVersion(args) => {
-            last_version(path, args, std::io::stdout());
+            last_version(path, args);
         }
         Commands::NextVersion(args) => {
             println!("{:?}", args)

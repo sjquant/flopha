@@ -4,7 +4,7 @@ use crate::cli::LastVersionArgs;
 use crate::gitutils;
 use crate::versioning::Versioner;
 
-pub fn last_version(path: &Path, args: &LastVersionArgs, mut writer: impl std::io::Write) {
+pub fn last_version(path: &Path, args: &LastVersionArgs) -> Option<String> {
     let repo = gitutils::get_repo(path);
     let mut remote = gitutils::get_remote(&repo, "origin");
     gitutils::fetch_all(&mut remote).expect("Failed to fetch from remote");
@@ -19,12 +19,17 @@ pub fn last_version(path: &Path, args: &LastVersionArgs, mut writer: impl std::i
         .clone()
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
     let versioner = Versioner::new(tag_names, pattern);
-    let last_version = versioner.last_version();
-    _ = writeln!(
-        writer,
-        "{}",
-        last_version.unwrap_or("No version found".to_string())
-    );
+
+    if let Some(tag) = versioner.last_version() {
+        if args.checkout {
+            gitutils::checkout_tag(&repo, &tag).expect("Failed to checkout tag");
+        }
+        println!("{}", tag);
+        Some(tag)
+    } else {
+        println!("No version found");
+        None
+    }
 }
 
 #[cfg(test)]
@@ -34,7 +39,7 @@ mod tests {
     use crate::{gitutils, testutils};
 
     #[test]
-    fn test_last_version_print_last_version_with_given_pattern() {
+    fn test_last_version_returns_last_version_with_given_pattern() {
         // Given
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
@@ -56,20 +61,19 @@ mod tests {
         }
 
         // When
-        let mut result = Vec::new();
         let args = LastVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             checkout: false,
         };
 
-        last_version(td.path(), &args, &mut result);
+        let result = last_version(td.path(), &args);
 
         // Then
-        assert_eq!(result, b"flopha@2.10.11\n");
+        assert_eq!(result.unwrap(), "flopha@2.10.11");
     }
 
     #[test]
-    fn test_last_version_without_matching_version_print_no_version_found() {
+    fn test_last_version_without_matching_version_returns_none() {
         // Given
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
@@ -80,15 +84,45 @@ mod tests {
         }
 
         // When
-        let mut result = Vec::new();
         let args = LastVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             checkout: false,
         };
-        last_version(td.path(), &args, &mut result);
+        let result = last_version(td.path(), &args);
 
         // Then
-        assert_eq!(result, b"No version found\n");
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_last_version_with_checkout_option() {
+        // Given
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        let tags = vec![
+            "flopha@0.1.0",
+            "flopha@1.0.0",
+            "flopha@1.0.1",
+            "flopha@1.1.1",
+            "flopha@1.1.2",
+            "flopha@0.4.5",
+        ];
+        for tag in tags {
+            create_new_remote_tag(&repo, &mut remote, tag);
+        }
+
+        // When
+        let args = LastVersionArgs {
+            pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
+            checkout: true,
+        };
+        last_version(td.path(), &args);
+
+        // Then
+        let tag_id = repo.revparse_single("refs/tags/flopha@1.1.2").unwrap().id();
+        let head_id = repo.head().unwrap().peel_to_commit().unwrap().id();
+        assert_eq!(tag_id, head_id);
     }
 
     fn create_new_remote_tag(repo: &git2::Repository, remote: &mut git2::Remote, tag: &str) {
