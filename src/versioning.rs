@@ -5,43 +5,63 @@ pub struct Versioner {
     pattern: String,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct Version {
+    pub tag: String,
+    pub major: Option<u32>,
+    pub minor: Option<u32>,
+    pub patch: Option<u32>,
+}
+
+impl Version {
+    pub fn new(tag: String, major: Option<u32>, minor: Option<u32>, patch: Option<u32>) -> Self {
+        Self {
+            tag,
+            major,
+            minor,
+            patch,
+        }
+    }
+}
+
 impl Versioner {
     pub fn new(tags: Vec<String>, pattern: String) -> Self {
         Self { tags, pattern }
     }
 
-    pub fn last_version(&self) -> Option<String> {
+    pub fn last_version(&self) -> Option<Version> {
         let regex = self.get_regex();
-        let mut versions: Vec<(String, Option<u32>, Option<u32>, Option<u32>)> = Vec::new();
+        let mut versions: Vec<Version> = Vec::new();
         for tag in self.tags.iter() {
             if let Some(caps) = regex.captures(tag) {
                 let major = parse_version(&caps, "major");
                 let minor = parse_version(&caps, "minor");
                 let patch = parse_version(&caps, "patch");
-                versions.push((tag.to_string(), major, minor, patch));
+                versions.push(Version::new(tag.to_string(), major, minor, patch));
             }
         }
         versions.sort_by(|a, b| {
-            if a.1 > b.1 {
+            if a.major > b.major {
                 return std::cmp::Ordering::Greater;
-            } else if a.1 < b.1 {
+            } else if a.major < b.major {
                 return std::cmp::Ordering::Less;
             }
-            if a.2 > b.2 {
+            if a.minor > b.minor {
                 return std::cmp::Ordering::Greater;
-            } else if a.2 < b.2 {
+            } else if a.minor < b.minor {
                 return std::cmp::Ordering::Less;
             }
-            if a.3 > b.3 {
+            if a.patch > b.patch {
                 return std::cmp::Ordering::Greater;
-            } else if a.3 < b.3 {
+            } else if a.patch < b.patch {
                 return std::cmp::Ordering::Less;
             }
             std::cmp::Ordering::Equal
         });
 
         if versions.len() > 0 {
-            Some(versions.last().unwrap().0.to_string())
+            let last_version = versions.last().unwrap().clone();
+            Some(last_version)
         } else {
             None
         }
@@ -91,7 +111,15 @@ mod tests {
         ];
         let versioner = Versioner::new(tags.clone(), "v{major}.{minor}.{patch}".to_string());
         let last_version = versioner.last_version();
-        assert_eq!(last_version, Some("v2.2.1".to_string()));
+        assert_eq!(
+            last_version,
+            Some(Version::new(
+                "v2.2.1".to_string(),
+                Some(2),
+                Some(2),
+                Some(1)
+            ))
+        );
 
         let versioner = Versioner::new(tags, "no-{major}.{minor}.{patch}".to_string());
         let last_version = versioner.last_version();
@@ -115,11 +143,17 @@ mod tests {
         ];
         let versioner = Versioner::new(tags.clone(), "v1.{minor}.{patch}".to_string());
         let last_version = versioner.last_version();
-        assert_eq!(last_version, Some("v1.1.0".to_string()));
+        assert_eq!(
+            last_version,
+            Some(Version::new("v1.1.0".to_string(), None, Some(1), Some(0)))
+        );
 
         let versioner = Versioner::new(tags, "v{major}.0.{patch}".to_string());
         let last_version = versioner.last_version();
-        assert_eq!(last_version, Some("v2.0.0".to_string()));
+        assert_eq!(
+            last_version,
+            Some(Version::new("v2.0.0".to_string(), Some(2), None, Some(0)))
+        );
     }
 
     #[test]
@@ -141,6 +175,14 @@ mod tests {
             "v{patch}.{minor}.{major}".to_string(),
         );
         let last_version = versioner.last_version();
-        assert_eq!(last_version, Some("v1.0.3".to_string()));
+        assert_eq!(
+            last_version,
+            Some(Version::new(
+                "v1.0.3".to_string(),
+                Some(3),
+                Some(0),
+                Some(1)
+            ))
+        );
     }
 }

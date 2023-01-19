@@ -20,12 +20,12 @@ pub fn last_version(path: &Path, args: &LastVersionArgs) -> Option<String> {
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
     let versioner = Versioner::new(tag_names, pattern);
 
-    if let Some(tag) = versioner.last_version() {
+    if let Some(version) = versioner.last_version() {
         if args.checkout {
-            gitutils::checkout_tag(&repo, &tag).expect("Failed to checkout tag");
+            gitutils::checkout_tag(&repo, &version.tag).expect("Failed to checkout tag");
         }
-        println!("{}", tag);
-        Some(tag)
+        println!("{}", version.tag);
+        Some(version.tag)
     } else {
         println!("No version found");
         None
