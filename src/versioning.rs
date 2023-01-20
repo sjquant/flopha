@@ -24,6 +24,12 @@ impl Version {
     }
 }
 
+pub enum VersionPart {
+    Major,
+    Minor,
+    Patch,
+}
+
 impl Versioner {
     pub fn new(tags: Vec<String>, pattern: String) -> Self {
         Self { tags, pattern }
@@ -65,6 +71,40 @@ impl Versioner {
         } else {
             None
         }
+    }
+
+    pub fn next_version(&self, version_part: VersionPart) -> Option<Version> {
+        let last_version = self.last_version()?;
+
+        let major;
+        let minor;
+        let patch;
+
+        match version_part {
+            VersionPart::Major => {
+                major = last_version.major.expect("Can't find {major}") + 1;
+                minor = 0;
+                patch = 0;
+            }
+            VersionPart::Minor => {
+                major = last_version.major.expect("Can't find {major}");
+                minor = last_version.minor.expect("Can't find {minor}") + 1;
+                patch = 0;
+            }
+            VersionPart::Patch => {
+                major = last_version.major.expect("Can't find {major}");
+                minor = last_version.minor.expect("Can't find {minor}");
+                patch = last_version.patch.expect("Can't find {patch}") + 1;
+            }
+        }
+
+        let tag = self
+            .pattern
+            .replace("{major}", &major.to_string())
+            .replace("{minor}", &minor.to_string())
+            .replace("{patch}", &patch.to_string());
+
+        Some(Version::new(tag, Some(major), Some(minor), Some(patch)))
     }
 
     fn get_regex(&self) -> Regex {
@@ -184,5 +224,77 @@ mod tests {
                 Some(1)
             ))
         );
+    }
+
+    #[test]
+    fn test_next_version() {
+        let tags = vec![
+            "v1.0.0".to_string(),
+            "v1.0.1".to_string(),
+            "v1.0.2".to_string(),
+            "v2.2.1".to_string(),
+            "v1.1.0".to_string(),
+            "v2.0.0".to_string(),
+            "v2.1.0".to_string(),
+            "v2.1.1".to_string(),
+            "v2.1.2".to_string(),
+            "v2.2.0".to_string(),
+            "z4.0.0".to_string(),
+        ];
+        let versioner = Versioner::new(tags.clone(), "v{major}.{minor}.{patch}".to_string());
+        let next_version = versioner.next_version(VersionPart::Major);
+        assert_eq!(
+            next_version,
+            Some(Version::new(
+                "v3.0.0".to_string(),
+                Some(3),
+                Some(0),
+                Some(0)
+            ))
+        );
+
+        let next_version = versioner.next_version(VersionPart::Minor);
+        assert_eq!(
+            next_version,
+            Some(Version::new(
+                "v2.3.0".to_string(),
+                Some(2),
+                Some(3),
+                Some(0)
+            ))
+        );
+
+        let next_version = versioner.next_version(VersionPart::Patch);
+        assert_eq!(
+            next_version,
+            Some(Version::new(
+                "v2.2.2".to_string(),
+                Some(2),
+                Some(2),
+                Some(2)
+            ))
+        );
+    }
+
+    #[test]
+    fn test_next_version_returns_none_when_no_last_version() {
+        let versioner = Versioner::new(
+            vec!["v1.0.0".to_string(), "v1.0.1".to_string()],
+            "no-{major}.{minor}.{patch}".to_string(),
+        );
+        let next_version = versioner.next_version(VersionPart::Major);
+        assert_eq!(next_version, None);
+    }
+
+    #[test]
+    fn test_next_version_panic_when_no_version_part_in_pattern() {
+        let versioner = Versioner::new(
+            vec!["v1.0.0".to_string(), "v1.0.1".to_string()],
+            "v1.{minor}.{patch}".to_string(),
+        );
+        assert!(std::panic::catch_unwind(|| {
+            versioner.next_version(VersionPart::Major);
+        })
+        .is_err());
     }
 }
