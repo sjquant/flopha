@@ -2,7 +2,7 @@ use std::path::Path;
 
 use clap::Parser;
 use flopha::cli::{Cli, Commands};
-use flopha::service::last_version;
+use flopha::service::{last_version, next_version};
 
 fn main() {
     let cli = Cli::parse();
@@ -12,7 +12,7 @@ fn main() {
             last_version(path, args);
         }
         Commands::NextVersion(args) => {
-            println!("{:?}", args)
+            next_version(path, args);
         }
     }
 }

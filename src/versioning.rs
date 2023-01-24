@@ -1,3 +1,4 @@
+use clap::clap_derive::ArgEnum;
 use regex::Regex;
 
 pub struct Versioner {
@@ -24,6 +25,7 @@ impl Version {
     }
 }
 
+#[derive(Debug, Clone, ArgEnum)]
 pub enum VersionPart {
     Major,
     Minor,
