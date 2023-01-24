@@ -12,38 +12,36 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
 
 ## Getting Started
 
-1. You can create feature branch with
+1. You can get the last version of current git repository based on a given pattern.
 
    ```sh
-   flohpa start-feature -b <feature-name>
+   flohpa last-version --pattern "v{major}.{minor}.{patch}"
    ```
 
-   which creates branch with a given name and checkout to the branch.
-
-2. You can finish feature branch with
+   You can do like this.
 
    ```sh
-   flopha finish-feature
+   flopha last-version --pattern "desktop@{major}.{minor}.{patch}"
    ```
 
-   which pushes your branch to remote. You don't have to do things like `git push --set-upstream origin <feature-name>`.
-
-3. You can start hotfix with
+2. You can directly checkout the last-version with `--checkout` option. If you want to checkout to the last version for hotfix, this might be useful.
 
    ```sh
-   flohpa start-hotfix
+   flopha last-version --checkout
    ```
 
-   which searches the latest tag on the remote, and checkout to the tag.
-
-4. You can finish hotfix with
+3. You can calculate and print the next version based on a given pattern.
 
    ```sh
-   flopha finish-hotfix
+   flopha next-version --pattern "pattern@{major}.{minor}.{patch}"
    ```
 
-   which creates new tag with patch version up, and push it to the remote.
+4. You can tag current head as next version. If you want to tag your head after hotfix, this might be useful.
+
+   ```sh
+   flopha next-version --pattern "pattern@{major}.{minor}.{patch}" --tag
+   ```
 
 ## Notes
 
-I wanted to make my github workflow at my company easier, and start my project with `Rust`. It might not be fit to your needs. If you have any opinions to improve `flopha`, I'm very open to them.
+I wanted to make my github workflow at my company easier, and start my project with `Rust`. It might not fit your needs. If you have any opinions to improve `flopha`, I'm very open to them.
