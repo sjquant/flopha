@@ -1,5 +1,7 @@
 use clap::{Args, Parser, Subcommand};
 
+use crate::versioning::VersionPart;
+
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
@@ -18,22 +20,12 @@ pub enum Commands {
 
 #[derive(Args, Debug)]
 pub struct NextVersionArgs {
-    #[clap(help = "Get next major version", long, action)]
-    pub major: bool,
-    #[clap(help = "Get next minor version", long, action)]
-    pub minor: bool,
-    #[clap(help = "Get next patch version", long, action)]
-    pub patch: bool,
+    #[clap(help = "major, minor or patch", long, arg_enum)]
+    pub version_part: VersionPart,
     #[clap(help = "Get next version based on pattern", long)]
     pub pattern: Option<String>,
     #[clap(help = "Tag current commit as next version", long, action)]
     pub tag: bool,
-    #[clap(
-        help = "Tag current commit as next version and push to origin",
-        long,
-        action
-    )]
-    pub publish: bool,
 }
 
 #[derive(Args, Debug)]

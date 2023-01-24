@@ -12,14 +12,9 @@ pub fn get_remote<'a>(repo: &'a Repository, name: &str) -> git2::Remote<'a> {
     remote
 }
 
-pub fn tag_oid(
-    repo: &Repository,
-    id: git2::Oid,
-    tagname: &str,
-    force: bool,
-) -> Result<git2::Oid, git2::Error> {
+pub fn tag_oid(repo: &Repository, id: git2::Oid, tagname: &str) -> Result<git2::Oid, git2::Error> {
     let obj = repo.find_object(id, None).unwrap();
-    repo.tag_lightweight(tagname, &obj, force)
+    repo.tag_lightweight(tagname, &obj, true)
 }
 
 pub fn commit(repo: &Repository, message: &str) -> Result<git2::Oid, git2::Error> {
