@@ -20,7 +20,12 @@ pub enum Commands {
 
 #[derive(Args, Debug)]
 pub struct NextVersionArgs {
-    #[clap(help = "major, minor or patch", long, arg_enum)]
+    #[clap(
+        help = "major, minor or patch",
+        long,
+        arg_enum,
+        default_value = "patch"
+    )]
     pub version_part: VersionPart,
     #[clap(help = "Get next version based on pattern", long)]
     pub pattern: Option<String>,
