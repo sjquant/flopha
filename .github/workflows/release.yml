@@ -54,7 +54,7 @@ jobs:
     - name: Build and Package
       shell: bash
       run: |
-        scrtips/package.sh --target ${{ matrix.target }}
+        scripts/package.sh --target ${{ matrix.target }}
         echo "ASSET=dist/flopha-${{ matrix.target }}.tar.gz" >> $GITHUB_ENV
 
     - name: Upload release archive
