@@ -35,16 +35,16 @@ pub struct NextVersionArgs {
         default_value = "patch"
     )]
     pub version_part: VersionPart,
-    #[clap(help = "Get next version based on pattern", long)]
+    #[clap(help = "Get next version based on pattern", long, short = 'p')]
     pub pattern: Option<String>,
-    #[clap(help = "Tag current commit as next version", long, action)]
+    #[clap(help = "Tag current commit as next version", long, short = 't', action)]
     pub tag: bool,
 }
 
 #[derive(Args, Debug)]
 pub struct LastVersionArgs {
-    #[clap(help = "Get last version based on last version", long)]
+    #[clap(help = "Get last version based on last version", long, short = 'p')]
     pub pattern: Option<String>,
-    #[clap(help = "Check out to last version", long, action)]
+    #[clap(help = "Check out to last version", long, short = 'c', action)]
     pub checkout: bool,
 }
