@@ -8,10 +8,10 @@ fn main() {
     let cli = Cli::parse();
     let path = Path::new(".");
     match &cli.command {
-        Commands::LastVersion(args) | Commands::Lv(args) => {
+        Commands::LastVersion(args) => {
             last_version(path, args);
         }
-        Commands::NextVersion(args) | Commands::Nv(args) => {
+        Commands::NextVersion(args) => {
             next_version(path, args);
         }
     }
