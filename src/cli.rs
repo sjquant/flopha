@@ -13,18 +13,18 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    #[clap(about = "Finds the latest version tag in the repository matching a given pattern.")]
-    NextVersion(NextVersionArgs),
     #[clap(about = "Calculates the next version number based on the latest matching tag.")]
+    NextVersion(NextVersionArgs),
+    #[clap(about = "Finds the latest version tag in the repository matching a given pattern.")]
     LastVersion(LastVersionArgs),
-    #[clap(
-        about = "Finds the latest version tag in the repository matching a given pattern. (Alias for last-version)"
-    )]
-    Lv(LastVersionArgs),
     #[clap(
         about = "Calculates the next version number based on the latest matching tag. (Alias for next-version)"
     )]
     Nv(NextVersionArgs),
+    #[clap(
+        about = "Finds the latest version tag in the repository matching a given pattern. (Alias for last-version)"
+    )]
+    Lv(LastVersionArgs),
 }
 
 #[derive(Args, Debug)]
