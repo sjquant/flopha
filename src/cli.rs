@@ -5,6 +5,7 @@ use crate::versioning::VersionPart;
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
+#[clap(version_short = 'v')]
 pub struct Cli {
     #[clap(subcommand)]
     pub command: Commands,
