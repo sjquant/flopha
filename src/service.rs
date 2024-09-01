@@ -1,13 +1,17 @@
 use std::path::Path;
 
 use crate::cli::{LastVersionArgs, NextVersionArgs};
-use crate::gitutils;
+use crate::gitutils::{self, CommandOptions};
 use crate::versioning::Versioner;
 
 pub fn last_version(path: &Path, args: &LastVersionArgs) -> Option<String> {
     let repo = gitutils::get_repo(path);
     let mut remote = gitutils::get_remote(&repo, "origin");
-    gitutils::fetch_all(&mut remote).expect("Failed to fetch from remote");
+    let opts = CommandOptions {
+        verbose: args.verbose,
+    };
+
+    gitutils::fetch_all(&mut remote, Some(&opts)).expect("Failed to fetch from remote");
     let pattern = args
         .pattern
         .clone()
@@ -15,7 +19,8 @@ pub fn last_version(path: &Path, args: &LastVersionArgs) -> Option<String> {
     let versioner = get_versioner(&repo, pattern);
     if let Some(version) = versioner.last_version() {
         if args.checkout {
-            gitutils::checkout_tag(&repo, &version.tag).expect("Failed to checkout tag");
+            gitutils::checkout_tag(&repo, &version.tag, Some(&opts))
+                .expect("Failed to checkout tag");
         }
         println!("{}", version.tag);
         Some(version.tag)
@@ -28,14 +33,17 @@ pub fn last_version(path: &Path, args: &LastVersionArgs) -> Option<String> {
 pub fn next_version(path: &Path, args: &NextVersionArgs) -> Option<String> {
     let repo = gitutils::get_repo(path);
     let mut remote = gitutils::get_remote(&repo, "origin");
-    gitutils::fetch_all(&mut remote).expect("Failed to fetch from remote");
+    let opts = CommandOptions {
+        verbose: args.verbose,
+    };
+    gitutils::fetch_all(&mut remote, Some(&opts)).expect("Failed to fetch from remote");
     let pattern = args
         .pattern
         .clone()
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
     let versioner = get_versioner(&repo, pattern);
 
-    if let Some(version) = versioner.next_version(args.version_part.clone()) {
+    if let Some(version) = versioner.next_version(args.increment.clone()) {
         if args.tag {
             let head = repo.head().unwrap();
             let head_id = head.target().unwrap();
@@ -64,7 +72,7 @@ fn get_versioner(repo: &git2::Repository, pattern: String) -> Versioner {
 mod tests {
     use super::*;
     use crate::cli::LastVersionArgs;
-    use crate::versioning::VersionPart;
+    use crate::versioning::Increment;
     use crate::{gitutils, testutils};
 
     #[test]
@@ -93,6 +101,7 @@ mod tests {
         let args = LastVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             checkout: false,
+            verbose: false,
         };
 
         let result = last_version(td.path(), &args);
@@ -116,6 +125,7 @@ mod tests {
         let args = LastVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             checkout: false,
+            verbose: false,
         };
         let result = last_version(td.path(), &args);
 
@@ -145,6 +155,7 @@ mod tests {
         let args = LastVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             checkout: true,
+            verbose: false,
         };
         last_version(td.path(), &args);
 
@@ -174,14 +185,15 @@ mod tests {
         for tag in tags {
             create_new_remote_tag(&repo, &mut remote, tag, false);
         }
-        gitutils::checkout_tag(&repo, "flopha@2.10.11").unwrap();
+        gitutils::checkout_tag(&repo, "flopha@2.10.11", None).unwrap();
         gitutils::commit(&repo, "New commit").unwrap();
 
         // When
         let args = NextVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
-            version_part: VersionPart::Patch,
+            increment: Increment::Patch,
             tag: false,
+            verbose: false,
         };
         let result = next_version(td.path(), &args);
 
@@ -205,14 +217,15 @@ mod tests {
         for tag in tags {
             create_new_remote_tag(&repo, &mut remote, tag, false);
         }
-        gitutils::checkout_tag(&repo, "flopha@1.1.2").unwrap();
+        gitutils::checkout_tag(&repo, "flopha@1.1.2", None).unwrap();
         gitutils::commit(&repo, "New commit").unwrap();
 
         // When
         let args = NextVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
-            version_part: VersionPart::Patch,
+            increment: Increment::Patch,
             tag: true,
+            verbose: false,
         };
         next_version(td.path(), &args);
 

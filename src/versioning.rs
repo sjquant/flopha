@@ -26,7 +26,7 @@ impl Version {
 }
 
 #[derive(Debug, Clone, ArgEnum)]
-pub enum VersionPart {
+pub enum Increment {
     Major,
     Minor,
     Patch,
@@ -75,25 +75,25 @@ impl Versioner {
         }
     }
 
-    pub fn next_version(&self, version_part: VersionPart) -> Option<Version> {
+    pub fn next_version(&self, increment: Increment) -> Option<Version> {
         let last_version = self.last_version()?;
 
         let major;
         let minor;
         let patch;
 
-        match version_part {
-            VersionPart::Major => {
+        match increment {
+            Increment::Major => {
                 major = last_version.major.expect("Can't find {major}") + 1;
                 minor = 0;
                 patch = 0;
             }
-            VersionPart::Minor => {
+            Increment::Minor => {
                 major = last_version.major.expect("Can't find {major}");
                 minor = last_version.minor.expect("Can't find {minor}") + 1;
                 patch = 0;
             }
-            VersionPart::Patch => {
+            Increment::Patch => {
                 major = last_version.major.expect("Can't find {major}");
                 minor = last_version.minor.expect("Can't find {minor}");
                 patch = last_version.patch.expect("Can't find {patch}") + 1;
@@ -244,7 +244,7 @@ mod tests {
             "z4.0.0".to_string(),
         ];
         let versioner = Versioner::new(tags.clone(), "v{major}.{minor}.{patch}".to_string());
-        let next_version = versioner.next_version(VersionPart::Major);
+        let next_version = versioner.next_version(Increment::Major);
         assert_eq!(
             next_version,
             Some(Version::new(
@@ -255,7 +255,7 @@ mod tests {
             ))
         );
 
-        let next_version = versioner.next_version(VersionPart::Minor);
+        let next_version = versioner.next_version(Increment::Minor);
         assert_eq!(
             next_version,
             Some(Version::new(
@@ -266,7 +266,7 @@ mod tests {
             ))
         );
 
-        let next_version = versioner.next_version(VersionPart::Patch);
+        let next_version = versioner.next_version(Increment::Patch);
         assert_eq!(
             next_version,
             Some(Version::new(
@@ -284,18 +284,18 @@ mod tests {
             vec!["v1.0.0".to_string(), "v1.0.1".to_string()],
             "no-{major}.{minor}.{patch}".to_string(),
         );
-        let next_version = versioner.next_version(VersionPart::Major);
+        let next_version = versioner.next_version(Increment::Major);
         assert_eq!(next_version, None);
     }
 
     #[test]
-    fn test_next_version_panic_when_no_version_part_in_pattern() {
+    fn test_next_version_panic_when_no_increment_in_pattern() {
         let versioner = Versioner::new(
             vec!["v1.0.0".to_string(), "v1.0.1".to_string()],
             "v1.{minor}.{patch}".to_string(),
         );
         assert!(std::panic::catch_unwind(|| {
-            versioner.next_version(VersionPart::Major);
+            versioner.next_version(Increment::Major);
         })
         .is_err());
     }

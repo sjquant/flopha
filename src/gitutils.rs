@@ -2,6 +2,17 @@ use std::path::Path;
 
 use git2::{Branch, DescribeFormatOptions, DescribeOptions, Repository};
 
+#[derive(Default, Clone)]
+pub struct CommandOptions {
+    pub verbose: bool,
+}
+
+fn print_verbose(message: &str, verbose: bool) {
+    if verbose {
+        println!("{}", message);
+    }
+}
+
 pub fn get_repo(path: &Path) -> Repository {
     let repo = Repository::open(path).expect("Repository not found");
     repo
@@ -38,7 +49,14 @@ pub fn commit(repo: &Repository, message: &str) -> Result<git2::Oid, git2::Error
     )
 }
 
-pub fn checkout_branch(repo: &Repository, name: &str, force: bool) -> Result<(), git2::Error> {
+pub fn checkout_branch(
+    repo: &Repository,
+    name: &str,
+    force: bool,
+    options: Option<&CommandOptions>,
+) -> Result<(), git2::Error> {
+    let default = CommandOptions::default();
+    let opts = options.unwrap_or(&default);
     let branch = repo.find_branch(name, git2::BranchType::Local);
     if force && branch.is_err() {
         let commit = repo.head().unwrap().peel_to_commit().unwrap();
@@ -50,16 +68,22 @@ pub fn checkout_branch(repo: &Repository, name: &str, force: bool) -> Result<(),
     repo.checkout_tree(&object, None)
         .expect("Failed to checkout");
     repo.set_head(reference.unwrap().name().unwrap())?;
-    println!("Switched to branch '{}'", name);
+    print_verbose(&format!("Switched to branch '{}'", name), opts.verbose);
     Result::Ok(())
 }
 
-pub fn checkout_tag(repo: &Repository, tag: &str) -> Result<(), git2::Error> {
+pub fn checkout_tag(
+    repo: &Repository,
+    tag: &str,
+    options: Option<&CommandOptions>,
+) -> Result<(), git2::Error> {
+    let default = CommandOptions::default();
+    let opts = options.unwrap_or(&default);
     let (object, reference) = repo.revparse_ext(tag).expect("Tag not found");
     repo.checkout_tree(&object, None)
         .expect("Failed to checkout");
     repo.set_head(reference.unwrap().name().unwrap())?;
-    println!("Switched to tag '{}'", tag);
+    print_verbose(&format!("Switched to tag '{}'", tag), opts.verbose);
     Result::Ok(())
 }
 
@@ -72,11 +96,22 @@ pub fn get_last_tag_name(repo: &Repository) -> Result<String, git2::Error> {
     Ok(describe.format(Some(DescribeFormatOptions::new().abbreviated_size(0)))?)
 }
 
-pub fn fetch_all(remote: &mut git2::Remote) -> Result<(), git2::Error> {
-    println!("Fetching all branches and tags from remote...");
+pub fn fetch_all(
+    remote: &mut git2::Remote,
+    options: Option<&CommandOptions>,
+) -> Result<(), git2::Error> {
+    let default = CommandOptions::default();
+    let opts = options.unwrap_or(&default);
+    print_verbose(
+        &format!("Fetching all branches and tags from remote..."),
+        opts.verbose,
+    );
     let mut fo = fetch_options();
     remote.fetch(&["refs/heads/*:refs/heads/*"], Some(&mut fo), None)?;
-    println!("Successfully fetched all branches and tags from remote.");
+    print_verbose(
+        &format!("Successfully fetched all branches and tags from remote."),
+        opts.verbose,
+    );
     Result::Ok(())
 }
 
@@ -88,16 +123,32 @@ fn fetch_options() -> git2::FetchOptions<'static> {
     fo
 }
 
-pub fn push_tag(remote: &mut git2::Remote, tag: &str) -> Result<(), git2::Error> {
-    println!("Pushing tag '{}' to remote...", tag);
+// Update the push_tag function to accept options
+pub fn push_tag(
+    remote: &mut git2::Remote,
+    tag: &str,
+    options: Option<&CommandOptions>,
+) -> Result<(), git2::Error> {
+    let default = CommandOptions::default();
+    let opts = options.unwrap_or(&default);
+    print_verbose(&format!("Pushing tag '{}' to remote...", tag), opts.verbose);
     let mut po = push_options();
     let ref_spec = format!("refs/tags/{}:refs/tags/{}", tag, tag);
     remote.push(&[&ref_spec], Some(&mut po))?;
-    println!("Successfully pushed tag '{}' to remote.", tag);
+    print_verbose(
+        &format!("Successfully pushed tag '{}' to remote.", tag),
+        opts.verbose,
+    );
     Result::Ok(())
 }
 
-pub fn push_branch(remote: &mut git2::Remote, branch: &mut Branch) -> Result<(), git2::Error> {
+pub fn push_branch(
+    remote: &mut git2::Remote,
+    branch: &mut Branch,
+    options: Option<&CommandOptions>,
+) -> Result<(), git2::Error> {
+    let default = CommandOptions::default();
+    let opts = options.unwrap_or(&default);
     let branch_name = branch
         .name()
         .unwrap()
@@ -105,12 +156,18 @@ pub fn push_branch(remote: &mut git2::Remote, branch: &mut Branch) -> Result<(),
         .to_string();
     let remote_name = remote.name().unwrap();
     let upstream_name = format!("{}/{}", remote_name, branch_name.as_str());
-    println!("Pushing branch '{}' to remote...", branch_name);
+    print_verbose(
+        &format!("Pushing branch '{}' to remote...", branch_name),
+        opts.verbose,
+    );
     let mut po = push_options();
     let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
     remote.push(&[&refspec], Some(&mut po))?;
     branch.set_upstream(Some(&upstream_name))?;
-    println!("Successfully pushed branch '{}' to remote.", branch_name);
+    print_verbose(
+        &format!("Successfully pushed branch '{}' to remote.", branch_name),
+        opts.verbose,
+    );
     Result::Ok(())
 }
 
