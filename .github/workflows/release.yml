@@ -1,8 +1,8 @@
 name: release
 on:
   push:
-    tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.sha }}
@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   build-release:
-    name: build-release ${{ matrix.os }}
+    name: build-release ${{ matrix.os }} ${{ matrix.rust }} ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     strategy:
@@ -24,6 +24,10 @@ jobs:
             os: macos-latest
             rust: stable
             target: x86_64-apple-darwin
+          - build: macos-arm64
+            os: macos-latest
+            rust: stable
+            target: aarch64-apple-darwin
     env:
       RUST_BACKTRACE: full
       TARGET_DIR: ./target
@@ -31,20 +35,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Get the release version from the tag
+      - name: Determine version changes
+        id: version_check
         shell: bash
-        if: env.FLOPHA_VERSION == ''
         run: |
-          echo "FLOPHA_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-          echo "version is: ${{ env.FLOPHA_VERSION }}"
+          latest_release=$(curl -s -H "Authorization: token ${{ github.token }}" \
+            https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.tag_name' | tr -d 'v')
+          echo "Latest release version: $latest_release"
+
+          cargo_version=$(grep -m1 '^version\s*=' Cargo.toml | awk -F '"' '{print $2}')
+          echo "Cargo version: $cargo_version"
+
+          if [ "$latest_release" != "$cargo_version" ]; then
+            echo "Version has changed to $cargo_version"
+            echo "version_changed=true" >> $GITHUB_OUTPUT
+            echo "NEW_VERSION=$cargo_version" >> $GITHUB_ENV
+          else
+            echo "Version has not changed"
+            echo "version_changed=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Install packages (Ubuntu)
-        if: matrix.os == 'ubuntu-20.04'
+        if: steps.version_check.outputs.version_changed == 'true' && matrix.os == 'ubuntu-20.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools
 
       - name: Install Rust
+        if: steps.version_check.outputs.version_changed == 'true'
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
@@ -52,14 +70,16 @@ jobs:
           override: true
 
       - name: Build and Package
+        if: steps.version_check.outputs.version_changed == 'true'
         shell: bash
         run: |
           scripts/package.sh --target ${{ matrix.target }}
           echo "ASSET=dist/flopha-${{ matrix.target }}.tar.gz" >> $GITHUB_ENV
 
       - name: Upload release archive
+        if: steps.version_check.outputs.version_changed == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.FLOPHA_VERSION }}
+          tag_name: v${{ env.NEW_VERSION }}
           generate_release_notes: True
           files: ${{ env.ASSET }}
