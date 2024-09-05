@@ -2,16 +2,16 @@ use crate::gitutils;
 use git2::Repository;
 
 pub trait VersionSource {
-    fn get_all_versions(&self, repo: &Repository) -> Vec<String>;
+    fn fetch_all(&self, repo: &Repository) -> Vec<String>;
     fn checkout(&self, repo: &Repository, version: &str) -> Result<(), git2::Error>;
-    fn create_new(&self, repo: &Repository, version: &str) -> Result<(), git2::Error>;
+    fn create(&self, repo: &Repository, version: &str) -> Result<(), git2::Error>;
 }
 
 pub struct TagVersionSource;
 pub struct BranchVersionSource;
 
 impl VersionSource for TagVersionSource {
-    fn get_all_versions(&self, repo: &Repository) -> Vec<String> {
+    fn fetch_all(&self, repo: &Repository) -> Vec<String> {
         repo.tag_names(Some("*"))
             .expect("Failed to fetch tags")
             .iter()
@@ -23,7 +23,7 @@ impl VersionSource for TagVersionSource {
         gitutils::checkout_tag(repo, version, None)
     }
 
-    fn create_new(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {
+    fn create(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {
         let head = repo.head()?;
         let head_id = head.target().unwrap();
         gitutils::tag_oid(repo, head_id, version)?;
@@ -32,7 +32,7 @@ impl VersionSource for TagVersionSource {
 }
 
 impl VersionSource for BranchVersionSource {
-    fn get_all_versions(&self, repo: &Repository) -> Vec<String> {
+    fn fetch_all(&self, repo: &Repository) -> Vec<String> {
         repo.branches(Some(git2::BranchType::Local))
             .expect("Failed to fetch branches")
             .filter_map(|b| b.ok())
@@ -44,7 +44,7 @@ impl VersionSource for BranchVersionSource {
         gitutils::checkout_branch(repo, version, false, None)
     }
 
-    fn create_new(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {
+    fn create(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {
         gitutils::checkout_branch(repo, version, true, None)
     }
 }

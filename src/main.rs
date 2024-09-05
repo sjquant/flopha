@@ -8,11 +8,16 @@ fn main() {
     let cli = Cli::parse();
     let path = Path::new(".");
     match &cli.command {
-        Commands::LastVersion(args) => {
+        Some(Commands::LastVersion(args)) => {
             last_version(path, args);
         }
-        Commands::NextVersion(args) => {
+        Some(Commands::NextVersion(args)) => {
             next_version(path, args);
         }
+        None => {}
+    }
+
+    if cli.version {
+        println!("{}", env!("CARGO_PKG_VERSION"));
     }
 }

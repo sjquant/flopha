@@ -1,25 +1,26 @@
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 
 use crate::versioning::Increment;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
-#[clap(propagate_version = true)]
-#[clap(version_short = 'v')]
 pub struct Cli {
+    #[clap(short = 'v', long = "version", action)]
+    pub version: bool,
+
     #[clap(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
 pub enum Commands {
     #[clap(
-        about = "Calculates the next version number based on the latest matching tag. (alias: nv)",
+        about = "Calculates the next version number based on the latest matching tag or branch. (alias: nv)",
         alias = "nv"
     )]
     NextVersion(NextVersionArgs),
     #[clap(
-        about = "Finds the latest version tag in the repository matching a given pattern. (alias: lv)",
+        about = "Finds the latest version tag or branch in the repository matching a given pattern. (alias: lv)",
         alias = "lv"
     )]
     LastVersion(LastVersionArgs),
@@ -30,41 +31,90 @@ pub struct NextVersionArgs {
     #[clap(
         help = "Specify the version part to increment: major, minor, or patch",
         long,
-        arg_enum,
+        value_enum,
         default_value = "patch",
         short = 'i'
     )]
     pub increment: Increment,
-    #[clap(help = "Get next version based on a given pattern", long, short = 'p')]
+    #[clap(
+        help = "Specify a custom pattern for version matching and generation. \
+                Use {major}, {minor}, and {patch} as placeholders. \
+                Example: 'v{major}.{minor}.{patch}' or 'release-{major}.{minor}.{patch}'",
+        long,
+        short = 'p'
+    )]
     pub pattern: Option<String>,
     #[clap(
-        help = "Tag current commit as the next version pattern",
+        help = "Enable verbose output for detailed information",
         long,
-        short = 't',
+        short = 'v',
         action
     )]
-    pub tag: bool,
-    #[clap(help = "Verbose output", long, short = 'V', action)]
     pub verbose: bool,
     #[clap(
-        help = "Create new branch as the next version pattern",
+        help = "Specify the source for versioning: tag (default) or branch",
         long,
-        short = 'b',
-        action
+        short = 's',
+        value_enum,
+        default_value = "tag"
     )]
-    pub branch: bool,
+    pub source: VersionSourceName,
+    #[clap(
+        help = "Action to perform: print (default) or create (creates a new tag or branch)",
+        long,
+        value_enum,
+        default_value = "print",
+        short = 'a'
+    )]
+    pub action: NextVersionAction,
 }
 
 #[derive(Args, Debug)]
 pub struct LastVersionArgs {
-    #[clap(help = "Get last version based on a given pattern", long, short = 'p')]
+    #[clap(
+        help = "Get last version based on a given pattern (e.g., 'v{major}.{minor}.{patch}')",
+        long,
+        short = 'p'
+    )]
     pub pattern: Option<String>,
-    #[clap(help = "Check out to the last version", long, short = 'c', action)]
-    pub checkout: bool,
-    #[clap(help = "Verbose output", long, short = 'V', action)]
+    #[clap(
+        help = "Enable verbose output for detailed information",
+        long,
+        short = 'v',
+        action
+    )]
     pub verbose: bool,
-    #[clap(help = "Get last version based on tag", long, short = 't', action)]
-    pub tag: bool,
-    #[clap(help = "Get last version based on branch", long, short = 'b', action)]
-    pub branch: bool,
+    #[clap(
+        help = "Specify the source for versioning: tag (default) or branch",
+        long,
+        value_enum,
+        default_value = "tag",
+        short = 's'
+    )]
+    pub source: VersionSourceName,
+    #[clap(
+        help = "Action to perform: print (default) or checkout (checks out the last version)",
+        long,
+        value_enum,
+        default_value = "print"
+    )]
+    pub action: LastVersionAction,
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+pub enum VersionSourceName {
+    Tag,
+    Branch,
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+pub enum NextVersionAction {
+    Print,
+    Create,
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+pub enum LastVersionAction {
+    Print,
+    Checkout,
 }

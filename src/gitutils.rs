@@ -2,15 +2,11 @@ use std::path::Path;
 
 use git2::{Branch, DescribeFormatOptions, DescribeOptions, Repository};
 
+use crate::utils::print_verbose;
+
 #[derive(Default, Clone)]
 pub struct CommandOptions {
     pub verbose: bool,
-}
-
-fn print_verbose(message: &str, verbose: bool) {
-    if verbose {
-        println!("{}", message);
-    }
 }
 
 pub fn get_repo(path: &Path) -> Repository {
