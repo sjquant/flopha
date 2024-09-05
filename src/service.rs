@@ -1,6 +1,8 @@
 use std::path::Path;
 
-use crate::cli::{LastVersionArgs, NextVersionArgs};
+use crate::cli::{
+    LastVersionAction, LastVersionArgs, NextVersionAction, NextVersionArgs, VersionSourceName,
+};
 use crate::gitutils::{self, CommandOptions};
 use crate::version_source::{BranchVersionSource, TagVersionSource, VersionSource};
 use crate::versioning::Versioner;
@@ -11,21 +13,25 @@ pub fn last_version(path: &Path, args: &LastVersionArgs) -> Option<String> {
     let opts = CommandOptions {
         verbose: args.verbose,
     };
-
     gitutils::fetch_all(&mut remote, Some(&opts)).expect("Failed to fetch from remote");
     let pattern = args
         .pattern
         .clone()
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
-    let versioner = versioner_factory(&repo, pattern, args.branch);
+    let versioner = versioner_factory(&repo, pattern, &args.source);
     if let Some(version) = versioner.last_version() {
-        if args.checkout {
-            let version_source = version_source_factory(args.branch);
-            version_source
-                .checkout(&repo, &version.tag)
-                .expect("Failed to checkout version");
+        match args.action {
+            LastVersionAction::Checkout => {
+                let version_source = version_source_factory(&args.source);
+                version_source
+                    .checkout(&repo, &version.tag)
+                    .expect("Failed to checkout version");
+            }
+            LastVersionAction::Print => {
+                println!("{}", version.tag);
+            }
         }
-        println!("{}", version.tag);
+
         Some(version.tag)
     } else {
         println!("No version found");
@@ -44,16 +50,19 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Option<String> {
         .pattern
         .clone()
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
-    let versioner = versioner_factory(&repo, pattern, args.branch);
-
+    let versioner = versioner_factory(&repo, pattern, &args.source);
     if let Some(version) = versioner.next_version(args.increment.clone()) {
-        if args.tag || args.branch {
-            let version_source = version_source_factory(args.branch);
-            version_source
-                .create_new(&repo, &version.tag)
-                .expect("Failed to create new version");
+        match args.action {
+            NextVersionAction::Create => {
+                let version_source = version_source_factory(&args.source);
+                version_source
+                    .create(&repo, &version.tag)
+                    .expect("Failed to create new version");
+            }
+            NextVersionAction::Print => {
+                println!("{}", version.tag);
+            }
         }
-        println!("{}", version.tag);
         Some(version.tag)
     } else {
         println!("No version found");
@@ -61,17 +70,20 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Option<String> {
     }
 }
 
-fn version_source_factory(use_branches: bool) -> Box<dyn VersionSource> {
-    if use_branches {
-        Box::new(BranchVersionSource)
-    } else {
-        Box::new(TagVersionSource)
+fn version_source_factory(source: &VersionSourceName) -> Box<dyn VersionSource> {
+    match source {
+        VersionSourceName::Branch => Box::new(BranchVersionSource),
+        VersionSourceName::Tag => Box::new(TagVersionSource),
     }
 }
 
-fn versioner_factory(repo: &git2::Repository, pattern: String, use_branches: bool) -> Versioner {
-    let version_source = version_source_factory(use_branches);
-    let versions = version_source.get_all_versions(repo);
+fn versioner_factory(
+    repo: &git2::Repository,
+    pattern: String,
+    source: &VersionSourceName,
+) -> Versioner {
+    let version_source = version_source_factory(source);
+    let versions = version_source.fetch_all(repo);
     Versioner::new(versions, pattern)
 }
 
@@ -82,9 +94,9 @@ mod tests {
     use crate::versioning::Increment;
     use crate::{gitutils, testutils};
 
+    // Tests for last_version function
     #[test]
-    fn test_last_version_returns_last_version_with_given_pattern() {
-        // Given
+    fn test_last_version_tag_returns_latest_matching_pattern() {
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
 
@@ -104,24 +116,20 @@ mod tests {
             create_new_remote_tag(&repo, &mut remote, tag, true);
         }
 
-        // When
         let args = LastVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
-            checkout: false,
             verbose: false,
-            branch: false,
-            tag: true,
+            source: VersionSourceName::Tag,
+            action: LastVersionAction::Print,
         };
 
         let result = last_version(td.path(), &args);
 
-        // Then
         assert_eq!(result.unwrap(), "flopha@2.10.11");
     }
 
     #[test]
-    fn test_last_version_without_matching_version_returns_none() {
-        // Given
+    fn test_last_version_tag_returns_none_without_match() {
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
 
@@ -130,23 +138,19 @@ mod tests {
             create_new_remote_tag(&repo, &mut remote, tag, true);
         }
 
-        // When
         let args = LastVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
-            checkout: false,
             verbose: false,
-            branch: false,
-            tag: true,
+            source: VersionSourceName::Tag,
+            action: LastVersionAction::Print,
         };
         let result = last_version(td.path(), &args);
 
-        // Then
         assert_eq!(result, None);
     }
 
     #[test]
-    fn test_last_version_with_checkout_option() {
-        // Given
+    fn test_last_version_tag_checkout_works() {
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
 
@@ -165,10 +169,9 @@ mod tests {
         // When
         let args = LastVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
-            checkout: true,
             verbose: false,
-            branch: false,
-            tag: true,
+            source: VersionSourceName::Tag,
+            action: LastVersionAction::Checkout,
         };
         last_version(td.path(), &args);
 
@@ -178,6 +181,125 @@ mod tests {
         assert_eq!(tag_id, head_id);
     }
 
+    #[test]
+    fn test_last_version_tag_returns_none_with_non_matching_pattern() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        let tags = vec!["v1.0.0", "v1.1.0", "v2.0.0"];
+        for tag in tags {
+            create_new_remote_tag(&repo, &mut remote, tag, false);
+        }
+
+        let args = LastVersionArgs {
+            pattern: Some("release-{major}.{minor}.{patch}".to_string()),
+            verbose: false,
+            source: VersionSourceName::Tag,
+            action: LastVersionAction::Print,
+        };
+
+        let result = last_version(td.path(), &args);
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_last_version_returns_last_version_with_given_pattern_for_branches() {
+        // Given
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        let branches = vec![
+            "release/0.1.0",
+            "release/1.0.0",
+            "release/1.0.1",
+            "release/1.1.1",
+            "release/1.1.9",
+            "release/2.10.11",
+            "release/1.1.10",
+            "release/2.9.9",
+            "release/2.10.10",
+        ];
+        for branch in branches {
+            create_new_remote_branch(&repo, &mut remote, branch);
+        }
+
+        // When
+        let args = LastVersionArgs {
+            pattern: Some("release/{major}.{minor}.{patch}".to_string()),
+            verbose: false,
+            source: VersionSourceName::Branch,
+            action: LastVersionAction::Print,
+        };
+
+        let result = last_version(td.path(), &args);
+
+        // Then
+        assert_eq!(result.unwrap(), "release/2.10.11");
+    }
+
+    #[test]
+    fn test_last_version_branch_returns_latest_matching_pattern() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        let branches = vec![
+            "release/1.0.0",
+            "release/1.1.0",
+            "release/2.0.0",
+            "main",
+            "develop",
+        ];
+        for branch in branches {
+            create_new_remote_branch(&repo, &mut remote, branch);
+        }
+
+        let args = LastVersionArgs {
+            pattern: Some("release/{major}.{minor}.{patch}".to_string()),
+            verbose: false,
+            source: VersionSourceName::Branch,
+            action: LastVersionAction::Print,
+        };
+
+        let result = last_version(td.path(), &args);
+
+        assert_eq!(result.unwrap(), "release/2.0.0");
+    }
+
+    #[test]
+    fn test_last_version_branch_checkout_works() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        let branches = vec![
+            "release/1.0.0",
+            "release/1.1.0",
+            "release/2.0.0",
+            "release/2.1.0",
+        ];
+        for branch in branches {
+            create_new_remote_branch(&repo, &mut remote, branch);
+        }
+
+        // When
+        let args = LastVersionArgs {
+            pattern: Some("release/{major}.{minor}.{patch}".to_string()),
+            verbose: false,
+            source: VersionSourceName::Branch,
+            action: LastVersionAction::Checkout,
+        };
+        last_version(td.path(), &args);
+
+        // Then
+        let branch_id = repo
+            .revparse_single("refs/heads/release/2.1.0")
+            .unwrap()
+            .id();
+        let head_id = repo.head().unwrap().peel_to_commit().unwrap().id();
+        assert_eq!(branch_id, head_id);
+    }
+
+    // Tests for next_version function
     #[test]
     fn test_next_version_returns_next_version_with_given_pattern() {
         // Given
@@ -205,9 +327,9 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
-            tag: false,
             verbose: false,
-            branch: false,
+            source: VersionSourceName::Tag,
+            action: NextVersionAction::Print,
         };
         let result = next_version(td.path(), &args);
 
@@ -216,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn test_next_version_with_tag_option() {
+    fn test_next_version_with_tag_create_action() {
         // Given
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
@@ -238,9 +360,9 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
-            tag: true,
             verbose: false,
-            branch: false,
+            source: VersionSourceName::Tag,
+            action: NextVersionAction::Create,
         };
         next_version(td.path(), &args);
 
@@ -251,44 +373,7 @@ mod tests {
     }
 
     #[test]
-    fn test_last_version_returns_last_version_with_given_pattern_for_branches() {
-        // Given
-        let (td, repo) = testutils::init_repo();
-        let (_remote_td, mut remote) = testutils::init_remote(&repo);
-
-        let branches = vec![
-            "release/0.1.0",
-            "release/1.0.0",
-            "release/1.0.1",
-            "release/1.1.1",
-            "release/1.1.9",
-            "release/2.10.11",
-            "release/1.1.10",
-            "release/2.9.9",
-            "release/2.10.10",
-        ];
-        for branch in branches {
-            create_new_remote_branch(&repo, &mut remote, branch);
-        }
-
-        // When
-        let args = LastVersionArgs {
-            pattern: Some("release/{major}.{minor}.{patch}".to_string()),
-            checkout: false,
-            verbose: false,
-            tag: false,
-            branch: true,
-        };
-
-        let result = last_version(td.path(), &args);
-
-        // Then
-        assert_eq!(result.unwrap(), "release/2.10.11");
-    }
-
-    #[test]
-    fn test_next_version_returns_next_version_with_given_pattern_for_branches() {
-        // Given
+    fn next_version_branch_returns_next_version_with_pattern() {
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
         let branches = vec![
@@ -312,14 +397,72 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
-            tag: false,
             verbose: false,
-            branch: true,
+            source: VersionSourceName::Branch,
+            action: NextVersionAction::Print,
         };
         let result = next_version(td.path(), &args);
 
         // Then
         assert_eq!(result.unwrap(), "release/2.10.12")
+    }
+
+    #[test]
+    fn test_next_version_branch_returns_none_without_match() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        let branches = vec!["main", "develop", "feature/new-feature"];
+        for branch in branches {
+            create_new_remote_branch(&repo, &mut remote, branch);
+        }
+
+        let args = NextVersionArgs {
+            pattern: Some("release/{major}.{minor}.{patch}".to_string()),
+            increment: Increment::Patch,
+            verbose: false,
+            source: VersionSourceName::Branch,
+            action: NextVersionAction::Print,
+        };
+
+        let result = next_version(td.path(), &args);
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_next_version_branch_with_create_action() {
+        // Given
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        let branches = vec!["release/1.0.0", "release/1.1.0", "release/2.0.0"];
+        for branch in branches {
+            create_new_remote_branch(&repo, &mut remote, branch);
+        }
+        gitutils::checkout_branch(&repo, "release/2.0.0", false, None).unwrap();
+        gitutils::commit(&repo, "New commit").unwrap();
+
+        // When
+        let args = NextVersionArgs {
+            pattern: Some("release/{major}.{minor}.{patch}".to_string()),
+            increment: Increment::Minor,
+            verbose: false,
+            source: VersionSourceName::Branch,
+            action: NextVersionAction::Create,
+        };
+        let result = next_version(td.path(), &args);
+
+        // Then
+        assert_eq!(result.unwrap(), "release/2.1.0");
+
+        // Verify that the new branch was created
+        let branches = repo.branches(Some(git2::BranchType::Local)).unwrap();
+
+        assert!(branches.into_iter().any(|b| {
+            let (branch, _) = b.unwrap();
+            branch.name().unwrap() == Some("release/2.1.0")
+        }));
     }
 
     fn create_new_remote_tag(
