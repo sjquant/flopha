@@ -35,20 +35,36 @@ pub struct NextVersionArgs {
         short = 'i'
     )]
     pub increment: Increment,
-    #[clap(help = "Get next version based on pattern", long, short = 'p')]
+    #[clap(help = "Get next version based on a given pattern", long, short = 'p')]
     pub pattern: Option<String>,
-    #[clap(help = "Tag current commit as next version", long, short = 't', action)]
+    #[clap(
+        help = "Tag current commit as the next version pattern",
+        long,
+        short = 't',
+        action
+    )]
     pub tag: bool,
     #[clap(help = "Verbose output", long, short = 'V', action)]
     pub verbose: bool,
+    #[clap(
+        help = "Create new branch as the next version pattern",
+        long,
+        short = 'b',
+        action
+    )]
+    pub branch: bool,
 }
 
 #[derive(Args, Debug)]
 pub struct LastVersionArgs {
-    #[clap(help = "Get last version based on last version", long, short = 'p')]
+    #[clap(help = "Get last version based on a given pattern", long, short = 'p')]
     pub pattern: Option<String>,
-    #[clap(help = "Check out to last version", long, short = 'c', action)]
+    #[clap(help = "Check out to the last version", long, short = 'c', action)]
     pub checkout: bool,
     #[clap(help = "Verbose output", long, short = 'V', action)]
     pub verbose: bool,
+    #[clap(help = "Get last version based on tag", long, short = 't', action)]
+    pub tag: bool,
+    #[clap(help = "Get last version based on branch", long, short = 'b', action)]
+    pub branch: bool,
 }

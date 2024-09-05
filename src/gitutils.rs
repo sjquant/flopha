@@ -202,3 +202,17 @@ fn git_callbacks() -> git2::RemoteCallbacks<'static> {
     });
     cb
 }
+
+pub fn create_branch(
+    repo: &Repository,
+    name: &str,
+    force: bool,
+    options: Option<&CommandOptions>,
+) -> Result<(), git2::Error> {
+    let default = CommandOptions::default();
+    let opts = options.unwrap_or(&default);
+    let commit = repo.head()?.peel_to_commit()?;
+    repo.branch(name, &commit, force)?;
+    print_verbose(&format!("Created branch '{}'", name), opts.verbose);
+    Result::Ok(())
+}
