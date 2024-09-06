@@ -37,6 +37,13 @@ pub struct NextVersionArgs {
     )]
     pub increment: Increment,
     #[clap(
+        help = "Enable verbose output for detailed information",
+        long,
+        short = 'v',
+        action
+    )]
+    pub verbose: bool,
+    #[clap(
         help = "Specify a custom pattern for version matching and generation. \
                 Use {major}, {minor}, and {patch} as placeholders. \
                 Example: 'v{major}.{minor}.{patch}' or 'release-{major}.{minor}.{patch}'",
@@ -45,12 +52,11 @@ pub struct NextVersionArgs {
     )]
     pub pattern: Option<String>,
     #[clap(
-        help = "Enable verbose output for detailed information",
+        help = "Create a new tag or branch with the next version",
         long,
-        short = 'v',
         action
     )]
-    pub verbose: bool,
+    pub create: bool,
     #[clap(
         help = "Specify the source for versioning: tag (default) or branch",
         long,
@@ -59,14 +65,6 @@ pub struct NextVersionArgs {
         default_value = "tag"
     )]
     pub source: VersionSourceName,
-    #[clap(
-        help = "Action to perform: print (default) or create (creates a new tag or branch)",
-        long,
-        value_enum,
-        default_value = "print",
-        short = 'a'
-    )]
-    pub action: NextVersionAction,
 }
 
 #[derive(Args, Debug)]
@@ -92,29 +90,12 @@ pub struct LastVersionArgs {
         short = 's'
     )]
     pub source: VersionSourceName,
-    #[clap(
-        help = "Action to perform: print (default) or checkout (checks out the last version)",
-        long,
-        value_enum,
-        default_value = "print"
-    )]
-    pub action: LastVersionAction,
+    #[clap(help = "Checkout the last version", long, action)]
+    pub checkout: bool,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
 pub enum VersionSourceName {
     Tag,
     Branch,
-}
-
-#[derive(Debug, Clone, ValueEnum)]
-pub enum NextVersionAction {
-    Print,
-    Create,
-}
-
-#[derive(Debug, Clone, ValueEnum)]
-pub enum LastVersionAction {
-    Print,
-    Checkout,
 }
