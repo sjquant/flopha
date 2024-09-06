@@ -1,8 +1,6 @@
 use std::path::Path;
 
-use crate::cli::{
-    LastVersionAction, LastVersionArgs, NextVersionAction, NextVersionArgs, VersionSourceName,
-};
+use crate::cli::{LastVersionArgs, NextVersionArgs, VersionSourceName};
 use crate::gitutils::{self, CommandOptions};
 use crate::version_source::{BranchVersionSource, TagVersionSource, VersionSource};
 use crate::versioning::Versioner;
@@ -20,16 +18,13 @@ pub fn last_version(path: &Path, args: &LastVersionArgs) -> Option<String> {
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
     let versioner = versioner_factory(&repo, pattern, &args.source);
     if let Some(version) = versioner.last_version() {
-        match args.action {
-            LastVersionAction::Checkout => {
-                let version_source = version_source_factory(&args.source);
-                version_source
-                    .checkout(&repo, &version.tag)
-                    .expect("Failed to checkout version");
-            }
-            LastVersionAction::Print => {
-                println!("{}", version.tag);
-            }
+        println!("{}", version.tag);
+
+        if args.checkout {
+            let version_source = version_source_factory(&args.source);
+            version_source
+                .checkout(&repo, &version.tag)
+                .expect("Failed to checkout version");
         }
 
         Some(version.tag)
@@ -52,17 +47,15 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Option<String> {
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
     let versioner = versioner_factory(&repo, pattern, &args.source);
     if let Some(version) = versioner.next_version(args.increment.clone()) {
-        match args.action {
-            NextVersionAction::Create => {
-                let version_source = version_source_factory(&args.source);
-                version_source
-                    .create(&repo, &version.tag)
-                    .expect("Failed to create new version");
-            }
-            NextVersionAction::Print => {
-                println!("{}", version.tag);
-            }
+        println!("{}", version.tag);
+
+        if args.create {
+            let version_source = version_source_factory(&args.source);
+            version_source
+                .create(&repo, &version.tag)
+                .expect("Failed to create new version");
         }
+
         Some(version.tag)
     } else {
         println!("No version found");
@@ -120,7 +113,7 @@ mod tests {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             verbose: false,
             source: VersionSourceName::Tag,
-            action: LastVersionAction::Print,
+            checkout: false,
         };
 
         let result = last_version(td.path(), &args);
@@ -142,7 +135,7 @@ mod tests {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             verbose: false,
             source: VersionSourceName::Tag,
-            action: LastVersionAction::Print,
+            checkout: false,
         };
         let result = last_version(td.path(), &args);
 
@@ -171,7 +164,7 @@ mod tests {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             verbose: false,
             source: VersionSourceName::Tag,
-            action: LastVersionAction::Checkout,
+            checkout: true,
         };
         last_version(td.path(), &args);
 
@@ -195,7 +188,7 @@ mod tests {
             pattern: Some("release-{major}.{minor}.{patch}".to_string()),
             verbose: false,
             source: VersionSourceName::Tag,
-            action: LastVersionAction::Print,
+            checkout: false,
         };
 
         let result = last_version(td.path(), &args);
@@ -229,7 +222,7 @@ mod tests {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             verbose: false,
             source: VersionSourceName::Branch,
-            action: LastVersionAction::Print,
+            checkout: false,
         };
 
         let result = last_version(td.path(), &args);
@@ -258,7 +251,7 @@ mod tests {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             verbose: false,
             source: VersionSourceName::Branch,
-            action: LastVersionAction::Print,
+            checkout: false,
         };
 
         let result = last_version(td.path(), &args);
@@ -286,7 +279,7 @@ mod tests {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             verbose: false,
             source: VersionSourceName::Branch,
-            action: LastVersionAction::Checkout,
+            checkout: true,
         };
         last_version(td.path(), &args);
 
@@ -329,7 +322,7 @@ mod tests {
             increment: Increment::Patch,
             verbose: false,
             source: VersionSourceName::Tag,
-            action: NextVersionAction::Print,
+            create: false,
         };
         let result = next_version(td.path(), &args);
 
@@ -362,7 +355,7 @@ mod tests {
             increment: Increment::Patch,
             verbose: false,
             source: VersionSourceName::Tag,
-            action: NextVersionAction::Create,
+            create: true,
         };
         next_version(td.path(), &args);
 
@@ -399,7 +392,7 @@ mod tests {
             increment: Increment::Patch,
             verbose: false,
             source: VersionSourceName::Branch,
-            action: NextVersionAction::Print,
+            create: false,
         };
         let result = next_version(td.path(), &args);
 
@@ -422,7 +415,7 @@ mod tests {
             increment: Increment::Patch,
             verbose: false,
             source: VersionSourceName::Branch,
-            action: NextVersionAction::Print,
+            create: false,
         };
 
         let result = next_version(td.path(), &args);
@@ -449,7 +442,7 @@ mod tests {
             increment: Increment::Minor,
             verbose: false,
             source: VersionSourceName::Branch,
-            action: NextVersionAction::Create,
+            create: true,
         };
         let result = next_version(td.path(), &args);
 
