@@ -1,6 +1,6 @@
 # flopha
 
-flopha is a tool to help your github flow.
+flopha is a powerful Git workflow tool designed to simplify version management and streamline your GitHub flow. It helps developers manage semantic versioning, automate tagging, and simplify branch management.
 
 ## Install
 
@@ -10,38 +10,104 @@ Shell (Mac, Linux):
 curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh
 ```
 
-## Getting Started
+## Quickstart
 
-1. You can get the last version of current git repository based on a given pattern.
+1.  Get the last version:
 
-   ```sh
-   flohpa last-version --pattern "v{major}.{minor}.{patch}"
-   ```
+    ```
+    flopha last-version
+    ```
 
-   You can do like this.
+2.  Calculate the next version:
 
-   ```sh
-   flopha last-version --pattern "desktop@{major}.{minor}.{patch}"
-   ```
+    ```
+    flopha next-version
+    ```
 
-2. You can directly checkout the last-version with `--checkout` option. If you want to checkout to the last version for hotfix, this might be useful.
+3.  Use a custom version pattern:
 
-   ```sh
-   flopha last-version --checkout
-   ```
+    ```
+    flopha next-version --pattern "dekstop@{major}.{minor}.{patch}"
+    ```
 
-3. You can calculate and print the next version based on a given pattern.
+4.  Create a new version tag:
 
-   ```sh
-   flopha next-version --pattern "pattern@{major}.{minor}.{patch}"
-   ```
+    ```
+    flopha next-version --pattern "dekstop@{major}.{minor}.{patch} --action create
+    ```
 
-4. You can tag current head as next version. If you want to tag your head after hotfix, this might be useful.
+5.  Increment major version:
 
-   ```sh
-   flopha next-version --pattern "pattern@{major}.{minor}.{patch}" --tag
-   ```
+    ```
+    flopha next-version --increment major
+    ```
 
-## Notes
+6.  Use branch-based versioning:
 
-I wanted to make my github workflow at my company easier, and start my project with `Rust`. It might not fit your needs. If you have any opinions to improve `flopha`, I'm very open to them.
+    ```
+    flopha next-version --source branch
+    ```
+
+7.  Create a new version branch:
+
+    ```
+    flopha next-version --pattern "release/{major}.{minor}.{patch}" --source branch --action create
+    ```
+
+## CLI Options
+
+#### Options for NextVersion
+
+- `-i`, `--increment <INCREMENT>`: Specify the version part to increment. Options are:
+
+  - `major`
+  - `minor`
+  - `patch`
+
+  Default: `patch`
+
+- `-p`, `--pattern <PATTERN>`: Specify a custom pattern for version matching and generation. Use placeholders `{major}`, `{minor}`, and `{patch}`. Example patterns:
+
+  - `v{major}.{minor}.{patch}`
+  - `release-{major}.{minor}.{patch}`
+
+- `-v`, `--verbose`: Enable verbose output for detailed information.
+
+- `-s`, `--source <SOURCE>`: Specify the source for versioning. Options are:
+
+  - `tag` (default)
+  - `branch`
+
+- `-a`, `--action <ACTION>`: Action to perform. Options are:
+  - `print` (default)
+  - `create` (creates a new tag or branch)
+
+#### Options for LastVersion
+
+- `-p`, `--pattern <PATTERN>`: Get the last version based on a given pattern (e.g., `v{major}.{minor}.{patch}`).
+
+- `-v`, `--verbose`: Enable verbose output for detailed information.
+
+- `-s`, `--source <SOURCE>`: Specify the source for versioning. Options are:
+
+  - `tag` (default)
+  - `branch`
+
+- `--action <ACTION>`: Action to perform. Options are:
+  - `print` (default)
+  - `checkout` (checks out the last version)
+
+### LastVersion
+
+Finds the latest version tag or branch in the repository matching a given pattern.
+
+## Why Choose flopha?
+
+- **Simplify Semantic Versioning**: Automate version calculations based on your preferred patterns.
+- **Streamline Git Workflows**: Easily manage tags and versions across multiple branches and projects.
+- **Flexible and Customizable**: Adapt to various versioning schemes and project structures.
+- **Boost Productivity**: Reduce manual version management tasks and potential errors.
+
+## License
+
+flopha is released under the [MIT License](LICENSE).
