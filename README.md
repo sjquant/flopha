@@ -18,40 +18,46 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
     flopha last-version
     ```
 
-2.  Calculate the next version:
+2.  Check out to the last version:
+
+    ```
+    flopha last-version --checkout
+    ```
+
+3.  Calculate the next version:
 
     ```
     flopha next-version
     ```
 
-3.  Use a custom version pattern:
+4.  Use a custom version pattern:
 
     ```
     flopha next-version --pattern "dekstop@{major}.{minor}.{patch}"
     ```
 
-4.  Create a new version tag:
+5.  Create a new version tag:
 
     ```
-    flopha next-version --pattern "dekstop@{major}.{minor}.{patch} --action create
+    flopha next-version --pattern "dekstop@{major}.{minor}.{patch} --create
     ```
 
-5.  Increment major version:
+6.  Increment major version:
 
     ```
     flopha next-version --increment major
     ```
 
-6.  Use branch-based versioning:
+7.  Use branch-based versioning:
 
     ```
     flopha next-version --source branch
     ```
 
-7.  Create a new version branch:
+8.  Create a new version branch:
 
     ```
-    flopha next-version --pattern "release/{major}.{minor}.{patch}" --source branch --action create
+    flopha next-version --pattern "release/{major}.{minor}.{patch}" --source branch --create
     ```
 
 ## CLI Options
@@ -78,9 +84,7 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
   - `tag` (default)
   - `branch`
 
-- `-a`, `--action <ACTION>`: Action to perform. Options are:
-  - `print` (default)
-  - `create` (creates a new tag or branch)
+- `-c`, `--create`: Creates a new tag or branch
 
 #### Options for LastVersion
 
@@ -93,9 +97,7 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
   - `tag` (default)
   - `branch`
 
-- `--action <ACTION>`: Action to perform. Options are:
-  - `print` (default)
-  - `checkout` (checks out the last version)
+- `-c`, `--checkout`: Checks out the last version
 
 ### LastVersion
 
