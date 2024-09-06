@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use clap::Parser;
+use clap::{IntoApp, Parser};
 use flopha::cli::{Cli, Commands};
 use flopha::service::{last_version, next_version};
 
@@ -14,10 +14,12 @@ fn main() {
         Some(Commands::NextVersion(args)) => {
             next_version(path, args);
         }
-        None => {}
-    }
-
-    if cli.version {
-        println!("{}", env!("CARGO_PKG_VERSION"));
+        None => {
+            if cli.version {
+                println!("{}", env!("CARGO_PKG_VERSION"));
+            } else {
+                Cli::command().print_help().unwrap();
+            }
+        }
     }
 }
