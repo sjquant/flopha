@@ -60,9 +60,15 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
     flopha next-version --pattern "release/{major}.{minor}.{patch}" --source branch --create
     ```
 
-## CLI Options
+## CLI Commands and Options
 
-#### Options for NextVersion
+### NextVersion
+
+Calculates and displays the next version based on the current version in the repository.
+
+#### Usage
+
+#### Options
 
 - `-i`, `--increment <INCREMENT>`: Specify the version part to increment. Options are:
 
@@ -86,7 +92,13 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
 
 - `-c`, `--create`: Creates a new tag or branch
 
-#### Options for LastVersion
+### LastVersion
+
+Retrieves and displays the most recent version tag or branch in the repository that matches a specified pattern.
+
+#### Usage
+
+#### Options
 
 - `-p`, `--pattern <PATTERN>`: Get the last version based on a given pattern (e.g., `v{major}.{minor}.{patch}`).
 
@@ -98,10 +110,6 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
   - `branch`
 
 - `-c`, `--checkout`: Checks out the last version
-
-### LastVersion
-
-Finds the latest version tag or branch in the repository matching a given pattern.
 
 ## Why Choose flopha?
 
