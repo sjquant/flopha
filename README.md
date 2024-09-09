@@ -33,13 +33,13 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
 4.  Use a custom version pattern:
 
     ```
-    flopha next-version --pattern "dekstop@{major}.{minor}.{patch}"
+    flopha next-version --pattern "desktop@{major}.{minor}.{patch}"
     ```
 
 5.  Create a new version tag:
 
     ```
-    flopha next-version --pattern "dekstop@{major}.{minor}.{patch} --create
+    flopha next-version --pattern "desktop@{major}.{minor}.{patch} --create
     ```
 
 6.  Increment major version:
