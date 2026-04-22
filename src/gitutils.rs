@@ -187,6 +187,15 @@ fn git_callbacks() -> git2::RemoteCallbacks<'static> {
                 .unwrap_or_else(|| "git".to_string());
             git2::Cred::ssh_key_from_agent(&user)
         } else if allowed.is_user_pass_plaintext() {
+            if let (Ok(user), Ok(pass)) = (
+                std::env::var("GIT_USERNAME"),
+                std::env::var("GIT_PASSWORD"),
+            ) {
+                return git2::Cred::userpass_plaintext(&user, &pass);
+            }
+            if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+                return git2::Cred::userpass_plaintext("x-access-token", &token);
+            }
             git2::Cred::credential_helper(&git_config, url, username)
         } else if allowed.is_default() {
             git2::Cred::default()
