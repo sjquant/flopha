@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::path::Path;
 
 use git2::{Branch, DescribeFormatOptions, DescribeOptions, Repository};
@@ -192,7 +193,6 @@ fn git_credential_fill(url: &str) -> Option<(String, String)> {
         .spawn()
         .ok()?;
 
-    use std::io::Write;
     child.stdin.take()?.write_all(input.as_bytes()).ok()?;
 
     let output = child.wait_with_output().ok()?;
