@@ -174,6 +174,10 @@ fn push_options() -> git2::PushOptions<'static> {
     po
 }
 
+// Shelling out to `git credential fill` rather than using git2::Cred::credential_helper()
+// because libgit2 cannot reliably locate system credential helpers (e.g. osxkeychain on
+// macOS is installed outside PATH by Homebrew/Xcode). The git CLI knows exactly where to
+// find them. flopha already requires git to be installed, so this adds no new dependency.
 fn git_credential_fill(url: &str) -> Option<(String, String)> {
     let (protocol, rest) = url.split_once("://")?;
     let host = rest.split('/').next()?;
