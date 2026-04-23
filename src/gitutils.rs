@@ -240,7 +240,7 @@ fn git_callbacks() -> git2::RemoteCallbacks<'static> {
             if let Some((user, pass)) = git_credential_fill(url) {
                 return git2::Cred::userpass_plaintext(&user, &pass);
             }
-            Err(git2::Error::from_str("No credentials available"))
+            git2::Cred::credential_helper(&git_config, url, username)
         } else if allowed.is_default() {
             git2::Cred::default()
         } else {
