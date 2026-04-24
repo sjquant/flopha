@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::path::Path;
 
 use git2::{Branch, DescribeFormatOptions, DescribeOptions, Repository};
@@ -174,6 +175,44 @@ fn push_options() -> git2::PushOptions<'static> {
     po
 }
 
+// Shelling out to `git credential fill` rather than using git2::Cred::credential_helper()
+// because libgit2 cannot reliably locate system credential helpers (e.g. osxkeychain on
+// macOS is installed outside PATH by Homebrew/Xcode). The git CLI knows exactly where to
+// find them. flopha already requires git to be installed, so this adds no new dependency.
+fn git_credential_fill(url: &str) -> Option<(String, String)> {
+    let (protocol, rest) = url.split_once("://")?;
+    let host = rest.split('/').next()?;
+    let host = host.split('@').last()?;
+    let input = format!("protocol={}\nhost={}\n\n", protocol, host);
+
+    let mut child = std::process::Command::new("git")
+        .args(["credential", "fill"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+
+    child.stdin.take()?.write_all(input.as_bytes()).ok()?;
+
+    let output = child.wait_with_output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8(output.stdout).ok()?;
+    let mut username = None;
+    let mut password = None;
+    for line in stdout.lines() {
+        if let Some(val) = line.strip_prefix("username=") {
+            username = Some(val.to_string());
+        } else if let Some(val) = line.strip_prefix("password=") {
+            password = Some(val.to_string());
+        }
+    }
+    Some((username?, password?))
+}
+
 fn git_callbacks() -> git2::RemoteCallbacks<'static> {
     let git_config = git2::Config::open_default().unwrap();
     let mut cb = git2::RemoteCallbacks::new();
@@ -187,6 +226,20 @@ fn git_callbacks() -> git2::RemoteCallbacks<'static> {
                 .unwrap_or_else(|| "git".to_string());
             git2::Cred::ssh_key_from_agent(&user)
         } else if allowed.is_user_pass_plaintext() {
+            if let (Ok(user), Ok(pass)) = (
+                std::env::var("GIT_USERNAME"),
+                std::env::var("GIT_PASSWORD"),
+            ) {
+                return git2::Cred::userpass_plaintext(&user, &pass);
+            }
+            if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+                return git2::Cred::userpass_plaintext("x-access-token", &token);
+            }
+            // libgit2's credential_helper doesn't invoke osxkeychain (and other
+            // system helpers) correctly. Shell out to `git credential fill` instead.
+            if let Some((user, pass)) = git_credential_fill(url) {
+                return git2::Cred::userpass_plaintext(&user, &pass);
+            }
             git2::Cred::credential_helper(&git_config, url, username)
         } else if allowed.is_default() {
             git2::Cred::default()
