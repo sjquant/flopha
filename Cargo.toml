@@ -7,7 +7,7 @@ rust-version = "1.74.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-git2 = "0.19"
+git2 = { version = "0.19", features = ["vendored-libgit2"] }
 clap = { version = "4", features = ["derive"] }
 openssl = { version = "0.10", features = ["vendored"] }  # to fix build error
 regex = "1.5"

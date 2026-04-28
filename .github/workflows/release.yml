@@ -10,14 +10,14 @@ concurrency:
 
 jobs:
   build-release:
-    name: build-release ${{ matrix.os }} ${{ matrix.rust }} ${{ matrix.target }}
+    name: build-release ${{ matrix.build }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 5
+    timeout-minutes: 30
     strategy:
       matrix:
         include:
           - build: linux
-            os: ubuntu-20.04
+            os: ubuntu-22.04
             rust: stable
             target: x86_64-unknown-linux-musl
           - build: macos
@@ -56,14 +56,14 @@ jobs:
           fi
 
       - name: Install packages (Ubuntu)
-        if: steps.version_check.outputs.version_changed == 'true' && matrix.os == 'ubuntu-20.04'
+        if: steps.version_check.outputs.version_changed == 'true' && matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools
 
       - name: Install Rust
         if: steps.version_check.outputs.version_changed == 'true'
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
 
