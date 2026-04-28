@@ -1,17 +1,18 @@
 use std::path::Path;
 
 use crate::cli::{LastVersionArgs, NextVersionArgs, VersionSourceName};
+use crate::error::FlophaError;
 use crate::gitutils::{self, CommandOptions};
 use crate::version_source::{BranchVersionSource, TagVersionSource, VersionSource};
 use crate::versioning::Versioner;
 
-pub fn last_version(path: &Path, args: &LastVersionArgs) -> Option<String> {
-    let repo = gitutils::get_repo(path);
-    let mut remote = gitutils::get_remote(&repo, "origin");
+pub fn last_version(path: &Path, args: &LastVersionArgs) -> Result<Option<String>, FlophaError> {
+    let repo = gitutils::get_repo(path)?;
+    let mut remote = gitutils::get_remote(&repo, "origin")?;
     let opts = CommandOptions {
         verbose: args.verbose,
     };
-    gitutils::fetch_all(&mut remote, Some(&opts)).expect("Failed to fetch from remote");
+    gitutils::fetch_all(&mut remote, Some(&opts))?;
     let pattern = args
         .pattern
         .clone()
@@ -22,44 +23,40 @@ pub fn last_version(path: &Path, args: &LastVersionArgs) -> Option<String> {
 
         if args.checkout {
             let version_source = version_source_factory(&args.source);
-            version_source
-                .checkout(&repo, &version.tag)
-                .expect("Failed to checkout version");
+            version_source.checkout(&repo, &version.tag)?;
         }
 
-        Some(version.tag)
+        Ok(Some(version.tag))
     } else {
         println!("No version found");
-        None
+        Ok(None)
     }
 }
 
-pub fn next_version(path: &Path, args: &NextVersionArgs) -> Option<String> {
-    let repo = gitutils::get_repo(path);
-    let mut remote = gitutils::get_remote(&repo, "origin");
+pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String>, FlophaError> {
+    let repo = gitutils::get_repo(path)?;
+    let mut remote = gitutils::get_remote(&repo, "origin")?;
     let opts = CommandOptions {
         verbose: args.verbose,
     };
-    gitutils::fetch_all(&mut remote, Some(&opts)).expect("Failed to fetch from remote");
+    gitutils::fetch_all(&mut remote, Some(&opts))?;
     let pattern = args
         .pattern
         .clone()
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
     let versioner = versioner_factory(&repo, pattern, &args.source);
-    if let Some(version) = versioner.next_version(args.increment.clone()) {
+    if let Some(version) = versioner.next_version(args.increment.clone())? {
         println!("{}", version.tag);
 
         if args.create {
             let version_source = version_source_factory(&args.source);
-            version_source
-                .create(&repo, &version.tag)
-                .expect("Failed to create new version");
+            version_source.create(&repo, &version.tag)?;
         }
 
-        Some(version.tag)
+        Ok(Some(version.tag))
     } else {
         println!("No version found");
-        None
+        Ok(None)
     }
 }
 
@@ -116,9 +113,9 @@ mod tests {
             checkout: false,
         };
 
-        let result = last_version(td.path(), &args);
+        let result = last_version(td.path(), &args).unwrap();
 
-        assert_eq!(result.unwrap(), "flopha@2.10.11");
+        assert_eq!(result, Some("flopha@2.10.11".to_string()));
     }
 
     #[test]
@@ -137,7 +134,7 @@ mod tests {
             source: VersionSourceName::Tag,
             checkout: false,
         };
-        let result = last_version(td.path(), &args);
+        let result = last_version(td.path(), &args).unwrap();
 
         assert_eq!(result, None);
     }
@@ -166,7 +163,7 @@ mod tests {
             source: VersionSourceName::Tag,
             checkout: true,
         };
-        last_version(td.path(), &args);
+        last_version(td.path(), &args).unwrap();
 
         // Then
         let tag_id = repo.revparse_single("refs/tags/flopha@1.1.2").unwrap().id();
@@ -191,7 +188,7 @@ mod tests {
             checkout: false,
         };
 
-        let result = last_version(td.path(), &args);
+        let result = last_version(td.path(), &args).unwrap();
 
         assert_eq!(result, None);
     }
@@ -225,10 +222,10 @@ mod tests {
             checkout: false,
         };
 
-        let result = last_version(td.path(), &args);
+        let result = last_version(td.path(), &args).unwrap();
 
         // Then
-        assert_eq!(result.unwrap(), "release/2.10.11");
+        assert_eq!(result, Some("release/2.10.11".to_string()));
     }
 
     #[test]
@@ -254,9 +251,9 @@ mod tests {
             checkout: false,
         };
 
-        let result = last_version(td.path(), &args);
+        let result = last_version(td.path(), &args).unwrap();
 
-        assert_eq!(result.unwrap(), "release/2.0.0");
+        assert_eq!(result, Some("release/2.0.0".to_string()));
     }
 
     #[test]
@@ -281,7 +278,7 @@ mod tests {
             source: VersionSourceName::Branch,
             checkout: true,
         };
-        last_version(td.path(), &args);
+        last_version(td.path(), &args).unwrap();
 
         // Then
         let branch_id = repo
@@ -324,10 +321,10 @@ mod tests {
             source: VersionSourceName::Tag,
             create: false,
         };
-        let result = next_version(td.path(), &args);
+        let result = next_version(td.path(), &args).unwrap();
 
         // Then
-        assert_eq!(result.unwrap(), "flopha@2.10.12")
+        assert_eq!(result, Some("flopha@2.10.12".to_string()))
     }
 
     #[test]
@@ -357,7 +354,7 @@ mod tests {
             source: VersionSourceName::Tag,
             create: true,
         };
-        next_version(td.path(), &args);
+        next_version(td.path(), &args).unwrap();
 
         // Then
         let tag_id = repo.revparse_single("refs/tags/flopha@1.1.3").unwrap().id();
@@ -394,10 +391,10 @@ mod tests {
             source: VersionSourceName::Branch,
             create: false,
         };
-        let result = next_version(td.path(), &args);
+        let result = next_version(td.path(), &args).unwrap();
 
         // Then
-        assert_eq!(result.unwrap(), "release/2.10.12")
+        assert_eq!(result, Some("release/2.10.12".to_string()))
     }
 
     #[test]
@@ -418,7 +415,7 @@ mod tests {
             create: false,
         };
 
-        let result = next_version(td.path(), &args);
+        let result = next_version(td.path(), &args).unwrap();
 
         assert_eq!(result, None);
     }
@@ -444,10 +441,10 @@ mod tests {
             source: VersionSourceName::Branch,
             create: true,
         };
-        let result = next_version(td.path(), &args);
+        let result = next_version(td.path(), &args).unwrap();
 
         // Then
-        assert_eq!(result.unwrap(), "release/2.1.0");
+        assert_eq!(result, Some("release/2.1.0".to_string()));
 
         // Verify that the new branch was created
         let branches = repo.branches(Some(git2::BranchType::Local)).unwrap();
@@ -464,8 +461,8 @@ mod tests {
         tag: &str,
         should_delete: bool,
     ) {
-        let commit_id = gitutils::commit(&repo, "New commit").unwrap();
-        gitutils::tag_oid(&repo, commit_id, tag).unwrap();
+        let commit_id = gitutils::commit(repo, "New commit").unwrap();
+        gitutils::tag_oid(repo, commit_id, tag).unwrap();
         remote.push(&[format!("refs/tags/{}", tag)], None).unwrap();
 
         if should_delete {

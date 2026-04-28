@@ -7,19 +7,20 @@ use flopha::service::{last_version, next_version};
 fn main() {
     let cli = Cli::parse();
     let path = Path::new(".");
-    match &cli.command {
-        Some(Commands::LastVersion(args)) => {
-            last_version(path, args);
-        }
-        Some(Commands::NextVersion(args)) => {
-            next_version(path, args);
-        }
+    let result = match &cli.command {
+        Some(Commands::LastVersion(args)) => last_version(path, args),
+        Some(Commands::NextVersion(args)) => next_version(path, args),
         None => {
             if cli.version {
                 println!("{}", env!("CARGO_PKG_VERSION"));
             } else {
                 Cli::command().print_help().unwrap();
             }
+            return;
         }
+    };
+    if let Err(e) = result {
+        eprintln!("Error: {e}");
+        std::process::exit(1);
     }
 }

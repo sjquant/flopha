@@ -20,7 +20,7 @@ pub fn init_repo() -> (TempDir, Repository) {
     (td, repo)
 }
 
-pub fn init_remote(repo: &Repository) -> (TempDir, Remote) {
+pub fn init_remote(repo: &Repository) -> (TempDir, Remote<'_>) {
     let td = TempDir::new().unwrap();
     let url = path2url(td.path());
     let mut opts = RepositoryInitOptions::new();
