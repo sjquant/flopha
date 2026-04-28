@@ -20,7 +20,7 @@ impl VersionSource for TagVersionSource {
     }
 
     fn checkout(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {
-        gitutils::checkout_tag(repo, version, None)
+        gitutils::checkout_tag(repo, version)
     }
 
     fn create(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {
@@ -41,10 +41,10 @@ impl VersionSource for BranchVersionSource {
     }
 
     fn checkout(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {
-        gitutils::checkout_branch(repo, version, false, None)
+        gitutils::checkout_branch(repo, version, false)
     }
 
     fn create(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {
-        gitutils::checkout_branch(repo, version, true, None)
+        gitutils::checkout_branch(repo, version, true)
     }
 }

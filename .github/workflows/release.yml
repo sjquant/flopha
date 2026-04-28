@@ -33,7 +33,7 @@ jobs:
       TARGET_DIR: ./target
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Determine version changes
         id: version_check
@@ -63,11 +63,9 @@ jobs:
 
       - name: Install Rust
         if: steps.version_check.outputs.version_changed == 'true'
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
-          profile: minimal
-          override: true
 
       - name: Build and Package
         if: steps.version_check.outputs.version_changed == 'true'

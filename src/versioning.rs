@@ -1,4 +1,4 @@
-use clap::clap_derive::ArgEnum;
+use clap::ValueEnum;
 use regex::Regex;
 
 use crate::error::FlophaError;
@@ -27,7 +27,7 @@ impl Version {
     }
 }
 
-#[derive(Debug, Clone, ArgEnum)]
+#[derive(Debug, Clone, ValueEnum)]
 pub enum Increment {
     Major,
     Minor,

@@ -4,12 +4,6 @@ use std::path::Path;
 use git2::{Branch, DescribeFormatOptions, DescribeOptions, Repository};
 
 use crate::error::FlophaError;
-use crate::utils::print_verbose;
-
-#[derive(Default, Clone)]
-pub struct CommandOptions {
-    pub verbose: bool,
-}
 
 pub fn get_repo(path: &Path) -> Result<Repository, FlophaError> {
     Repository::open(path)
@@ -51,10 +45,7 @@ pub fn checkout_branch(
     repo: &Repository,
     name: &str,
     force: bool,
-    options: Option<&CommandOptions>,
 ) -> Result<(), git2::Error> {
-    let default = CommandOptions::default();
-    let opts = options.unwrap_or(&default);
     let branch = repo.find_branch(name, git2::BranchType::Local);
     if force && branch.is_err() {
         let commit = repo.head()?.peel_to_commit()?;
@@ -70,17 +61,11 @@ pub fn checkout_branch(
         .name()
         .ok_or_else(|| git2::Error::from_str("branch name is not valid UTF-8"))?;
     repo.set_head(ref_name)?;
-    print_verbose(&format!("Switched to branch '{}'", name), opts.verbose);
+    log::debug!("Switched to branch '{}'", name);
     Ok(())
 }
 
-pub fn checkout_tag(
-    repo: &Repository,
-    tag: &str,
-    options: Option<&CommandOptions>,
-) -> Result<(), git2::Error> {
-    let default = CommandOptions::default();
-    let opts = options.unwrap_or(&default);
+pub fn checkout_tag(repo: &Repository, tag: &str) -> Result<(), git2::Error> {
     let (object, reference) = repo.revparse_ext(tag)?;
     repo.checkout_tree(&object, None)?;
     let reference =
@@ -89,7 +74,7 @@ pub fn checkout_tag(
         .name()
         .ok_or_else(|| git2::Error::from_str("tag name is not valid UTF-8"))?;
     repo.set_head(ref_name)?;
-    print_verbose(&format!("Switched to tag '{}'", tag), opts.verbose);
+    log::debug!("Switched to tag '{}'", tag);
     Ok(())
 }
 
@@ -102,22 +87,11 @@ pub fn get_last_tag_name(repo: &Repository) -> Result<String, git2::Error> {
     describe.format(Some(DescribeFormatOptions::new().abbreviated_size(0)))
 }
 
-pub fn fetch_all(
-    remote: &mut git2::Remote,
-    options: Option<&CommandOptions>,
-) -> Result<(), git2::Error> {
-    let default = CommandOptions::default();
-    let opts = options.unwrap_or(&default);
-    print_verbose(
-        "Fetching all branches and tags from remote...",
-        opts.verbose,
-    );
+pub fn fetch_all(remote: &mut git2::Remote) -> Result<(), git2::Error> {
+    log::debug!("Fetching all branches and tags from remote...");
     let mut fo = fetch_options();
     remote.fetch(&["refs/heads/*:refs/heads/*"], Some(&mut fo), None)?;
-    print_verbose(
-        "Successfully fetched all branches and tags from remote.",
-        opts.verbose,
-    );
+    log::debug!("Successfully fetched all branches and tags from remote.");
     Ok(())
 }
 
@@ -129,31 +103,19 @@ fn fetch_options() -> git2::FetchOptions<'static> {
     fo
 }
 
-pub fn push_tag(
-    remote: &mut git2::Remote,
-    tag: &str,
-    options: Option<&CommandOptions>,
-) -> Result<(), git2::Error> {
-    let default = CommandOptions::default();
-    let opts = options.unwrap_or(&default);
-    print_verbose(&format!("Pushing tag '{}' to remote...", tag), opts.verbose);
+pub fn push_tag(remote: &mut git2::Remote, tag: &str) -> Result<(), git2::Error> {
+    log::debug!("Pushing tag '{}' to remote...", tag);
     let mut po = push_options();
     let ref_spec = format!("refs/tags/{}:refs/tags/{}", tag, tag);
     remote.push(&[&ref_spec], Some(&mut po))?;
-    print_verbose(
-        &format!("Successfully pushed tag '{}' to remote.", tag),
-        opts.verbose,
-    );
+    log::debug!("Successfully pushed tag '{}' to remote.", tag);
     Ok(())
 }
 
 pub fn push_branch(
     remote: &mut git2::Remote,
     branch: &mut Branch,
-    options: Option<&CommandOptions>,
 ) -> Result<(), git2::Error> {
-    let default = CommandOptions::default();
-    let opts = options.unwrap_or(&default);
     let branch_name = branch
         .name()?
         .ok_or_else(|| git2::Error::from_str("branch name is not valid UTF-8"))?
@@ -162,18 +124,12 @@ pub fn push_branch(
         .name()
         .ok_or_else(|| git2::Error::from_str("remote name is not valid UTF-8"))?;
     let upstream_name = format!("{}/{}", remote_name, branch_name.as_str());
-    print_verbose(
-        &format!("Pushing branch '{}' to remote...", branch_name),
-        opts.verbose,
-    );
+    log::debug!("Pushing branch '{}' to remote...", branch_name);
     let mut po = push_options();
     let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
     remote.push(&[&refspec], Some(&mut po))?;
     branch.set_upstream(Some(&upstream_name))?;
-    print_verbose(
-        &format!("Successfully pushed branch '{}' to remote.", branch_name),
-        opts.verbose,
-    );
+    log::debug!("Successfully pushed branch '{}' to remote.", branch_name);
     Ok(())
 }
 
@@ -260,16 +216,9 @@ fn git_callbacks() -> git2::RemoteCallbacks<'static> {
     cb
 }
 
-pub fn create_branch(
-    repo: &Repository,
-    name: &str,
-    force: bool,
-    options: Option<&CommandOptions>,
-) -> Result<(), git2::Error> {
-    let default = CommandOptions::default();
-    let opts = options.unwrap_or(&default);
+pub fn create_branch(repo: &Repository, name: &str, force: bool) -> Result<(), git2::Error> {
     let commit = repo.head()?.peel_to_commit()?;
     repo.branch(name, &commit, force)?;
-    print_verbose(&format!("Created branch '{}'", name), opts.verbose);
+    log::debug!("Created branch '{}'", name);
     Ok(())
 }
