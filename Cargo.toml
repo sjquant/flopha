@@ -2,15 +2,18 @@
 name = "flopha"
 version = "0.1.1"
 edition = "2021"
-rust-version = "1.60.0"
+rust-version = "1.74.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-git2 = "0.14"
-clap = { version = "3.1.18", features = ["derive"] }
-openssl = { version = "0.10", features = ["vendored"] }  # to fix build error
+git2 = { version = "0.19", features = ["vendored-libgit2"] }
+clap = { version = "4", features = ["derive"] }
+openssl = { version = "0.10", features = ["vendored"] }  # statically linked for portable binaries (musl, macOS)
 regex = "1.5"
+thiserror = "1"
+log = "0.4"
+env_logger = "0.11"
 
 [dev-dependencies]
 url = "2.0"

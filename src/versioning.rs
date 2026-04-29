@@ -1,5 +1,7 @@
-use clap::clap_derive::ArgEnum;
+use clap::ValueEnum;
 use regex::Regex;
+
+use crate::error::FlophaError;
 
 pub struct Versioner {
     tags: Vec<String>,
@@ -25,7 +27,7 @@ impl Version {
     }
 }
 
-#[derive(Debug, Clone, ArgEnum)]
+#[derive(Debug, Clone, ValueEnum)]
 pub enum Increment {
     Major,
     Minor,
@@ -67,38 +69,51 @@ impl Versioner {
             std::cmp::Ordering::Equal
         });
 
-        if versions.len() > 0 {
-            let last_version = versions.last().unwrap().clone();
-            Some(last_version)
+        if !versions.is_empty() {
+            versions.last().cloned()
         } else {
             None
         }
     }
 
-    pub fn next_version(&self, increment: Increment) -> Option<Version> {
-        let last_version = self.last_version()?;
+    pub fn next_version(&self, increment: Increment) -> Result<Option<Version>, FlophaError> {
+        let last_version = match self.last_version() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
 
-        let major;
-        let minor;
-        let patch;
-
-        match increment {
+        let (major, minor, patch) = match increment {
             Increment::Major => {
-                major = last_version.major.expect("Can't find {major}") + 1;
-                minor = 0;
-                patch = 0;
+                let major = last_version
+                    .major
+                    .ok_or(FlophaError::MissingVersionComponent("major".into()))?
+                    + 1;
+                (major, 0, 0)
             }
             Increment::Minor => {
-                major = last_version.major.expect("Can't find {major}");
-                minor = last_version.minor.expect("Can't find {minor}") + 1;
-                patch = 0;
+                let major = last_version
+                    .major
+                    .ok_or(FlophaError::MissingVersionComponent("major".into()))?;
+                let minor = last_version
+                    .minor
+                    .ok_or(FlophaError::MissingVersionComponent("minor".into()))?
+                    + 1;
+                (major, minor, 0)
             }
             Increment::Patch => {
-                major = last_version.major.expect("Can't find {major}");
-                minor = last_version.minor.expect("Can't find {minor}");
-                patch = last_version.patch.expect("Can't find {patch}") + 1;
+                let major = last_version
+                    .major
+                    .ok_or(FlophaError::MissingVersionComponent("major".into()))?;
+                let minor = last_version
+                    .minor
+                    .ok_or(FlophaError::MissingVersionComponent("minor".into()))?;
+                let patch = last_version
+                    .patch
+                    .ok_or(FlophaError::MissingVersionComponent("patch".into()))?
+                    + 1;
+                (major, minor, patch)
             }
-        }
+        };
 
         let tag = self
             .pattern
@@ -106,7 +121,12 @@ impl Versioner {
             .replace("{minor}", &minor.to_string())
             .replace("{patch}", &patch.to_string());
 
-        Some(Version::new(tag, Some(major), Some(minor), Some(patch)))
+        Ok(Some(Version::new(
+            tag,
+            Some(major),
+            Some(minor),
+            Some(patch),
+        )))
     }
 
     fn get_regex(&self) -> Regex {
@@ -119,17 +139,13 @@ impl Versioner {
             .replace("{patch}", "(?P<patch>\\d+)");
         // Add ^ and $ to match the whole string
         expr = format!("^{}$", expr);
-        let re = Regex::new(&expr).unwrap();
-        re
+        Regex::new(&expr).unwrap()
     }
 }
 
 fn parse_version(caps: &regex::Captures, name: &str) -> Option<u32> {
-    if let Some(version) = caps.name(name) {
-        Some(version.as_str().parse::<u32>().unwrap())
-    } else {
-        None
-    }
+    caps.name(name)
+        .map(|version| version.as_str().parse::<u32>().unwrap())
 }
 
 #[cfg(test)]
@@ -244,7 +260,7 @@ mod tests {
             "z4.0.0".to_string(),
         ];
         let versioner = Versioner::new(tags.clone(), "v{major}.{minor}.{patch}".to_string());
-        let next_version = versioner.next_version(Increment::Major);
+        let next_version = versioner.next_version(Increment::Major).unwrap();
         assert_eq!(
             next_version,
             Some(Version::new(
@@ -255,7 +271,7 @@ mod tests {
             ))
         );
 
-        let next_version = versioner.next_version(Increment::Minor);
+        let next_version = versioner.next_version(Increment::Minor).unwrap();
         assert_eq!(
             next_version,
             Some(Version::new(
@@ -266,7 +282,7 @@ mod tests {
             ))
         );
 
-        let next_version = versioner.next_version(Increment::Patch);
+        let next_version = versioner.next_version(Increment::Patch).unwrap();
         assert_eq!(
             next_version,
             Some(Version::new(
@@ -284,19 +300,16 @@ mod tests {
             vec!["v1.0.0".to_string(), "v1.0.1".to_string()],
             "no-{major}.{minor}.{patch}".to_string(),
         );
-        let next_version = versioner.next_version(Increment::Major);
+        let next_version = versioner.next_version(Increment::Major).unwrap();
         assert_eq!(next_version, None);
     }
 
     #[test]
-    fn test_next_version_panic_when_no_increment_in_pattern() {
+    fn test_next_version_error_when_no_increment_in_pattern() {
         let versioner = Versioner::new(
             vec!["v1.0.0".to_string(), "v1.0.1".to_string()],
             "v1.{minor}.{patch}".to_string(),
         );
-        assert!(std::panic::catch_unwind(|| {
-            versioner.next_version(Increment::Major);
-        })
-        .is_err());
+        assert!(versioner.next_version(Increment::Major).is_err());
     }
 }

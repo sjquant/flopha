@@ -5,8 +5,17 @@ use crate::versioning::Increment;
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 pub struct Cli {
-    #[clap(short = 'v', long = "version", action)]
+    #[clap(short = 'V', long = "version", action)]
     pub version: bool,
+
+    #[clap(
+        short = 'v',
+        long,
+        action,
+        global = true,
+        help = "Enable verbose output"
+    )]
+    pub verbose: bool,
 
     #[clap(subcommand)]
     pub command: Option<Commands>,
@@ -36,13 +45,6 @@ pub struct NextVersionArgs {
         short = 'i'
     )]
     pub increment: Increment,
-    #[clap(
-        help = "Enable verbose output for detailed information",
-        long,
-        short = 'v',
-        action
-    )]
-    pub verbose: bool,
     #[clap(
         help = "Specify a custom pattern for version matching and generation. \
                 Use {major}, {minor}, and {patch} as placeholders. \
@@ -75,13 +77,6 @@ pub struct LastVersionArgs {
         short = 'p'
     )]
     pub pattern: Option<String>,
-    #[clap(
-        help = "Enable verbose output for detailed information",
-        long,
-        short = 'v',
-        action
-    )]
-    pub verbose: bool,
     #[clap(
         help = "Specify the source for versioning: tag (default) or branch",
         long,

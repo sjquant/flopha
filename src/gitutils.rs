@@ -3,36 +3,36 @@ use std::path::Path;
 
 use git2::{Branch, DescribeFormatOptions, DescribeOptions, Repository};
 
-use crate::utils::print_verbose;
+use crate::error::FlophaError;
 
-#[derive(Default, Clone)]
-pub struct CommandOptions {
-    pub verbose: bool,
+pub fn get_repo(path: &Path) -> Result<Repository, FlophaError> {
+    Repository::open(path).map_err(|e| FlophaError::RepoNotFound {
+        path: path.display().to_string(),
+        source: e,
+    })
 }
 
-pub fn get_repo(path: &Path) -> Repository {
-    let repo = Repository::open(path).expect("Repository not found");
-    repo
-}
-
-pub fn get_remote<'a>(repo: &'a Repository, name: &str) -> git2::Remote<'a> {
-    let remote = repo.find_remote(name).expect("Remote 'origin' not found");
-    remote
+pub fn get_remote<'a>(repo: &'a Repository, name: &str) -> Result<git2::Remote<'a>, FlophaError> {
+    repo.find_remote(name)
+        .map_err(|e| FlophaError::RemoteNotFound {
+            name: name.to_string(),
+            source: e,
+        })
 }
 
 pub fn tag_oid(repo: &Repository, id: git2::Oid, tagname: &str) -> Result<git2::Oid, git2::Error> {
-    let obj = repo.find_object(id, None).unwrap();
+    let obj = repo.find_object(id, None)?;
     repo.tag_lightweight(tagname, &obj, true)
 }
 
 pub fn commit(repo: &Repository, message: &str) -> Result<git2::Oid, git2::Error> {
-    let mut index = repo.index().unwrap();
-    let id = index.write_tree().unwrap();
-    let tree = repo.find_tree(id).unwrap();
-    let sig = repo.signature().unwrap();
+    let mut index = repo.index()?;
+    let id = index.write_tree()?;
+    let tree = repo.find_tree(id)?;
+    let sig = repo.signature()?;
     let head = repo.head();
     let parents = if let Ok(head) = head {
-        vec![head.peel_to_commit().unwrap()]
+        vec![head.peel_to_commit()?]
     } else {
         vec![]
     };
@@ -46,70 +46,54 @@ pub fn commit(repo: &Repository, message: &str) -> Result<git2::Oid, git2::Error
     )
 }
 
-pub fn checkout_branch(
-    repo: &Repository,
-    name: &str,
-    force: bool,
-    options: Option<&CommandOptions>,
-) -> Result<(), git2::Error> {
-    let default = CommandOptions::default();
-    let opts = options.unwrap_or(&default);
+pub fn checkout_branch(repo: &Repository, name: &str, force: bool) -> Result<(), git2::Error> {
     let branch = repo.find_branch(name, git2::BranchType::Local);
     if force && branch.is_err() {
-        let commit = repo.head().unwrap().peel_to_commit().unwrap();
-        repo.branch(name, &commit, true).unwrap();
+        let commit = repo.head()?.peel_to_commit()?;
+        repo.branch(name, &commit, true)?;
     } else {
         branch?;
     }
-    let (object, reference) = repo.revparse_ext(name).expect("Branch not found");
-    repo.checkout_tree(&object, None)
-        .expect("Failed to checkout");
-    repo.set_head(reference.unwrap().name().unwrap())?;
-    print_verbose(&format!("Switched to branch '{}'", name), opts.verbose);
-    Result::Ok(())
+    let (object, reference) = repo.revparse_ext(name)?;
+    repo.checkout_tree(&object, None)?;
+    let reference =
+        reference.ok_or_else(|| git2::Error::from_str("symbolic reference not found"))?;
+    let ref_name = reference
+        .name()
+        .ok_or_else(|| git2::Error::from_str("branch name is not valid UTF-8"))?;
+    repo.set_head(ref_name)?;
+    log::debug!("Switched to branch '{}'", name);
+    Ok(())
 }
 
-pub fn checkout_tag(
-    repo: &Repository,
-    tag: &str,
-    options: Option<&CommandOptions>,
-) -> Result<(), git2::Error> {
-    let default = CommandOptions::default();
-    let opts = options.unwrap_or(&default);
-    let (object, reference) = repo.revparse_ext(tag).expect("Tag not found");
-    repo.checkout_tree(&object, None)
-        .expect("Failed to checkout");
-    repo.set_head(reference.unwrap().name().unwrap())?;
-    print_verbose(&format!("Switched to tag '{}'", tag), opts.verbose);
-    Result::Ok(())
+pub fn checkout_tag(repo: &Repository, tag: &str) -> Result<(), git2::Error> {
+    let (object, reference) = repo.revparse_ext(tag)?;
+    repo.checkout_tree(&object, None)?;
+    let reference =
+        reference.ok_or_else(|| git2::Error::from_str("symbolic reference not found"))?;
+    let ref_name = reference
+        .name()
+        .ok_or_else(|| git2::Error::from_str("tag name is not valid UTF-8"))?;
+    repo.set_head(ref_name)?;
+    log::debug!("Switched to tag '{}'", tag);
+    Ok(())
 }
 
-pub fn get_head_branch(repo: &Repository) -> Result<Branch, git2::Error> {
+pub fn get_head_branch(repo: &Repository) -> Result<Branch<'_>, git2::Error> {
     Ok(Branch::wrap(repo.head()?))
 }
 
 pub fn get_last_tag_name(repo: &Repository) -> Result<String, git2::Error> {
     let describe = repo.describe(DescribeOptions::new().describe_tags())?;
-    Ok(describe.format(Some(DescribeFormatOptions::new().abbreviated_size(0)))?)
+    describe.format(Some(DescribeFormatOptions::new().abbreviated_size(0)))
 }
 
-pub fn fetch_all(
-    remote: &mut git2::Remote,
-    options: Option<&CommandOptions>,
-) -> Result<(), git2::Error> {
-    let default = CommandOptions::default();
-    let opts = options.unwrap_or(&default);
-    print_verbose(
-        &format!("Fetching all branches and tags from remote..."),
-        opts.verbose,
-    );
+pub fn fetch_all(remote: &mut git2::Remote) -> Result<(), git2::Error> {
+    log::debug!("Fetching all branches and tags from remote...");
     let mut fo = fetch_options();
     remote.fetch(&["refs/heads/*:refs/heads/*"], Some(&mut fo), None)?;
-    print_verbose(
-        &format!("Successfully fetched all branches and tags from remote."),
-        opts.verbose,
-    );
-    Result::Ok(())
+    log::debug!("Successfully fetched all branches and tags from remote.");
+    Ok(())
 }
 
 fn fetch_options() -> git2::FetchOptions<'static> {
@@ -120,52 +104,31 @@ fn fetch_options() -> git2::FetchOptions<'static> {
     fo
 }
 
-// Update the push_tag function to accept options
-pub fn push_tag(
-    remote: &mut git2::Remote,
-    tag: &str,
-    options: Option<&CommandOptions>,
-) -> Result<(), git2::Error> {
-    let default = CommandOptions::default();
-    let opts = options.unwrap_or(&default);
-    print_verbose(&format!("Pushing tag '{}' to remote...", tag), opts.verbose);
+pub fn push_tag(remote: &mut git2::Remote, tag: &str) -> Result<(), git2::Error> {
+    log::debug!("Pushing tag '{}' to remote...", tag);
     let mut po = push_options();
     let ref_spec = format!("refs/tags/{}:refs/tags/{}", tag, tag);
     remote.push(&[&ref_spec], Some(&mut po))?;
-    print_verbose(
-        &format!("Successfully pushed tag '{}' to remote.", tag),
-        opts.verbose,
-    );
-    Result::Ok(())
+    log::debug!("Successfully pushed tag '{}' to remote.", tag);
+    Ok(())
 }
 
-pub fn push_branch(
-    remote: &mut git2::Remote,
-    branch: &mut Branch,
-    options: Option<&CommandOptions>,
-) -> Result<(), git2::Error> {
-    let default = CommandOptions::default();
-    let opts = options.unwrap_or(&default);
+pub fn push_branch(remote: &mut git2::Remote, branch: &mut Branch) -> Result<(), git2::Error> {
     let branch_name = branch
-        .name()
-        .unwrap()
-        .expect("Failed to get branch name")
+        .name()?
+        .ok_or_else(|| git2::Error::from_str("branch name is not valid UTF-8"))?
         .to_string();
-    let remote_name = remote.name().unwrap();
+    let remote_name = remote
+        .name()
+        .ok_or_else(|| git2::Error::from_str("remote name is not valid UTF-8"))?;
     let upstream_name = format!("{}/{}", remote_name, branch_name.as_str());
-    print_verbose(
-        &format!("Pushing branch '{}' to remote...", branch_name),
-        opts.verbose,
-    );
+    log::debug!("Pushing branch '{}' to remote...", branch_name);
     let mut po = push_options();
     let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
     remote.push(&[&refspec], Some(&mut po))?;
     branch.set_upstream(Some(&upstream_name))?;
-    print_verbose(
-        &format!("Successfully pushed branch '{}' to remote.", branch_name),
-        opts.verbose,
-    );
-    Result::Ok(())
+    log::debug!("Successfully pushed branch '{}' to remote.", branch_name);
+    Ok(())
 }
 
 fn push_options() -> git2::PushOptions<'static> {
@@ -182,7 +145,7 @@ fn push_options() -> git2::PushOptions<'static> {
 fn git_credential_fill(url: &str) -> Option<(String, String)> {
     let (protocol, rest) = url.split_once("://")?;
     let host = rest.split('/').next()?;
-    let host = host.split('@').last()?;
+    let host = host.split('@').next_back()?;
     let input = format!("protocol={}\nhost={}\n\n", protocol, host);
 
     let mut child = std::process::Command::new("git")
@@ -214,11 +177,13 @@ fn git_credential_fill(url: &str) -> Option<(String, String)> {
 }
 
 fn git_callbacks() -> git2::RemoteCallbacks<'static> {
-    let git_config = git2::Config::open_default().unwrap();
+    let git_config = git2::Config::open_default().ok();
     let mut cb = git2::RemoteCallbacks::new();
     cb.credentials(move |url, username, allowed| {
         let mut cred_helper = git2::CredentialHelper::new(url);
-        cred_helper.config(&git_config);
+        if let Some(ref cfg) = git_config {
+            cred_helper.config(cfg);
+        }
         if allowed.is_ssh_key() {
             let user = username
                 .map(std::string::ToString::to_string)
@@ -226,10 +191,9 @@ fn git_callbacks() -> git2::RemoteCallbacks<'static> {
                 .unwrap_or_else(|| "git".to_string());
             git2::Cred::ssh_key_from_agent(&user)
         } else if allowed.is_user_pass_plaintext() {
-            if let (Ok(user), Ok(pass)) = (
-                std::env::var("GIT_USERNAME"),
-                std::env::var("GIT_PASSWORD"),
-            ) {
+            if let (Ok(user), Ok(pass)) =
+                (std::env::var("GIT_USERNAME"), std::env::var("GIT_PASSWORD"))
+            {
                 return git2::Cred::userpass_plaintext(&user, &pass);
             }
             if let Ok(token) = std::env::var("GITHUB_TOKEN") {
@@ -240,7 +204,13 @@ fn git_callbacks() -> git2::RemoteCallbacks<'static> {
             if let Some((user, pass)) = git_credential_fill(url) {
                 return git2::Cred::userpass_plaintext(&user, &pass);
             }
-            git2::Cred::credential_helper(&git_config, url, username)
+            if let Some(ref cfg) = git_config {
+                git2::Cred::credential_helper(cfg, url, username)
+            } else {
+                Err(git2::Error::from_str(
+                    "no git config available for credential helper",
+                ))
+            }
         } else if allowed.is_default() {
             git2::Cred::default()
         } else {
@@ -252,16 +222,9 @@ fn git_callbacks() -> git2::RemoteCallbacks<'static> {
     cb
 }
 
-pub fn create_branch(
-    repo: &Repository,
-    name: &str,
-    force: bool,
-    options: Option<&CommandOptions>,
-) -> Result<(), git2::Error> {
-    let default = CommandOptions::default();
-    let opts = options.unwrap_or(&default);
+pub fn create_branch(repo: &Repository, name: &str, force: bool) -> Result<(), git2::Error> {
     let commit = repo.head()?.peel_to_commit()?;
     repo.branch(name, &commit, force)?;
-    print_verbose(&format!("Created branch '{}'", name), opts.verbose);
-    Result::Ok(())
+    log::debug!("Created branch '{}'", name);
+    Ok(())
 }
