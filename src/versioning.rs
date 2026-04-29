@@ -84,21 +84,33 @@ impl Versioner {
 
         let (major, minor, patch) = match increment {
             Increment::Major => {
-                let major =
-                    last_version.major.ok_or(FlophaError::MissingVersionComponent("major".into()))? + 1;
+                let major = last_version
+                    .major
+                    .ok_or(FlophaError::MissingVersionComponent("major".into()))?
+                    + 1;
                 (major, 0, 0)
             }
             Increment::Minor => {
-                let major = last_version.major.ok_or(FlophaError::MissingVersionComponent("major".into()))?;
-                let minor =
-                    last_version.minor.ok_or(FlophaError::MissingVersionComponent("minor".into()))? + 1;
+                let major = last_version
+                    .major
+                    .ok_or(FlophaError::MissingVersionComponent("major".into()))?;
+                let minor = last_version
+                    .minor
+                    .ok_or(FlophaError::MissingVersionComponent("minor".into()))?
+                    + 1;
                 (major, minor, 0)
             }
             Increment::Patch => {
-                let major = last_version.major.ok_or(FlophaError::MissingVersionComponent("major".into()))?;
-                let minor = last_version.minor.ok_or(FlophaError::MissingVersionComponent("minor".into()))?;
-                let patch =
-                    last_version.patch.ok_or(FlophaError::MissingVersionComponent("patch".into()))? + 1;
+                let major = last_version
+                    .major
+                    .ok_or(FlophaError::MissingVersionComponent("major".into()))?;
+                let minor = last_version
+                    .minor
+                    .ok_or(FlophaError::MissingVersionComponent("minor".into()))?;
+                let patch = last_version
+                    .patch
+                    .ok_or(FlophaError::MissingVersionComponent("patch".into()))?
+                    + 1;
                 (major, minor, patch)
             }
         };
@@ -109,7 +121,12 @@ impl Versioner {
             .replace("{minor}", &minor.to_string())
             .replace("{patch}", &patch.to_string());
 
-        Ok(Some(Version::new(tag, Some(major), Some(minor), Some(patch))))
+        Ok(Some(Version::new(
+            tag,
+            Some(major),
+            Some(minor),
+            Some(patch),
+        )))
     }
 
     fn get_regex(&self) -> Regex {

@@ -13,10 +13,11 @@ pub fn get_repo(path: &Path) -> Result<Repository, FlophaError> {
 }
 
 pub fn get_remote<'a>(repo: &'a Repository, name: &str) -> Result<git2::Remote<'a>, FlophaError> {
-    repo.find_remote(name).map_err(|e| FlophaError::RemoteNotFound {
-        name: name.to_string(),
-        source: e,
-    })
+    repo.find_remote(name)
+        .map_err(|e| FlophaError::RemoteNotFound {
+            name: name.to_string(),
+            source: e,
+        })
 }
 
 pub fn tag_oid(repo: &Repository, id: git2::Oid, tagname: &str) -> Result<git2::Oid, git2::Error> {
@@ -45,11 +46,7 @@ pub fn commit(repo: &Repository, message: &str) -> Result<git2::Oid, git2::Error
     )
 }
 
-pub fn checkout_branch(
-    repo: &Repository,
-    name: &str,
-    force: bool,
-) -> Result<(), git2::Error> {
+pub fn checkout_branch(repo: &Repository, name: &str, force: bool) -> Result<(), git2::Error> {
     let branch = repo.find_branch(name, git2::BranchType::Local);
     if force && branch.is_err() {
         let commit = repo.head()?.peel_to_commit()?;
@@ -116,10 +113,7 @@ pub fn push_tag(remote: &mut git2::Remote, tag: &str) -> Result<(), git2::Error>
     Ok(())
 }
 
-pub fn push_branch(
-    remote: &mut git2::Remote,
-    branch: &mut Branch,
-) -> Result<(), git2::Error> {
+pub fn push_branch(remote: &mut git2::Remote, branch: &mut Branch) -> Result<(), git2::Error> {
     let branch_name = branch
         .name()?
         .ok_or_else(|| git2::Error::from_str("branch name is not valid UTF-8"))?
@@ -213,7 +207,9 @@ fn git_callbacks() -> git2::RemoteCallbacks<'static> {
             if let Some(ref cfg) = git_config {
                 git2::Cred::credential_helper(cfg, url, username)
             } else {
-                Err(git2::Error::from_str("no git config available for credential helper"))
+                Err(git2::Error::from_str(
+                    "no git config available for credential helper",
+                ))
             }
         } else if allowed.is_default() {
             git2::Cred::default()

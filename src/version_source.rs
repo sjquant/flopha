@@ -13,7 +13,10 @@ pub struct BranchVersionSource;
 impl VersionSource for TagVersionSource {
     fn fetch_all(&self, repo: &Repository) -> Vec<String> {
         match repo.tag_names(Some("*")) {
-            Ok(names) => names.iter().filter_map(|s| s.map(|s| s.to_string())).collect(),
+            Ok(names) => names
+                .iter()
+                .filter_map(|s| s.map(|s| s.to_string()))
+                .collect(),
             Err(e) => {
                 log::warn!("Failed to fetch tags: {}", e);
                 Vec::new()

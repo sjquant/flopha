@@ -8,7 +8,13 @@ pub struct Cli {
     #[clap(short = 'V', long = "version", action)]
     pub version: bool,
 
-    #[clap(short = 'v', long, action, global = true, help = "Enable verbose output")]
+    #[clap(
+        short = 'v',
+        long,
+        action,
+        global = true,
+        help = "Enable verbose output"
+    )]
     pub verbose: bool,
 
     #[clap(subcommand)]
@@ -47,7 +53,11 @@ pub struct NextVersionArgs {
         short = 'p'
     )]
     pub pattern: Option<String>,
-    #[clap(help = "Create a new tag or branch with the next version", long, action)]
+    #[clap(
+        help = "Create a new tag or branch with the next version",
+        long,
+        action
+    )]
     pub create: bool,
     #[clap(
         help = "Specify the source for versioning: tag (default) or branch",
