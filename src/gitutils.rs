@@ -237,15 +237,15 @@ pub fn commits_since_tag(repo: &Repository, tag_name: &str) -> Result<Vec<String
 
     let mut revwalk = repo.revwalk()?;
     revwalk.push_head()?;
+    // hide() tells libgit2 to stop exploring at (and including) the tagged commit and
+    // all its ancestors. A simple break-on-match would silently walk the entire history
+    // on merge-heavy DAGs where the tag commit may not appear in the linear stream.
+    revwalk.hide(tag_commit_oid)?;
     revwalk.set_sorting(git2::Sort::TOPOLOGICAL)?;
 
     let mut messages = Vec::new();
     for oid in revwalk {
-        let oid = oid?;
-        if oid == tag_commit_oid {
-            break;
-        }
-        let commit = repo.find_commit(oid)?;
+        let commit = repo.find_commit(oid?)?;
         if let Some(msg) = commit.message() {
             messages.push(msg.to_string());
         }
@@ -267,17 +267,11 @@ pub fn count_commits_between(
 ) -> Result<usize, git2::Error> {
     let mut revwalk = repo.revwalk()?;
     revwalk.push(to_oid)?;
+    // hide() correctly handles merge DAGs; a break-on-match can miss commits
+    // reachable only through merged branches.
+    revwalk.hide(from_oid)?;
     revwalk.set_sorting(git2::Sort::TOPOLOGICAL)?;
-
-    let mut count = 0usize;
-    for oid in revwalk {
-        let oid = oid?;
-        if oid == from_oid {
-            break;
-        }
-        count += 1;
-    }
-    Ok(count)
+    Ok(revwalk.count())
 }
 
 /// Resolves a tag name to the OID of the commit it points to.

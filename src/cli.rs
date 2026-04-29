@@ -51,10 +51,12 @@ pub struct NextVersionArgs {
     )]
     pub increment: Increment,
     #[clap(
-        help = "Auto-detect bump level from conventional commit messages since last tag \
-                (overrides --increment). feat→minor, feat!/BREAKING CHANGE→major, else patch.",
+        help = "Auto-detect bump level from conventional commit messages since last tag. \
+                feat→minor, feat!/BREAKING CHANGE→major, else patch. \
+                Cannot be combined with --increment.",
         long,
-        action
+        action,
+        conflicts_with = "increment"
     )]
     pub auto: bool,
     #[clap(

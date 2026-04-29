@@ -52,7 +52,10 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
                 let messages = gitutils::commits_since_tag(&repo, &last.tag).unwrap_or_default();
                 conventional_commits::detect_increment(&messages)
             }
-            None => args.increment.clone(),
+            None => {
+                log::warn!("--auto: no prior tag found, falling back to --increment");
+                args.increment.clone()
+            }
         }
     } else {
         args.increment.clone()
@@ -68,7 +71,7 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
 
     // If a pre-release channel was requested, compute the pre-release tag.
     let final_tag = if let Some(channel) = &args.pre {
-        pre_release_tag(&next.tag, channel, &all_tags)
+        pre_release_tag(&next.tag, channel, &repo)
     } else {
         next.tag.clone()
     };
@@ -76,7 +79,7 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
     println!("{}", final_tag);
 
     if args.create {
-        version_source_factory(&args.source).create(&repo, &final_tag)?;
+        version_source.create(&repo, &final_tag)?;
     }
 
     Ok(Some(final_tag))
@@ -84,17 +87,24 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
 
 /// Returns the next pre-release tag for `base_version` on `channel`.
 ///
-/// Scans `all_tags` for existing `{base_version}-{channel}.N` tags and
-/// returns `{base_version}-{channel}.{max_N + 1}`, defaulting to `.1`.
-fn pre_release_tag(base_version: &str, channel: &str, all_tags: &[String]) -> String {
+/// Always scans the repo's actual git tags (not the version-source list, which
+/// can be branch names when --source=branch is used) so the counter is correct
+/// regardless of which version source drives the base version.
+fn pre_release_tag(base_version: &str, channel: &str, repo: &git2::Repository) -> String {
     let prefix = format!("{}-{}.", base_version, channel);
-    let max_pre = all_tags
-        .iter()
-        .filter_map(|t| t.strip_prefix(&prefix))
-        .filter_map(|s| s.parse::<u32>().ok())
-        .max()
+    let max_pre = repo
+        .tag_names(None)
+        .map(|names| {
+            names
+                .iter()
+                .flatten()
+                .filter_map(|t| t.strip_prefix(&prefix))
+                .filter_map(|s| s.parse::<u32>().ok())
+                .max()
+                .unwrap_or(0)
+        })
         .unwrap_or(0);
-    format!("{}-{}.{}", base_version, channel, max_pre + 1)
+    format!("{}-{}.{}", base_version, channel, max_pre.saturating_add(1))
 }
 
 pub fn log_versions(path: &Path, args: &LogArgs) -> Result<(), FlophaError> {
@@ -129,33 +139,24 @@ pub fn log_versions(path: &Path, args: &LogArgs) -> Result<(), FlophaError> {
             .unwrap_or_else(|_| "unknown".to_string());
 
         // Count commits between this version and the next older one.
-        let commit_count = if i + 1 < versions.len() {
+        let commit_info = if i + 1 < versions.len() {
             let prev = &versions[i + 1];
             let from_oid = gitutils::tag_commit_oid(&repo, &prev.tag).ok();
             let to_oid = gitutils::tag_commit_oid(&repo, &version.tag).ok();
-            match (from_oid, to_oid) {
+            let count = match (from_oid, to_oid) {
                 (Some(from), Some(to)) => {
                     gitutils::count_commits_between(&repo, from, to).unwrap_or(0)
                 }
                 _ => 0,
-            }
+            };
+            format!("{} commit{}", count, if count == 1 { "" } else { "s" })
         } else {
-            // Oldest version — count all commits up to it.
-            gitutils::tag_commit_oid(&repo, &version.tag)
-                .ok()
-                .and_then(|oid| {
-                    let mut revwalk = repo.revwalk().ok()?;
-                    revwalk.push(oid).ok()?;
-                    Some(revwalk.count())
-                })
-                .unwrap_or(0)
+            // Oldest release: no prior tag boundary exists, so showing a raw count would
+            // include the entire project history and be misleading.
+            "\u{2014}".to_string()
         };
 
-        rows.push((
-            version.tag.clone(),
-            date_str,
-            format!("{} commit{}", commit_count, if commit_count == 1 { "" } else { "s" }),
-        ));
+        rows.push((version.tag.clone(), date_str, commit_info));
     }
 
     // Align columns.

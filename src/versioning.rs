@@ -40,32 +40,15 @@ impl Versioner {
     }
 
     pub fn last_version(&self) -> Option<Version> {
-        let regex = self.get_regex();
-        let mut versions: Vec<Version> = Vec::new();
-        for tag in self.tags.iter() {
-            if let Some(caps) = regex.captures(tag) {
-                let major = parse_version(&caps, "major");
-                let minor = parse_version(&caps, "minor");
-                let patch = parse_version(&caps, "patch");
-                versions.push(Version::new(tag.to_string(), major, minor, patch));
-            }
-        }
-        versions.sort_by(|a, b| {
-            a.major
-                .cmp(&b.major)
-                .then(a.minor.cmp(&b.minor))
-                .then(a.patch.cmp(&b.patch))
-        });
-
-        if !versions.is_empty() {
-            versions.last().cloned()
-        } else {
-            None
-        }
+        self.sorted_versions().into_iter().next_back()
     }
 
     /// Returns all versions matching the pattern, sorted ascending (oldest first).
     pub fn all_versions(&self) -> Vec<Version> {
+        self.sorted_versions()
+    }
+
+    fn sorted_versions(&self) -> Vec<Version> {
         let regex = self.get_regex();
         let mut versions: Vec<Version> = self
             .tags
