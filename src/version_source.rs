@@ -12,11 +12,13 @@ pub struct BranchVersionSource;
 
 impl VersionSource for TagVersionSource {
     fn fetch_all(&self, repo: &Repository) -> Vec<String> {
-        repo.tag_names(Some("*"))
-            .expect("Failed to fetch tags")
-            .iter()
-            .filter_map(|s| s.map(|s| s.to_string()))
-            .collect()
+        match repo.tag_names(Some("*")) {
+            Ok(names) => names.iter().filter_map(|s| s.map(|s| s.to_string())).collect(),
+            Err(e) => {
+                log::warn!("Failed to fetch tags: {}", e);
+                Vec::new()
+            }
+        }
     }
 
     fn checkout(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {
@@ -24,20 +26,24 @@ impl VersionSource for TagVersionSource {
     }
 
     fn create(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {
-        let head = repo.head()?;
-        let head_id = head.target().unwrap();
-        gitutils::tag_oid(repo, head_id, version)?;
+        let commit = repo.head()?.peel_to_commit()?;
+        gitutils::tag_oid(repo, commit.id(), version)?;
         Ok(())
     }
 }
 
 impl VersionSource for BranchVersionSource {
     fn fetch_all(&self, repo: &Repository) -> Vec<String> {
-        repo.branches(Some(git2::BranchType::Local))
-            .expect("Failed to fetch branches")
-            .filter_map(|b| b.ok())
-            .filter_map(|(branch, _)| branch.name().ok().flatten().map(|s| s.to_string()))
-            .collect()
+        match repo.branches(Some(git2::BranchType::Local)) {
+            Ok(branches) => branches
+                .filter_map(|b| b.ok())
+                .filter_map(|(branch, _)| branch.name().ok().flatten().map(|s| s.to_string()))
+                .collect(),
+            Err(e) => {
+                log::warn!("Failed to fetch branches: {}", e);
+                Vec::new()
+            }
+        }
     }
 
     fn checkout(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {

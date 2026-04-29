@@ -82,23 +82,23 @@ impl Versioner {
             None => return Ok(None),
         };
 
-        let missing =
-            |name: &str| FlophaError::MissingVersionComponent(name.to_string());
-
         let (major, minor, patch) = match increment {
             Increment::Major => {
-                let major = last_version.major.ok_or_else(|| missing("major"))? + 1;
+                let major =
+                    last_version.major.ok_or(FlophaError::MissingVersionComponent("major".into()))? + 1;
                 (major, 0, 0)
             }
             Increment::Minor => {
-                let major = last_version.major.ok_or_else(|| missing("major"))?;
-                let minor = last_version.minor.ok_or_else(|| missing("minor"))? + 1;
+                let major = last_version.major.ok_or(FlophaError::MissingVersionComponent("major".into()))?;
+                let minor =
+                    last_version.minor.ok_or(FlophaError::MissingVersionComponent("minor".into()))? + 1;
                 (major, minor, 0)
             }
             Increment::Patch => {
-                let major = last_version.major.ok_or_else(|| missing("major"))?;
-                let minor = last_version.minor.ok_or_else(|| missing("minor"))?;
-                let patch = last_version.patch.ok_or_else(|| missing("patch"))? + 1;
+                let major = last_version.major.ok_or(FlophaError::MissingVersionComponent("major".into()))?;
+                let minor = last_version.minor.ok_or(FlophaError::MissingVersionComponent("minor".into()))?;
+                let patch =
+                    last_version.patch.ok_or(FlophaError::MissingVersionComponent("patch".into()))? + 1;
                 (major, minor, patch)
             }
         };

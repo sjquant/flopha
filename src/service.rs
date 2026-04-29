@@ -101,7 +101,6 @@ mod tests {
 
         let args = LastVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
-            verbose: false,
             source: VersionSourceName::Tag,
             checkout: false,
         };
@@ -123,7 +122,6 @@ mod tests {
 
         let args = LastVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
-            verbose: false,
             source: VersionSourceName::Tag,
             checkout: false,
         };
@@ -151,7 +149,6 @@ mod tests {
 
         let args = LastVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
-            verbose: false,
             source: VersionSourceName::Tag,
             checkout: true,
         };
@@ -174,7 +171,6 @@ mod tests {
 
         let args = LastVersionArgs {
             pattern: Some("release-{major}.{minor}.{patch}".to_string()),
-            verbose: false,
             source: VersionSourceName::Tag,
             checkout: false,
         };
@@ -206,7 +202,6 @@ mod tests {
 
         let args = LastVersionArgs {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
-            verbose: false,
             source: VersionSourceName::Branch,
             checkout: false,
         };
@@ -234,7 +229,6 @@ mod tests {
 
         let args = LastVersionArgs {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
-            verbose: false,
             source: VersionSourceName::Branch,
             checkout: false,
         };
@@ -261,7 +255,6 @@ mod tests {
 
         let args = LastVersionArgs {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
-            verbose: false,
             source: VersionSourceName::Branch,
             checkout: true,
         };
@@ -300,7 +293,6 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
-            verbose: false,
             source: VersionSourceName::Tag,
             create: false,
         };
@@ -330,7 +322,6 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
-            verbose: false,
             source: VersionSourceName::Tag,
             create: true,
         };
@@ -365,7 +356,6 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
-            verbose: false,
             source: VersionSourceName::Branch,
             create: false,
         };
@@ -387,7 +377,6 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
-            verbose: false,
             source: VersionSourceName::Branch,
             create: false,
         };
@@ -412,7 +401,6 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Minor,
-            verbose: false,
             source: VersionSourceName::Branch,
             create: true,
         };

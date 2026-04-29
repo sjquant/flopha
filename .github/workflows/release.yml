@@ -23,11 +23,11 @@ jobs:
           - build: macos
             os: macos-latest
             rust: stable
-            target: x86_64-apple-darwin
+            target: x86_64-apple-darwin  # cross-compiled on the arm64 runner
           - build: macos-arm64
             os: macos-latest
             rust: stable
-            target: aarch64-apple-darwin
+            target: aarch64-apple-darwin  # native on the arm64 runner
     env:
       RUST_BACKTRACE: full
       TARGET_DIR: ./target

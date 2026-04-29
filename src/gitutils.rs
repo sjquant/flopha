@@ -6,13 +6,17 @@ use git2::{Branch, DescribeFormatOptions, DescribeOptions, Repository};
 use crate::error::FlophaError;
 
 pub fn get_repo(path: &Path) -> Result<Repository, FlophaError> {
-    Repository::open(path)
-        .map_err(|_| FlophaError::RepoNotFound(path.display().to_string()))
+    Repository::open(path).map_err(|e| FlophaError::RepoNotFound {
+        path: path.display().to_string(),
+        source: e,
+    })
 }
 
 pub fn get_remote<'a>(repo: &'a Repository, name: &str) -> Result<git2::Remote<'a>, FlophaError> {
-    repo.find_remote(name)
-        .map_err(|_| FlophaError::RemoteNotFound(name.to_string()))
+    repo.find_remote(name).map_err(|e| FlophaError::RemoteNotFound {
+        name: name.to_string(),
+        source: e,
+    })
 }
 
 pub fn tag_oid(repo: &Repository, id: git2::Oid, tagname: &str) -> Result<git2::Oid, git2::Error> {
@@ -179,11 +183,13 @@ fn git_credential_fill(url: &str) -> Option<(String, String)> {
 }
 
 fn git_callbacks() -> git2::RemoteCallbacks<'static> {
-    let git_config = git2::Config::open_default().unwrap();
+    let git_config = git2::Config::open_default().ok();
     let mut cb = git2::RemoteCallbacks::new();
     cb.credentials(move |url, username, allowed| {
         let mut cred_helper = git2::CredentialHelper::new(url);
-        cred_helper.config(&git_config);
+        if let Some(ref cfg) = git_config {
+            cred_helper.config(cfg);
+        }
         if allowed.is_ssh_key() {
             let user = username
                 .map(std::string::ToString::to_string)
@@ -204,7 +210,11 @@ fn git_callbacks() -> git2::RemoteCallbacks<'static> {
             if let Some((user, pass)) = git_credential_fill(url) {
                 return git2::Cred::userpass_plaintext(&user, &pass);
             }
-            git2::Cred::credential_helper(&git_config, url, username)
+            if let Some(ref cfg) = git_config {
+                git2::Cred::credential_helper(cfg, url, username)
+            } else {
+                Err(git2::Error::from_str("no git config available for credential helper"))
+            }
         } else if allowed.is_default() {
             git2::Cred::default()
         } else {
