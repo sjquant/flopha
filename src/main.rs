@@ -2,7 +2,7 @@ use std::path::Path;
 
 use clap::{CommandFactory, Parser};
 use flopha::cli::{Cli, Commands};
-use flopha::service::{last_version, next_version};
+use flopha::service::{last_version, log_versions, next_version};
 
 fn main() {
     let cli = Cli::parse();
@@ -19,6 +19,7 @@ fn main() {
     let result = match &cli.command {
         Some(Commands::LastVersion(args)) => last_version(path, args),
         Some(Commands::NextVersion(args)) => next_version(path, args),
+        Some(Commands::Log(args)) => log_versions(path, args).map(|_| None),
         None => {
             if cli.version {
                 println!("{}", env!("CARGO_PKG_VERSION"));

@@ -51,22 +51,10 @@ impl Versioner {
             }
         }
         versions.sort_by(|a, b| {
-            if a.major > b.major {
-                return std::cmp::Ordering::Greater;
-            } else if a.major < b.major {
-                return std::cmp::Ordering::Less;
-            }
-            if a.minor > b.minor {
-                return std::cmp::Ordering::Greater;
-            } else if a.minor < b.minor {
-                return std::cmp::Ordering::Less;
-            }
-            if a.patch > b.patch {
-                return std::cmp::Ordering::Greater;
-            } else if a.patch < b.patch {
-                return std::cmp::Ordering::Less;
-            }
-            std::cmp::Ordering::Equal
+            a.major
+                .cmp(&b.major)
+                .then(a.minor.cmp(&b.minor))
+                .then(a.patch.cmp(&b.patch))
         });
 
         if !versions.is_empty() {
@@ -74,6 +62,29 @@ impl Versioner {
         } else {
             None
         }
+    }
+
+    /// Returns all versions matching the pattern, sorted ascending (oldest first).
+    pub fn all_versions(&self) -> Vec<Version> {
+        let regex = self.get_regex();
+        let mut versions: Vec<Version> = self
+            .tags
+            .iter()
+            .filter_map(|tag| {
+                let caps = regex.captures(tag)?;
+                let major = parse_version(&caps, "major");
+                let minor = parse_version(&caps, "minor");
+                let patch = parse_version(&caps, "patch");
+                Some(Version::new(tag.to_string(), major, minor, patch))
+            })
+            .collect();
+        versions.sort_by(|a, b| {
+            a.major
+                .cmp(&b.major)
+                .then(a.minor.cmp(&b.minor))
+                .then(a.patch.cmp(&b.patch))
+        });
+        versions
     }
 
     pub fn next_version(&self, increment: Increment) -> Result<Option<Version>, FlophaError> {

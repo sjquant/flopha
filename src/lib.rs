@@ -2,6 +2,7 @@
 mod testutils;
 
 pub mod cli;
+pub mod conventional_commits;
 pub mod error;
 pub mod gitutils;
 pub mod service;

@@ -228,3 +228,60 @@ pub fn create_branch(repo: &Repository, name: &str, force: bool) -> Result<(), g
     log::debug!("Created branch '{}'", name);
     Ok(())
 }
+
+/// Returns commit messages for every commit reachable from HEAD that was made
+/// *after* the given tag (i.e., not included in the tagged commit or its ancestors).
+pub fn commits_since_tag(repo: &Repository, tag_name: &str) -> Result<Vec<String>, git2::Error> {
+    let tag_obj = repo.revparse_single(&format!("refs/tags/{}", tag_name))?;
+    let tag_commit_oid = tag_obj.peel_to_commit()?.id();
+
+    let mut revwalk = repo.revwalk()?;
+    revwalk.push_head()?;
+    revwalk.set_sorting(git2::Sort::TOPOLOGICAL)?;
+
+    let mut messages = Vec::new();
+    for oid in revwalk {
+        let oid = oid?;
+        if oid == tag_commit_oid {
+            break;
+        }
+        let commit = repo.find_commit(oid)?;
+        if let Some(msg) = commit.message() {
+            messages.push(msg.to_string());
+        }
+    }
+    Ok(messages)
+}
+
+/// Returns the Unix timestamp (seconds) of the commit a tag points to.
+pub fn tag_commit_time(repo: &Repository, tag_name: &str) -> Result<i64, git2::Error> {
+    let tag_obj = repo.revparse_single(&format!("refs/tags/{}", tag_name))?;
+    Ok(tag_obj.peel_to_commit()?.time().seconds())
+}
+
+/// Counts commits reachable from `to_oid` that are NOT ancestors of `from_oid`.
+pub fn count_commits_between(
+    repo: &Repository,
+    from_oid: git2::Oid,
+    to_oid: git2::Oid,
+) -> Result<usize, git2::Error> {
+    let mut revwalk = repo.revwalk()?;
+    revwalk.push(to_oid)?;
+    revwalk.set_sorting(git2::Sort::TOPOLOGICAL)?;
+
+    let mut count = 0usize;
+    for oid in revwalk {
+        let oid = oid?;
+        if oid == from_oid {
+            break;
+        }
+        count += 1;
+    }
+    Ok(count)
+}
+
+/// Resolves a tag name to the OID of the commit it points to.
+pub fn tag_commit_oid(repo: &Repository, tag_name: &str) -> Result<git2::Oid, git2::Error> {
+    let obj = repo.revparse_single(&format!("refs/tags/{}", tag_name))?;
+    Ok(obj.peel_to_commit()?.id())
+}

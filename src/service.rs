@@ -1,6 +1,7 @@
 use std::path::Path;
 
-use crate::cli::{LastVersionArgs, NextVersionArgs, VersionSourceName};
+use crate::cli::{LastVersionArgs, LogArgs, NextVersionArgs, VersionSourceName};
+use crate::conventional_commits;
 use crate::error::FlophaError;
 use crate::gitutils;
 use crate::version_source::{BranchVersionSource, TagVersionSource, VersionSource};
@@ -38,20 +39,180 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
         .pattern
         .clone()
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
-    let versioner = versioner_factory(&repo, pattern, &args.source);
-    if let Some(version) = versioner.next_version(args.increment.clone())? {
-        println!("{}", version.tag);
 
-        if args.create {
-            let version_source = version_source_factory(&args.source);
-            version_source.create(&repo, &version.tag)?;
+    // Collect all tags now so we can reuse them for pre-release lookup.
+    let version_source = version_source_factory(&args.source);
+    let all_tags = version_source.fetch_all(&repo);
+    let versioner = Versioner::new(all_tags.clone(), pattern.clone());
+
+    // Determine increment level, honouring --auto if set.
+    let increment = if args.auto {
+        match versioner.last_version() {
+            Some(last) => {
+                let messages = gitutils::commits_since_tag(&repo, &last.tag).unwrap_or_default();
+                conventional_commits::detect_increment(&messages)
+            }
+            None => args.increment.clone(),
         }
-
-        Ok(Some(version.tag))
     } else {
-        println!("No version found");
-        Ok(None)
+        args.increment.clone()
+    };
+
+    let next = match versioner.next_version(increment)? {
+        Some(v) => v,
+        None => {
+            println!("No version found");
+            return Ok(None);
+        }
+    };
+
+    // If a pre-release channel was requested, compute the pre-release tag.
+    let final_tag = if let Some(channel) = &args.pre {
+        pre_release_tag(&next.tag, channel, &all_tags)
+    } else {
+        next.tag.clone()
+    };
+
+    println!("{}", final_tag);
+
+    if args.create {
+        version_source_factory(&args.source).create(&repo, &final_tag)?;
     }
+
+    Ok(Some(final_tag))
+}
+
+/// Returns the next pre-release tag for `base_version` on `channel`.
+///
+/// Scans `all_tags` for existing `{base_version}-{channel}.N` tags and
+/// returns `{base_version}-{channel}.{max_N + 1}`, defaulting to `.1`.
+fn pre_release_tag(base_version: &str, channel: &str, all_tags: &[String]) -> String {
+    let prefix = format!("{}-{}.", base_version, channel);
+    let max_pre = all_tags
+        .iter()
+        .filter_map(|t| t.strip_prefix(&prefix))
+        .filter_map(|s| s.parse::<u32>().ok())
+        .max()
+        .unwrap_or(0);
+    format!("{}-{}.{}", base_version, channel, max_pre + 1)
+}
+
+pub fn log_versions(path: &Path, args: &LogArgs) -> Result<(), FlophaError> {
+    let repo = gitutils::get_repo(path)?;
+    let mut remote = gitutils::get_remote(&repo, "origin")?;
+    gitutils::fetch_all(&mut remote)?;
+
+    let pattern = args
+        .pattern
+        .clone()
+        .unwrap_or("v{major}.{minor}.{patch}".to_string());
+    let versioner = versioner_factory(&repo, pattern, &args.source);
+
+    let mut versions = versioner.all_versions();
+    // Show newest first.
+    versions.reverse();
+
+    if let Some(limit) = args.limit {
+        versions.truncate(limit);
+    }
+
+    if versions.is_empty() {
+        println!("No versions found");
+        return Ok(());
+    }
+
+    // Collect display rows: (tag, date_str, commit_count_str)
+    let mut rows: Vec<(String, String, String)> = Vec::new();
+    for (i, version) in versions.iter().enumerate() {
+        let date_str = gitutils::tag_commit_time(&repo, &version.tag)
+            .map(format_date)
+            .unwrap_or_else(|_| "unknown".to_string());
+
+        // Count commits between this version and the next older one.
+        let commit_count = if i + 1 < versions.len() {
+            let prev = &versions[i + 1];
+            let from_oid = gitutils::tag_commit_oid(&repo, &prev.tag).ok();
+            let to_oid = gitutils::tag_commit_oid(&repo, &version.tag).ok();
+            match (from_oid, to_oid) {
+                (Some(from), Some(to)) => {
+                    gitutils::count_commits_between(&repo, from, to).unwrap_or(0)
+                }
+                _ => 0,
+            }
+        } else {
+            // Oldest version — count all commits up to it.
+            gitutils::tag_commit_oid(&repo, &version.tag)
+                .ok()
+                .and_then(|oid| {
+                    let mut revwalk = repo.revwalk().ok()?;
+                    revwalk.push(oid).ok()?;
+                    Some(revwalk.count())
+                })
+                .unwrap_or(0)
+        };
+
+        rows.push((
+            version.tag.clone(),
+            date_str,
+            format!("{} commit{}", commit_count, if commit_count == 1 { "" } else { "s" }),
+        ));
+    }
+
+    // Align columns.
+    let tag_width = rows.iter().map(|(t, _, _)| t.len()).max().unwrap_or(0);
+    let date_width = rows.iter().map(|(_, d, _)| d.len()).max().unwrap_or(0);
+
+    for (tag, date, commits) in &rows {
+        let padded_date = format!("{:<date_width$}", date, date_width = date_width);
+        println!(
+            "  {:<tag_width$}  {SEP}  {padded_date}  {SEP}  {commits}",
+            tag,
+            tag_width = tag_width,
+        );
+    }
+
+    Ok(())
+}
+
+const SEP: &str = "─";
+
+/// Formats a Unix timestamp as `YYYY-MM-DD`.
+fn format_date(ts: i64) -> String {
+    // Days since Unix epoch.
+    let secs = ts.max(0) as u64;
+    let days_since_epoch = secs / 86400;
+
+    // Gregorian calendar calculation (no external dep needed for dates after 1970).
+    let mut remaining = days_since_epoch;
+    let mut year = 1970u32;
+    loop {
+        let days_in_year = if is_leap(year) { 366 } else { 365 };
+        if remaining < days_in_year {
+            break;
+        }
+        remaining -= days_in_year;
+        year += 1;
+    }
+    let leap = is_leap(year);
+    let month_days: &[u64] = if leap {
+        &[31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        &[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    let mut month = 1u32;
+    for &md in month_days {
+        if remaining < md {
+            break;
+        }
+        remaining -= md;
+        month += 1;
+    }
+    let day = remaining + 1;
+    format!("{:04}-{:02}-{:02}", year, month, day)
+}
+
+fn is_leap(year: u32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
 fn version_source_factory(source: &VersionSourceName) -> Box<dyn VersionSource> {
@@ -293,6 +454,8 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
+            auto: false,
+            pre: None,
             source: VersionSourceName::Tag,
             create: false,
         };
@@ -322,6 +485,8 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
+            auto: false,
+            pre: None,
             source: VersionSourceName::Tag,
             create: true,
         };
@@ -356,6 +521,8 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
+            auto: false,
+            pre: None,
             source: VersionSourceName::Branch,
             create: false,
         };
@@ -377,6 +544,8 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
+            auto: false,
+            pre: None,
             source: VersionSourceName::Branch,
             create: false,
         };
@@ -401,6 +570,8 @@ mod tests {
         let args = NextVersionArgs {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Minor,
+            auto: false,
+            pre: None,
             source: VersionSourceName::Branch,
             create: true,
         };
@@ -413,6 +584,82 @@ mod tests {
             let (branch, _) = b.unwrap();
             branch.name().unwrap() == Some("release/2.1.0")
         }));
+    }
+
+    #[test]
+    fn test_next_version_auto_detects_feat_as_minor() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        let tags = vec!["v1.0.0", "v1.1.0"];
+        for tag in tags {
+            create_new_remote_tag(&repo, &mut remote, tag, false);
+        }
+        gitutils::checkout_tag(&repo, "v1.1.0").unwrap();
+        gitutils::commit(&repo, "feat: add new command").unwrap();
+
+        let args = NextVersionArgs {
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            increment: Increment::Patch,
+            auto: true,
+            pre: None,
+            source: VersionSourceName::Tag,
+            create: false,
+        };
+        let result = next_version(td.path(), &args).unwrap();
+
+        assert_eq!(result, Some("v1.2.0".to_string()));
+    }
+
+    #[test]
+    fn test_next_version_pre_release_starts_at_1() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        let tags = vec!["v1.0.0"];
+        for tag in tags {
+            create_new_remote_tag(&repo, &mut remote, tag, false);
+        }
+        gitutils::checkout_tag(&repo, "v1.0.0").unwrap();
+        gitutils::commit(&repo, "fix: something").unwrap();
+
+        let args = NextVersionArgs {
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            increment: Increment::Patch,
+            auto: false,
+            pre: Some("alpha".to_string()),
+            source: VersionSourceName::Tag,
+            create: false,
+        };
+        let result = next_version(td.path(), &args).unwrap();
+
+        assert_eq!(result, Some("v1.0.1-alpha.1".to_string()));
+    }
+
+    #[test]
+    fn test_next_version_pre_release_increments() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        // v1.0.1-alpha.1 already exists; next should be alpha.2
+        let tags = vec!["v1.0.0", "v1.0.1-alpha.1"];
+        for tag in tags {
+            create_new_remote_tag(&repo, &mut remote, tag, false);
+        }
+        gitutils::checkout_tag(&repo, "v1.0.0").unwrap();
+        gitutils::commit(&repo, "fix: something").unwrap();
+
+        let args = NextVersionArgs {
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            increment: Increment::Patch,
+            auto: false,
+            pre: Some("alpha".to_string()),
+            source: VersionSourceName::Tag,
+            create: false,
+        };
+        let result = next_version(td.path(), &args).unwrap();
+
+        assert_eq!(result, Some("v1.0.1-alpha.2".to_string()));
     }
 
     fn create_new_remote_tag(
