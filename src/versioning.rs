@@ -81,7 +81,7 @@ impl Versioner {
                 let major = last_version
                     .major
                     .ok_or(FlophaError::MissingVersionComponent("major".into()))?
-                    + 1;
+                    .saturating_add(1);
                 (major, 0, 0)
             }
             Increment::Minor => {
@@ -91,7 +91,7 @@ impl Versioner {
                 let minor = last_version
                     .minor
                     .ok_or(FlophaError::MissingVersionComponent("minor".into()))?
-                    + 1;
+                    .saturating_add(1);
                 (major, minor, 0)
             }
             Increment::Patch => {
@@ -104,7 +104,7 @@ impl Versioner {
                 let patch = last_version
                     .patch
                     .ok_or(FlophaError::MissingVersionComponent("patch".into()))?
-                    + 1;
+                    .saturating_add(1);
                 (major, minor, patch)
             }
         };

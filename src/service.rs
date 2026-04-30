@@ -40,10 +40,8 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
         .clone()
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
 
-    // Collect all tags now so we can reuse them for pre-release lookup.
     let version_source = version_source_factory(&args.source);
-    let all_tags = version_source.fetch_all(&repo);
-    let versioner = Versioner::new(all_tags.clone(), pattern.clone());
+    let versioner = Versioner::new(version_source.fetch_all(&repo), pattern);
 
     // Determine increment level, honouring --auto if set.
     let increment = if args.auto {
