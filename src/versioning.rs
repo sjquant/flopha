@@ -29,7 +29,7 @@ impl BumpRule {
 pub fn conventional_bump_rules() -> Vec<BumpRule> {
     vec![
         BumpRule::new(r"BREAKING[- ]CHANGE", Increment::Major).unwrap(),
-        BumpRule::new(r"(?m)^[a-z]+(\([^)]+\))?!", Increment::Major).unwrap(),
+        BumpRule::new(r"(?m)^[a-z]+(\([^)]+\))?!:", Increment::Major).unwrap(),
         BumpRule::new(r"(?m)^feat(\([^)]+\))?:", Increment::Minor).unwrap(),
     ]
 }
@@ -191,7 +191,7 @@ impl Versioner {
 
 fn parse_version(caps: &regex::Captures, name: &str) -> Option<u32> {
     caps.name(name)
-        .map(|version| version.as_str().parse::<u32>().unwrap())
+        .and_then(|v| v.as_str().parse::<u32>().ok())
 }
 
 #[cfg(test)]
@@ -387,6 +387,13 @@ mod tests {
     fn test_bang_with_scope_is_major() {
         let msgs = vec!["feat(api)!: remove endpoint".to_string()];
         assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Major));
+    }
+
+    #[test]
+    fn test_bang_without_colon_is_not_major() {
+        // `feat!` with no trailing colon is not a valid CC breaking change
+        let msgs = vec!["feat! redesign everything".to_string()];
+        assert!(!matches!(detect_increment(&msgs, &cc_rules()), Increment::Major));
     }
 
     #[test]

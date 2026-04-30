@@ -66,7 +66,8 @@ pub struct NextVersionArgs {
                 Levels: major | minor | patch. \
                 Example: --rule 'major:BREAKING CHANGE' --rule 'minor:^feat'",
         long,
-        value_name = "LEVEL:PATTERN"
+        value_name = "LEVEL:PATTERN",
+        requires = "auto"
     )]
     pub rule: Vec<String>,
     #[clap(
