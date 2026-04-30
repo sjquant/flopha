@@ -60,6 +60,16 @@ pub struct NextVersionArgs {
     )]
     pub auto: bool,
     #[clap(
+        help = "Custom bump rule as '<level>:<regex>' matched against commit messages. \
+                Repeatable; when any --rule flags are provided they replace the built-in \
+                conventional-commit defaults entirely. \
+                Levels: major | minor | patch. \
+                Example: --rule 'major:BREAKING CHANGE' --rule 'minor:^feat'",
+        long,
+        value_name = "LEVEL:PATTERN"
+    )]
+    pub rule: Vec<String>,
+    #[clap(
         help = "Create a pre-release version on the given channel (e.g. alpha, beta, rc). \
                 Example: --pre alpha produces v1.2.3-alpha.1",
         long

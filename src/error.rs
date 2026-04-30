@@ -18,4 +18,6 @@ pub enum FlophaError {
     },
     #[error("version component '{{{0}}}' not present in pattern")]
     MissingVersionComponent(String),
+    #[error("invalid rule '{input}': {reason}")]
+    InvalidRule { input: String, reason: String },
 }

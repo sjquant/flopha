@@ -1,11 +1,10 @@
 use std::path::Path;
 
 use crate::cli::{LastVersionArgs, LogArgs, NextVersionArgs, VersionSourceName};
-use crate::conventional_commits;
 use crate::error::FlophaError;
 use crate::gitutils;
 use crate::version_source::{BranchVersionSource, TagVersionSource, VersionSource};
-use crate::versioning::Versioner;
+use crate::versioning::{self, BumpRule, Increment, Versioner};
 
 pub fn last_version(path: &Path, args: &LastVersionArgs) -> Result<Option<String>, FlophaError> {
     let repo = gitutils::get_repo(path)?;
@@ -45,10 +44,11 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
 
     // Determine increment level, honouring --auto if set.
     let increment = if args.auto {
+        let rules = build_rules(&args.rule)?;
         match versioner.last_version() {
             Some(last) => {
                 let messages = gitutils::commits_since_tag(&repo, &last.tag).unwrap_or_default();
-                conventional_commits::detect_increment(&messages)
+                versioning::detect_increment(&messages, &rules)
             }
             None => {
                 log::warn!("--auto: no prior tag found, falling back to --increment");
@@ -212,6 +212,40 @@ fn format_date(ts: i64) -> String {
 
 fn is_leap(year: u32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+}
+
+/// Returns the rule set to use for `--auto`.
+///
+/// If `raw_rules` is empty the built-in conventional-commit defaults are used.
+/// Otherwise each entry is parsed as `<level>:<regex>` and any parse error is
+/// surfaced immediately so the user gets a clear message before any git I/O.
+fn build_rules(raw_rules: &[String]) -> Result<Vec<BumpRule>, FlophaError> {
+    if raw_rules.is_empty() {
+        return Ok(versioning::conventional_bump_rules());
+    }
+    raw_rules.iter().map(|s| parse_bump_rule(s)).collect()
+}
+
+fn parse_bump_rule(s: &str) -> Result<BumpRule, FlophaError> {
+    let (level, pattern) = s.split_once(':').ok_or_else(|| FlophaError::InvalidRule {
+        input: s.to_string(),
+        reason: "expected format '<level>:<pattern>'".to_string(),
+    })?;
+    let increment = match level {
+        "major" => Increment::Major,
+        "minor" => Increment::Minor,
+        "patch" => Increment::Patch,
+        other => {
+            return Err(FlophaError::InvalidRule {
+                input: s.to_string(),
+                reason: format!("unknown level '{}', expected major, minor, or patch", other),
+            })
+        }
+    };
+    BumpRule::new(pattern, increment).map_err(|e| FlophaError::InvalidRule {
+        input: s.to_string(),
+        reason: format!("invalid regex: {}", e),
+    })
 }
 
 fn version_source_factory(source: &VersionSourceName) -> Box<dyn VersionSource> {
@@ -454,6 +488,7 @@ mod tests {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
+            rule: vec![],
             pre: None,
             source: VersionSourceName::Tag,
             create: false,
@@ -485,6 +520,7 @@ mod tests {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
+            rule: vec![],
             pre: None,
             source: VersionSourceName::Tag,
             create: true,
@@ -521,6 +557,7 @@ mod tests {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
+            rule: vec![],
             pre: None,
             source: VersionSourceName::Branch,
             create: false,
@@ -544,6 +581,7 @@ mod tests {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
+            rule: vec![],
             pre: None,
             source: VersionSourceName::Branch,
             create: false,
@@ -570,6 +608,7 @@ mod tests {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Minor,
             auto: false,
+            rule: vec![],
             pre: None,
             source: VersionSourceName::Branch,
             create: true,
@@ -601,6 +640,7 @@ mod tests {
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: true,
+            rule: vec![],
             pre: None,
             source: VersionSourceName::Tag,
             create: false,
@@ -626,6 +666,7 @@ mod tests {
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
+            rule: vec![],
             pre: Some("alpha".to_string()),
             source: VersionSourceName::Tag,
             create: false,
@@ -652,6 +693,7 @@ mod tests {
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
+            rule: vec![],
             pre: Some("alpha".to_string()),
             source: VersionSourceName::Tag,
             create: false,
@@ -659,6 +701,35 @@ mod tests {
         let result = next_version(td.path(), &args).unwrap();
 
         assert_eq!(result, Some("v1.0.1-alpha.2".to_string()));
+    }
+
+    #[test]
+    fn test_next_version_auto_with_custom_rules() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        let tags = vec!["v1.0.0"];
+        for tag in tags {
+            create_new_remote_tag(&repo, &mut remote, tag, false);
+        }
+        gitutils::checkout_tag(&repo, "v1.0.0").unwrap();
+        // This commit would be "minor" under conventional commits, but with a
+        // custom rule only "BUMP_MAJOR:" triggers major and nothing else matches minor.
+        gitutils::commit(&repo, "feat: add thing").unwrap();
+
+        let args = NextVersionArgs {
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            increment: Increment::Patch,
+            auto: true,
+            rule: vec!["major:BUMP_MAJOR:".to_string()],
+            pre: None,
+            source: VersionSourceName::Tag,
+            create: false,
+        };
+        let result = next_version(td.path(), &args).unwrap();
+
+        // "feat:" doesn't match any custom rule → falls through to patch
+        assert_eq!(result, Some("v1.0.1".to_string()));
     }
 
     fn create_new_remote_tag(

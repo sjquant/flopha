@@ -3,6 +3,58 @@ use regex::Regex;
 
 use crate::error::FlophaError;
 
+/// A single rule that maps a regex pattern (matched against a commit message) to an
+/// [`Increment`] level.  Rules are evaluated with major > minor > patch precedence.
+pub struct BumpRule {
+    pub pattern: Regex,
+    pub increment: Increment,
+}
+
+impl BumpRule {
+    pub fn new(pattern: &str, increment: Increment) -> Result<Self, regex::Error> {
+        Ok(Self {
+            pattern: Regex::new(pattern)?,
+            increment,
+        })
+    }
+}
+
+/// The built-in conventional-commit rules used when no `--rule` flags are supplied.
+///
+/// | Pattern | Bump |
+/// |---------|------|
+/// | `BREAKING CHANGE` / `BREAKING-CHANGE` anywhere in message | major |
+/// | `!` after type (e.g. `feat!:`, `feat(api)!:`) | major |
+/// | `feat:` / `feat(<scope>):` at line start | minor |
+pub fn conventional_bump_rules() -> Vec<BumpRule> {
+    vec![
+        BumpRule::new(r"BREAKING[- ]CHANGE", Increment::Major).unwrap(),
+        BumpRule::new(r"(?m)^[a-z]+(\([^)]+\))?!", Increment::Major).unwrap(),
+        BumpRule::new(r"(?m)^feat(\([^)]+\))?:", Increment::Minor).unwrap(),
+    ]
+}
+
+/// Infers the highest-priority [`Increment`] from `messages` using `rules`.
+///
+/// Every rule is tested against every message independently; the highest-priority
+/// match across the whole set wins (major > minor > patch).  Returns `Patch` when
+/// nothing matches.
+pub fn detect_increment(messages: &[String], rules: &[BumpRule]) -> Increment {
+    let mut result = Increment::Patch;
+    for message in messages {
+        for rule in rules {
+            if rule.pattern.is_match(message) {
+                match rule.increment {
+                    Increment::Major => return Increment::Major,
+                    Increment::Minor => result = Increment::Minor,
+                    Increment::Patch => {}
+                }
+            }
+        }
+    }
+    result
+}
+
 pub struct Versioner {
     tags: Vec<String>,
     pattern: String,
@@ -305,5 +357,86 @@ mod tests {
             "v1.{minor}.{patch}".to_string(),
         );
         assert!(versioner.next_version(Increment::Major).is_err());
+    }
+
+    // ── bump-rule / auto-detection tests ─────────────────────────────────────
+
+    fn cc_rules() -> Vec<BumpRule> {
+        conventional_bump_rules()
+    }
+
+    #[test]
+    fn test_breaking_change_footer_is_major() {
+        let msgs = vec!["fix: something\n\nBREAKING CHANGE: old API removed".to_string()];
+        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Major));
+    }
+
+    #[test]
+    fn test_breaking_change_dash_is_major() {
+        let msgs = vec!["fix: something\n\nBREAKING-CHANGE: old API removed".to_string()];
+        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Major));
+    }
+
+    #[test]
+    fn test_bang_after_type_is_major() {
+        let msgs = vec!["feat!: redesign everything".to_string()];
+        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Major));
+    }
+
+    #[test]
+    fn test_bang_with_scope_is_major() {
+        let msgs = vec!["feat(api)!: remove endpoint".to_string()];
+        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Major));
+    }
+
+    #[test]
+    fn test_feat_is_minor() {
+        let msgs = vec!["fix: small bug".to_string(), "feat: add new command".to_string()];
+        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Minor));
+    }
+
+    #[test]
+    fn test_feat_with_scope_is_minor() {
+        let msgs = vec!["feat(cli): add --auto flag".to_string()];
+        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Minor));
+    }
+
+    #[test]
+    fn test_fix_only_is_patch() {
+        let msgs = vec!["fix: typo".to_string(), "chore: update deps".to_string()];
+        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Patch));
+    }
+
+    #[test]
+    fn test_empty_messages_is_patch() {
+        assert!(matches!(detect_increment(&[], &cc_rules()), Increment::Patch));
+    }
+
+    #[test]
+    fn test_custom_rules_override_defaults() {
+        let rules = vec![
+            BumpRule::new(r"^MAJOR:", Increment::Major).unwrap(),
+            BumpRule::new(r"^MINOR:", Increment::Minor).unwrap(),
+        ];
+        // "feat:" would be minor under defaults but there's no matching rule here → patch
+        let msgs = vec!["feat: something".to_string()];
+        assert!(matches!(detect_increment(&msgs, &rules), Increment::Patch));
+
+        let msgs = vec!["MINOR: add thing".to_string()];
+        assert!(matches!(detect_increment(&msgs, &rules), Increment::Minor));
+
+        let msgs = vec!["MAJOR: big change".to_string()];
+        assert!(matches!(detect_increment(&msgs, &rules), Increment::Major));
+    }
+
+    #[test]
+    fn test_custom_rules_major_short_circuits() {
+        let rules = vec![
+            BumpRule::new(r"breaking", Increment::Major).unwrap(),
+            BumpRule::new(r"feature", Increment::Minor).unwrap(),
+        ];
+        // Both match; major should win and return immediately
+        let msgs = vec!["breaking feature change".to_string()];
+        assert!(matches!(detect_increment(&msgs, &rules), Increment::Major));
     }
 }
