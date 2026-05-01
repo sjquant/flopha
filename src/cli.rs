@@ -33,6 +33,11 @@ pub enum Commands {
         alias = "lv"
     )]
     LastVersion(LastVersionArgs),
+    #[clap(
+        about = "Shows a timeline of all version tags matching a pattern. (alias: lg)",
+        alias = "lg"
+    )]
+    Log(LogArgs),
 }
 
 #[derive(Args, Debug)]
@@ -45,6 +50,32 @@ pub struct NextVersionArgs {
         short = 'i'
     )]
     pub increment: Increment,
+    #[clap(
+        help = "Auto-detect bump level from conventional commit messages since last tag. \
+                feat→minor, feat!/BREAKING CHANGE→major, else patch. \
+                Cannot be combined with --increment.",
+        long,
+        action,
+        conflicts_with = "increment"
+    )]
+    pub auto: bool,
+    #[clap(
+        help = "Custom bump rule as '<level>:<regex>' matched against commit messages. \
+                Repeatable; when any --rule flags are provided they replace the built-in \
+                conventional-commit defaults entirely. \
+                Levels: major | minor | patch. \
+                Example: --rule 'major:BREAKING CHANGE' --rule 'minor:^feat'",
+        long,
+        value_name = "LEVEL:PATTERN",
+        requires = "auto"
+    )]
+    pub rule: Vec<String>,
+    #[clap(
+        help = "Create a pre-release version on the given channel (e.g. alpha, beta, rc). \
+                Example: --pre alpha produces v1.2.3-alpha.1",
+        long
+    )]
+    pub pre: Option<String>,
     #[clap(
         help = "Specify a custom pattern for version matching and generation. \
                 Use {major}, {minor}, and {patch} as placeholders. \
@@ -87,6 +118,30 @@ pub struct LastVersionArgs {
     pub source: VersionSourceName,
     #[clap(help = "Checkout the last version", long, action)]
     pub checkout: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct LogArgs {
+    #[clap(
+        help = "Pattern for version matching (e.g., 'v{major}.{minor}.{patch}')",
+        long,
+        short = 'p'
+    )]
+    pub pattern: Option<String>,
+    #[clap(
+        help = "Specify the source for versioning: tag (default) or branch",
+        long,
+        short = 's',
+        value_enum,
+        default_value = "tag"
+    )]
+    pub source: VersionSourceName,
+    #[clap(
+        help = "Maximum number of versions to show (default: all)",
+        long,
+        short = 'n'
+    )]
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
