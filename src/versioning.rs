@@ -190,8 +190,7 @@ impl Versioner {
 }
 
 fn parse_version(caps: &regex::Captures, name: &str) -> Option<u32> {
-    caps.name(name)
-        .and_then(|v| v.as_str().parse::<u32>().ok())
+    caps.name(name).and_then(|v| v.as_str().parse::<u32>().ok())
 }
 
 #[cfg(test)]
@@ -368,55 +367,85 @@ mod tests {
     #[test]
     fn test_breaking_change_footer_is_major() {
         let msgs = vec!["fix: something\n\nBREAKING CHANGE: old API removed".to_string()];
-        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Major));
+        assert!(matches!(
+            detect_increment(&msgs, &cc_rules()),
+            Increment::Major
+        ));
     }
 
     #[test]
     fn test_breaking_change_dash_is_major() {
         let msgs = vec!["fix: something\n\nBREAKING-CHANGE: old API removed".to_string()];
-        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Major));
+        assert!(matches!(
+            detect_increment(&msgs, &cc_rules()),
+            Increment::Major
+        ));
     }
 
     #[test]
     fn test_bang_after_type_is_major() {
         let msgs = vec!["feat!: redesign everything".to_string()];
-        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Major));
+        assert!(matches!(
+            detect_increment(&msgs, &cc_rules()),
+            Increment::Major
+        ));
     }
 
     #[test]
     fn test_bang_with_scope_is_major() {
         let msgs = vec!["feat(api)!: remove endpoint".to_string()];
-        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Major));
+        assert!(matches!(
+            detect_increment(&msgs, &cc_rules()),
+            Increment::Major
+        ));
     }
 
     #[test]
     fn test_bang_without_colon_is_not_major() {
         // `feat!` with no trailing colon is not a valid CC breaking change
         let msgs = vec!["feat! redesign everything".to_string()];
-        assert!(!matches!(detect_increment(&msgs, &cc_rules()), Increment::Major));
+        assert!(!matches!(
+            detect_increment(&msgs, &cc_rules()),
+            Increment::Major
+        ));
     }
 
     #[test]
     fn test_feat_is_minor() {
-        let msgs = vec!["fix: small bug".to_string(), "feat: add new command".to_string()];
-        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Minor));
+        let msgs = vec![
+            "fix: small bug".to_string(),
+            "feat: add new command".to_string(),
+        ];
+        assert!(matches!(
+            detect_increment(&msgs, &cc_rules()),
+            Increment::Minor
+        ));
     }
 
     #[test]
     fn test_feat_with_scope_is_minor() {
         let msgs = vec!["feat(cli): add --auto flag".to_string()];
-        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Minor));
+        assert!(matches!(
+            detect_increment(&msgs, &cc_rules()),
+            Increment::Minor
+        ));
     }
 
     #[test]
     fn test_fix_only_is_patch() {
         let msgs = vec!["fix: typo".to_string(), "chore: update deps".to_string()];
-        assert!(matches!(detect_increment(&msgs, &cc_rules()), Increment::Patch));
+        assert!(matches!(
+            detect_increment(&msgs, &cc_rules()),
+            Increment::Patch
+        ));
     }
 
     #[test]
     fn test_empty_messages_is_patch() {
-        assert!(matches!(detect_increment(&[], &cc_rules()), Increment::Patch));
+        assert!(matches!(
+            detect_increment(&[], &cc_rules()),
+            Increment::Patch
+        ));
     }
 
     #[test]
