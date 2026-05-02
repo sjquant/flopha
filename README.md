@@ -1,6 +1,8 @@
 # flopha
 
-flopha is a powerful Git workflow tool designed to simplify version management and streamline your GitHub flow. It helps developers manage semantic versioning, automate tagging, and simplify branch management.
+flopha is a CLI for semantic versioning and Git release workflows. It helps teams calculate the next version, manage Git tags and release branches, generate pre-release versions, and automate version bumps from conventional commits.
+
+Use flopha when you want a lightweight release management tool for Git repositories without wiring up a larger release pipeline.
 
 ## Install
 
@@ -9,6 +11,14 @@ Shell (Mac, Linux):
 ```
 curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh
 ```
+
+## Features
+
+- Semantic versioning CLI for Git tags and release branches
+- Conventional commit auto-detection for major, minor, and patch bumps
+- Pre-release channel support for `alpha`, `beta`, and `rc` style versions
+- Custom version patterns for app releases, desktop builds, and monorepo naming
+- Version history output for release auditing and changelog workflows
 
 ## Quickstart
 
@@ -48,7 +58,7 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
     flopha next-version --auto --rule 'major:BREAKING CHANGE' --rule 'minor:^feat'
     ```
 
-7.  Create a pre-release version:
+7.  Preview a pre-release version:
 
     ```
     flopha next-version --pre rc
@@ -84,7 +94,7 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
     flopha log --limit 10
     ```
 
-## CLI Commands and Options
+## CLI Commands
 
 ### NextVersion
 
@@ -115,7 +125,7 @@ Aliases: `nv`
   - `v{major}.{minor}.{patch}`
   - `release-{major}.{minor}.{patch}`
 
-- `--pre <CHANNEL>`: Create a pre-release tag on the given channel. Example: `--pre alpha` produces `v1.2.3-alpha.1`.
+- `--pre <CHANNEL>`: Format the next version as a pre-release on the given channel. Example: `--pre alpha` produces `v1.2.3-alpha.1`.
 
 - `-s`, `--source <SOURCE>`: Specify the source for versioning. Options are:
 
@@ -161,13 +171,6 @@ Aliases: `lg`
 ### Global Options
 
 - `-v`, `--verbose`: Enable verbose output for detailed information.
-
-## Why Choose flopha?
-
-- **Simplify Semantic Versioning**: Automate version calculations based on your preferred patterns.
-- **Streamline Git Workflows**: Easily manage tags and versions across multiple branches and projects.
-- **Flexible and Customizable**: Adapt to various versioning schemes and project structures.
-- **Boost Productivity**: Reduce manual version management tasks and potential errors.
 
 ## License
 
