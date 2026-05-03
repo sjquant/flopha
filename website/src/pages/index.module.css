@@ -317,4 +317,8 @@
   .copyColumn {
     padding-top: 0;
   }
+
+  .terminal {
+    margin-bottom: 1.25rem;
+  }
 }
