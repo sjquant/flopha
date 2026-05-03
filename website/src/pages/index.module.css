@@ -5,6 +5,9 @@
 }
 
 .hero {
+  background:
+    radial-gradient(circle at 16% 18%, rgba(225, 230, 234, 0.48), transparent 26%),
+    linear-gradient(180deg, rgba(244, 246, 247, 0.92) 0%, rgba(242, 244, 245, 0.84) 100%);
   overflow: hidden;
   padding: 5.5rem 0 1.5rem;
   position: relative;
@@ -19,7 +22,7 @@
 }
 
 .hero::before {
-  background: radial-gradient(circle, var(--flopha-glow-primary) 0%, rgba(103, 93, 96, 0) 76%);
+  background: radial-gradient(circle, rgba(166, 173, 179, 0.08) 0%, rgba(103, 93, 96, 0) 78%);
   height: 28rem;
   left: -8rem;
   top: -5rem;
@@ -27,7 +30,7 @@
 }
 
 .hero::after {
-  background: radial-gradient(circle, var(--flopha-glow-secondary) 0%, rgba(198, 189, 185, 0) 74%);
+  background: radial-gradient(circle, rgba(216, 222, 226, 0.12) 0%, rgba(198, 189, 185, 0) 76%);
   height: 24rem;
   right: -4rem;
   top: 2rem;

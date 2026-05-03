@@ -9,9 +9,9 @@ html[data-theme='light']:not(#flopha-theme-override):not(#flopha-theme-override-
   --ifm-color-primary-light: #a5615d;
   --ifm-color-primary-lighter: #af6b66;
   --ifm-color-primary-lightest: #c18881;
-  --ifm-background-color: #f6f4f2;
-  --ifm-background-surface-color: rgba(252, 250, 248, 0.9);
-  --ifm-navbar-background-color: rgba(246, 244, 242, 0.88);
+  --ifm-background-color: #f2f4f5;
+  --ifm-background-surface-color: rgba(250, 252, 253, 0.9);
+  --ifm-navbar-background-color: rgba(242, 244, 245, 0.88);
   --ifm-footer-background-color: #171214;
   --ifm-font-family-base: 'Space Grotesk', 'Segoe UI', sans-serif;
   --ifm-font-family-monospace: 'IBM Plex Mono', 'SFMono-Regular', monospace;
@@ -30,10 +30,10 @@ html[data-theme='light']:not(#flopha-theme-override):not(#flopha-theme-override-
   --flopha-ink-strong: #271c1e;
   --flopha-ink-soft: #6a585a;
   --flopha-line: rgba(52, 31, 34, 0.12);
-  --flopha-surface-strong: rgba(255, 255, 255, 0.88);
-  --flopha-surface-soft: rgba(255, 255, 255, 0.8);
-  --flopha-code-surface: #efebe8;
-  --flopha-code-surface-strong: #f8f5f2;
+  --flopha-surface-strong: rgba(255, 255, 255, 0.9);
+  --flopha-surface-soft: rgba(255, 255, 255, 0.82);
+  --flopha-code-surface: #eceff1;
+  --flopha-code-surface-strong: #f8fafb;
   --flopha-code-border: rgba(52, 31, 34, 0.12);
   --flopha-code-text: #3f2d30;
   --flopha-terminal-surface: #1f191b;
@@ -44,7 +44,7 @@ html[data-theme='light']:not(#flopha-theme-override):not(#flopha-theme-override-
   --flopha-terminal-chip-text: #f1e7e4;
   --flopha-terminal-text: rgba(247, 234, 230, 0.9);
   --flopha-terminal-text-soft: rgba(226, 205, 198, 0.82);
-  --flopha-chip-surface: rgba(255, 255, 255, 0.92);
+  --flopha-chip-surface: rgba(252, 254, 255, 0.94);
   --flopha-chip-border: rgba(57, 45, 46, 0.08);
   --flopha-chip-text: #7f5753;
   --flopha-glow-primary: rgba(103, 93, 96, 0.04);
