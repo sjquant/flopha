@@ -53,6 +53,36 @@
     width: 24rem;
 }
 
+html[data-theme="dark"] .hero {
+    background:
+        radial-gradient(
+            circle at 16% 18%,
+            rgba(78, 63, 68, 0.24),
+            transparent 24%
+        ),
+        linear-gradient(
+            180deg,
+            rgba(24, 20, 24, 0.96) 0%,
+            rgba(19, 16, 20, 0.9) 100%
+        );
+}
+
+html[data-theme="dark"] .hero::before {
+    background: radial-gradient(
+        circle,
+        rgba(110, 77, 85, 0.14) 0%,
+        rgba(47, 39, 43, 0) 76%
+    );
+}
+
+html[data-theme="dark"] .hero::after {
+    background: radial-gradient(
+        circle,
+        rgba(86, 71, 77, 0.16) 0%,
+        rgba(47, 39, 43, 0) 74%
+    );
+}
+
 .heroInner {
     align-items: start;
     display: grid;
