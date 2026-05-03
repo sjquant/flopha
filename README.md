@@ -12,6 +12,12 @@ Shell (Mac, Linux):
 curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh
 ```
 
+## Docs
+
+- Website source: `website/`
+- Local preview: `pnpm docs:start`
+- Production build: `pnpm docs:build`
+
 ## Features
 
 - Semantic versioning CLI for Git tags and release branches

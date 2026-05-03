@@ -1,0 +1,252 @@
+.page {
+  display: grid;
+  gap: 5rem;
+  padding-bottom: 5rem;
+}
+
+.hero {
+  overflow: hidden;
+  padding: 4.5rem 0 1rem;
+  position: relative;
+}
+
+.hero::before,
+.hero::after {
+  border-radius: 999px;
+  content: '';
+  filter: blur(8px);
+  position: absolute;
+}
+
+.hero::before {
+  background: radial-gradient(circle, rgba(12, 163, 129, 0.24) 0%, rgba(12, 163, 129, 0) 72%);
+  height: 28rem;
+  left: -8rem;
+  top: -5rem;
+  width: 28rem;
+}
+
+.hero::after {
+  background: radial-gradient(circle, rgba(245, 137, 48, 0.24) 0%, rgba(245, 137, 48, 0) 70%);
+  height: 24rem;
+  right: -4rem;
+  top: 2rem;
+  width: 24rem;
+}
+
+.heroInner {
+  align-items: center;
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.9fr);
+  position: relative;
+  z-index: 1;
+}
+
+.copyColumn {
+  display: grid;
+  gap: 1rem;
+}
+
+.eyebrow,
+.sectionLabel {
+  color: var(--flopha-accent-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.title {
+  font-size: clamp(2.8rem, 6vw, 4.8rem);
+  letter-spacing: -0.06em;
+  line-height: 0.95;
+  margin: 0;
+  max-width: 12ch;
+}
+
+.lead {
+  font-size: 1.16rem;
+  line-height: 1.8;
+  margin: 0;
+  max-width: 38rem;
+}
+
+.support {
+  color: var(--flopha-ink-soft);
+  line-height: 1.8;
+  margin: 0;
+  max-width: 38rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 0.75rem;
+}
+
+.primaryAction,
+.secondaryAction {
+  border-radius: 999px;
+  font-weight: 700;
+  padding-inline: 1.4rem;
+}
+
+.primaryAction {
+  background: linear-gradient(135deg, #0ca381 0%, #0e756c 100%);
+  border: 0;
+  color: #f8fbfa;
+}
+
+.secondaryAction {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--flopha-line);
+  color: var(--flopha-ink-strong);
+}
+
+.terminal {
+  animation: floatIn 800ms ease-out both;
+  background:
+    radial-gradient(circle at top left, rgba(245, 137, 48, 0.18), transparent 36%),
+    linear-gradient(180deg, #16231f 0%, #0f1816 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.2rem;
+  box-shadow: 0 1.7rem 3.4rem rgba(12, 18, 17, 0.22);
+  overflow: hidden;
+  position: relative;
+}
+
+.terminalHeader {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  gap: 0.45rem;
+  padding: 0.95rem 1rem 0.8rem;
+}
+
+.terminalHeader span {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  display: inline-block;
+  height: 0.7rem;
+  width: 0.7rem;
+}
+
+.terminalBody {
+  display: grid;
+  gap: 1rem;
+  padding: 1.15rem;
+}
+
+.terminalStep {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0.9rem;
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.terminalStep code {
+  color: #d7fff0;
+  font-size: 0.92rem;
+}
+
+.terminalStep p {
+  color: rgba(227, 244, 237, 0.88);
+  margin: 0;
+}
+
+.proofGrid,
+.problemGrid,
+.docsGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.proofCard,
+.problemCard,
+.docsCard {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--flopha-line);
+  border-radius: 1.05rem;
+  box-shadow: 0 1rem 2rem rgba(16, 31, 26, 0.06);
+  padding: 1.35rem;
+}
+
+.proofCard h2,
+.problemCard h3,
+.docsCard h3,
+.sectionIntro h2 {
+  letter-spacing: -0.04em;
+}
+
+.proofCard h2,
+.problemCard h3,
+.docsCard h3 {
+  font-size: 1.05rem;
+  margin-bottom: 0.55rem;
+}
+
+.proofCard p,
+.problemCard p,
+.docsCard p {
+  color: var(--flopha-ink-soft);
+  margin-bottom: 0;
+}
+
+.problemSection,
+.docsSection {
+  display: grid;
+  gap: 1.3rem;
+}
+
+.sectionIntro {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 38rem;
+}
+
+.sectionIntro h2 {
+  font-size: clamp(2rem, 3.6vw, 3rem);
+  margin: 0;
+}
+
+.docsLink {
+  color: var(--flopha-accent-strong);
+  display: inline-block;
+  font-weight: 700;
+  margin-top: 1rem;
+}
+
+@keyframes floatIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 996px) {
+  .heroInner,
+  .proofGrid,
+  .problemGrid,
+  .docsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    padding-top: 3rem;
+  }
+
+  .title {
+    max-width: 14ch;
+  }
+}

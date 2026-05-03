@@ -1,0 +1,34 @@
+---
+id: intro
+title: Overview
+slug: /
+---
+
+# Release versioning for Git tags and branches
+
+`flopha` is a small Git-focused CLI for repositories that encode releases as semantic versions. It looks at matching tags or branches, resolves the latest version, calculates the next one, and can create the result directly in Git.
+
+It is useful when your repository needs more than a one-off `git tag`:
+
+- You release with a custom prefix like `desktop@1.4.2` or `release/1.4.2`.
+- You want to drive version bumps from conventional commits.
+- You need branch-based version streams instead of tag-only releases.
+- You want pre-release channels such as `alpha`, `beta`, or `rc`.
+
+## What it does well
+
+- Resolve the latest matching version with `flopha last-version`.
+- Calculate the next semantic version with `flopha next-version`.
+- Infer the bump from commit history with `flopha next-version --auto`.
+- Create tags or branches once the version is resolved.
+- Show version history with commit counts using `flopha log`.
+
+## Default behavior
+
+By default, `flopha` looks for tags matching `v{major}.{minor}.{patch}` and fetches from `origin` before operating. You can override both the version pattern and the version source when your repository uses a different release scheme.
+
+## Next
+
+- Go to [Installation](/docs/installation) to install the binary.
+- Go to [Quick Start](/docs/quick-start) for the common day-to-day commands.
+- Go to [Version Patterns](/docs/version-patterns) for custom formats.

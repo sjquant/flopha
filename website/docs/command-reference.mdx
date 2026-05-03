@@ -1,0 +1,65 @@
+---
+id: command-reference
+title: Command Reference
+---
+
+# Command Reference
+
+## `flopha last-version`
+
+Print the latest matching version.
+
+```bash
+flopha last-version [--pattern <pattern>] [--source <tag|branch>] [--checkout]
+```
+
+Options:
+
+- `--pattern`, `-p`: Match a custom version format.
+- `--source`, `-s`: Read versions from tags or branches. Default is `tag`.
+- `--checkout`: Check out the resolved version after printing it.
+
+## `flopha next-version`
+
+Calculate the next version.
+
+```bash
+flopha next-version \
+  [--increment <major|minor|patch>] \
+  [--auto] \
+  [--rule <level:regex>] \
+  [--pre <channel>] \
+  [--pattern <pattern>] \
+  [--source <tag|branch>] \
+  [--create]
+```
+
+Options:
+
+- `--increment`, `-i`: Explicit bump level. Default is `patch`.
+- `--auto`: Detect the bump from commit messages since the last version.
+- `--rule`: Replace the built-in auto-detection rules. Requires `--auto`.
+- `--pre`: Create a pre-release tag like `-alpha.1` or `-rc.1`.
+- `--pattern`, `-p`: Match and generate a custom version format.
+- `--source`, `-s`: Read versions from tags or branches. Default is `tag`.
+- `--create`: Create the new tag or branch after printing it.
+
+## `flopha log`
+
+Show matching versions newest first.
+
+```bash
+flopha log [--pattern <pattern>] [--source <tag|branch>] [--limit <number>]
+```
+
+Options:
+
+- `--pattern`, `-p`: Match a custom version format.
+- `--source`, `-s`: Read versions from tags or branches. Default is `tag`.
+- `--limit`, `-n`: Limit the number of rows.
+
+## Global behavior
+
+- `--verbose`, `-v` enables debug logging.
+- The CLI fetches from the `origin` remote before resolving versions.
+- The default version pattern is `v{major}.{minor}.{patch}`.

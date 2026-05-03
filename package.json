@@ -1,0 +1,11 @@
+{
+  "name": "flopha",
+  "private": true,
+  "packageManager": "pnpm@10.6.3",
+  "scripts": {
+    "docs:build": "pnpm --dir website build",
+    "docs:start": "pnpm --dir website start",
+    "docs:serve": "pnpm --dir website serve",
+    "docs:typecheck": "pnpm --dir website typecheck"
+  }
+}
