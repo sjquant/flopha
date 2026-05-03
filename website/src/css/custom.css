@@ -24,10 +24,20 @@
   --flopha-ink-strong: #13211f;
   --flopha-ink-soft: #516560;
   --flopha-line: rgba(19, 33, 31, 0.1);
+  --flopha-surface-strong: rgba(255, 255, 255, 0.82);
+  --flopha-surface-soft: rgba(255, 255, 255, 0.72);
   --flopha-code-surface: #eef3f1;
   --flopha-code-surface-strong: #f7faf8;
   --flopha-code-border: rgba(19, 33, 31, 0.12);
   --flopha-code-text: #22312d;
+  --flopha-terminal-surface: #16231f;
+  --flopha-terminal-surface-strong: #0f1816;
+  --flopha-terminal-line: rgba(255, 255, 255, 0.08);
+  --flopha-terminal-chip-surface: rgba(246, 250, 249, 0.98);
+  --flopha-terminal-chip-border: rgba(12, 163, 129, 0.28);
+  --flopha-terminal-chip-text: #0f6d61;
+  --flopha-terminal-text: rgba(227, 244, 237, 0.88);
+  --flopha-terminal-text-soft: rgba(230, 249, 241, 0.82);
 }
 
 [data-theme='dark'] {
@@ -49,10 +59,20 @@
   --flopha-ink-strong: #edf7f3;
   --flopha-ink-soft: #9eb3ad;
   --flopha-line: rgba(255, 255, 255, 0.08);
+  --flopha-surface-strong: rgba(20, 28, 26, 0.92);
+  --flopha-surface-soft: rgba(20, 28, 26, 0.88);
   --flopha-code-surface: #16231f;
   --flopha-code-surface-strong: #0f1816;
   --flopha-code-border: rgba(255, 255, 255, 0.08);
   --flopha-code-text: #e7f4ee;
+  --flopha-terminal-surface: #16231f;
+  --flopha-terminal-surface-strong: #0f1816;
+  --flopha-terminal-line: rgba(255, 255, 255, 0.08);
+  --flopha-terminal-chip-surface: rgba(246, 250, 249, 0.98);
+  --flopha-terminal-chip-border: rgba(40, 198, 162, 0.3);
+  --flopha-terminal-chip-text: #0f6d61;
+  --flopha-terminal-text: rgba(227, 244, 237, 0.88);
+  --flopha-terminal-text-soft: rgba(230, 249, 241, 0.82);
 }
 
 html {

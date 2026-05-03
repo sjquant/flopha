@@ -130,10 +130,11 @@
   animation: floatIn 800ms ease-out both;
   background:
     radial-gradient(circle at top left, rgba(245, 137, 48, 0.18), transparent 36%),
-    linear-gradient(180deg, #16231f 0%, #0f1816 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+    linear-gradient(180deg, var(--flopha-terminal-surface) 0%, var(--flopha-terminal-surface-strong) 100%);
+  border: 1px solid var(--flopha-terminal-line);
   border-radius: 1.2rem;
   box-shadow: 0 1.7rem 3.4rem rgba(12, 18, 17, 0.22);
+  margin-bottom: 0;
   overflow: hidden;
   position: relative;
 }
@@ -189,7 +190,7 @@
 
 .terminalStep {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--flopha-terminal-line);
   border-radius: 0.9rem;
   display: grid;
   gap: 0.75rem;
@@ -197,9 +198,9 @@
 }
 
 .terminalStep code {
-  background: rgba(246, 250, 249, 0.98);
-  border: 1px solid rgba(12, 163, 129, 0.28);
-  color: #0f6d61;
+  background: var(--flopha-terminal-chip-surface);
+  border: 1px solid var(--flopha-terminal-chip-border);
+  color: var(--flopha-terminal-chip-text);
   display: inline-flex;
   font-size: 0.92rem;
   font-weight: 600;
@@ -209,7 +210,7 @@
 }
 
 .terminalFootnote {
-  color: rgba(230, 249, 241, 0.82);
+  color: var(--flopha-terminal-text-soft);
   font-size: 0.92rem;
   margin: 0;
   padding: 0 1.15rem 1.15rem;
@@ -222,7 +223,7 @@
 }
 
 .terminalStep p {
-  color: rgba(227, 244, 237, 0.88);
+  color: var(--flopha-terminal-text);
   margin: 0;
 }
 
@@ -237,7 +238,7 @@
 .proofCard,
 .problemCard,
 .docsCard {
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--flopha-surface-soft);
   border: 1px solid var(--flopha-line);
   border-radius: 1.05rem;
   box-shadow: 0 1rem 2rem rgba(16, 31, 26, 0.06);
