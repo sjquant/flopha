@@ -1,5 +1,7 @@
 name: 'flopha'
-description: 'Auto-tag the next version based on conventional commits'
+description: >
+  Auto-tag the next version based on conventional commits.
+  Requires `permissions: contents: write` in the calling workflow.
 branding:
   icon: 'tag'
   color: 'blue'
@@ -30,6 +32,14 @@ inputs:
       Example: "major:BREAKING CHANGE\nminor:^feat"
     required: false
     default: ''
+  dry-run:
+    description: 'Print the next tag without creating or pushing it.'
+    required: false
+    default: 'false'
+  version:
+    description: 'flopha release to install, e.g. v0.2.0. Defaults to latest.'
+    required: false
+    default: 'latest'
   github-token:
     description: 'Token used to push the version tag.'
     required: false
@@ -37,7 +47,7 @@ inputs:
 
 outputs:
   tag:
-    description: 'The new version tag that was created and pushed.'
+    description: 'The next version tag (created and pushed unless dry-run is true).'
     value: ${{ steps.tag.outputs.tag }}
 
 runs:
@@ -45,6 +55,8 @@ runs:
   steps:
     - name: Install flopha
       shell: bash
+      env:
+        FLOPHA_VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
         OS=$(uname -s)
@@ -54,11 +66,15 @@ runs:
           Darwin/x86_64) TARGET="x86_64-apple-darwin" ;;
           Darwin/arm64)  TARGET="aarch64-apple-darwin" ;;
           *)
-            echo "::error::flopha: unsupported platform $OS/$ARCH (supported: Linux/x86_64, Darwin/x86_64, Darwin/arm64)"
+            echo "::error::flopha: unsupported platform $OS/$ARCH (supported: Linux/x86_64, Darwin/x86_64, Darwin/arm64 — Windows runners are not supported)"
             exit 1
             ;;
         esac
-        URL="https://github.com/sjquant/flopha/releases/latest/download/flopha-${TARGET}.tar.gz"
+        if [ "$FLOPHA_VERSION" = "latest" ]; then
+          URL="https://github.com/sjquant/flopha/releases/latest/download/flopha-${TARGET}.tar.gz"
+        else
+          URL="https://github.com/sjquant/flopha/releases/download/${FLOPHA_VERSION}/flopha-${TARGET}.tar.gz"
+        fi
         curl -sfL "$URL" | tar -xz -C /usr/local/bin
 
     - name: Fetch full history and tags
@@ -77,11 +93,12 @@ runs:
         INPUT_PATTERN: ${{ inputs.pattern }}
         INPUT_PRE: ${{ inputs.pre }}
         INPUT_RULE: ${{ inputs.rule }}
+        INPUT_DRY_RUN: ${{ inputs.dry-run }}
       run: |
         set -euo pipefail
 
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
 
         ARGS=()
         if [ "$INPUT_AUTO" = "true" ]; then
@@ -95,7 +112,16 @@ runs:
           [ -n "$rule" ] && ARGS+=(--rule "$rule")
         done <<< "$INPUT_RULE"
 
-        NEW_TAG=$(flopha next-version "${ARGS[@]}" --create)
-        git push origin "$NEW_TAG"
-        echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
-        echo "Created and pushed tag: $NEW_TAG"
+        if [ "$INPUT_DRY_RUN" = "true" ]; then
+          NEW_TAG=$(flopha next-version "${ARGS[@]}")
+          echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+          echo "Dry run — next tag would be: $NEW_TAG"
+        else
+          NEW_TAG=$(flopha next-version "${ARGS[@]}" --create)
+          if ! git push origin "$NEW_TAG" 2>&1; then
+            echo "::error::Failed to push tag $NEW_TAG. Make sure the workflow has 'permissions: contents: write'."
+            exit 1
+          fi
+          echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+          echo "Created and pushed tag: $NEW_TAG"
+        fi
