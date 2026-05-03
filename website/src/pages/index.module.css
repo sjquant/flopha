@@ -19,7 +19,7 @@
 }
 
 .hero::before {
-  background: radial-gradient(circle, rgba(12, 163, 129, 0.24) 0%, rgba(12, 163, 129, 0) 72%);
+  background: radial-gradient(circle, var(--flopha-glow-primary) 0%, rgba(122, 33, 40, 0) 72%);
   height: 28rem;
   left: -8rem;
   top: -5rem;
@@ -27,7 +27,7 @@
 }
 
 .hero::after {
-  background: radial-gradient(circle, rgba(245, 137, 48, 0.24) 0%, rgba(245, 137, 48, 0) 70%);
+  background: radial-gradient(circle, var(--flopha-glow-secondary) 0%, rgba(227, 141, 130, 0) 70%);
   height: 24rem;
   right: -4rem;
   top: 2rem;
@@ -93,10 +93,10 @@
 }
 
 .signalList li {
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(15, 109, 97, 0.15);
+  background: var(--flopha-chip-surface);
+  border: 1px solid var(--flopha-chip-border);
   border-radius: 999px;
-  color: var(--flopha-accent-strong);
+  color: var(--flopha-chip-text);
   font-size: 0.9rem;
   font-weight: 700;
   padding: 0.5rem 0.8rem;
@@ -120,9 +120,9 @@
 }
 
 .primaryAction {
-  background: linear-gradient(135deg, #0ca381 0%, #0e756c 100%);
+  background: linear-gradient(135deg, var(--flopha-button-start) 0%, var(--flopha-button-end) 100%);
   border: 0;
-  box-shadow: 0 0.8rem 1.8rem rgba(12, 163, 129, 0.22);
+  box-shadow: 0 0.8rem 1.8rem rgba(169, 76, 71, 0.24);
   color: #f8fbfa !important;
 }
 
@@ -136,7 +136,8 @@
 .terminal {
   animation: floatIn 800ms ease-out both;
   background:
-    radial-gradient(circle at top left, rgba(245, 137, 48, 0.18), transparent 36%),
+    radial-gradient(circle at top left, rgba(227, 141, 130, 0.18), transparent 36%),
+    radial-gradient(circle at 82% 16%, rgba(122, 33, 40, 0.16), transparent 28%),
     linear-gradient(180deg, var(--flopha-terminal-surface) 0%, var(--flopha-terminal-surface-strong) 100%);
   border: 1px solid var(--flopha-terminal-line);
   border-radius: 1.2rem;
@@ -183,7 +184,7 @@
   line-height: 1.15;
   margin: 0;
   max-width: 16ch;
-  text-shadow: 0 0 18px rgba(12, 163, 129, 0.18);
+  text-shadow: 0 0 18px rgba(227, 141, 130, 0.18);
 }
 
 .terminalEyebrow {
@@ -243,7 +244,7 @@
   background: var(--flopha-surface-soft);
   border: 1px solid var(--flopha-line);
   border-radius: 1.05rem;
-  box-shadow: 0 1rem 2rem rgba(16, 31, 26, 0.06);
+  box-shadow: 0 1rem 2rem rgba(39, 18, 20, 0.08);
   padding: 1.35rem;
 }
 

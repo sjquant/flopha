@@ -1,78 +1,92 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap');
 
 :root {
-  --ifm-color-primary: #0e756c;
-  --ifm-color-primary-dark: #0d695f;
-  --ifm-color-primary-darker: #0c645a;
-  --ifm-color-primary-darkest: #0a534b;
-  --ifm-color-primary-light: #0f8179;
-  --ifm-color-primary-lighter: #11867f;
-  --ifm-color-primary-lightest: #13a091;
-  --ifm-background-color: #f7f4ed;
-  --ifm-background-surface-color: rgba(255, 255, 255, 0.82);
-  --ifm-navbar-background-color: rgba(247, 244, 237, 0.85);
-  --ifm-footer-background-color: #111816;
+  --ifm-color-primary: #a94c47;
+  --ifm-color-primary-dark: #97433f;
+  --ifm-color-primary-darker: #8e3f3b;
+  --ifm-color-primary-darkest: #753431;
+  --ifm-color-primary-light: #b95d58;
+  --ifm-color-primary-lighter: #c46b65;
+  --ifm-color-primary-lightest: #d48b82;
+  --ifm-background-color: #f7f1ee;
+  --ifm-background-surface-color: rgba(255, 250, 248, 0.84);
+  --ifm-navbar-background-color: rgba(247, 241, 238, 0.88);
+  --ifm-footer-background-color: #171214;
   --ifm-font-family-base: 'Space Grotesk', 'Segoe UI', sans-serif;
   --ifm-font-family-monospace: 'IBM Plex Mono', 'SFMono-Regular', monospace;
   --ifm-heading-font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
-  --ifm-heading-color: #13211f;
-  --ifm-font-color-base: #2c3d39;
+  --ifm-heading-color: #271c1e;
+  --ifm-font-color-base: #453335;
   --ifm-code-font-size: 94%;
-  --docusaurus-highlighted-code-line-bg: rgba(12, 163, 129, 0.12);
-  --flopha-accent: #0ca381;
-  --flopha-accent-strong: #0f6d61;
-  --flopha-ink-strong: #13211f;
-  --flopha-ink-soft: #516560;
-  --flopha-line: rgba(19, 33, 31, 0.1);
-  --flopha-surface-strong: rgba(255, 255, 255, 0.82);
-  --flopha-surface-soft: rgba(255, 255, 255, 0.72);
-  --flopha-code-surface: #eef3f1;
-  --flopha-code-surface-strong: #f7faf8;
-  --flopha-code-border: rgba(19, 33, 31, 0.12);
-  --flopha-code-text: #22312d;
-  --flopha-terminal-surface: #16231f;
-  --flopha-terminal-surface-strong: #0f1816;
-  --flopha-terminal-line: rgba(255, 255, 255, 0.08);
-  --flopha-terminal-chip-surface: rgba(18, 63, 56, 0.72);
-  --flopha-terminal-chip-border: rgba(128, 231, 203, 0.14);
-  --flopha-terminal-chip-text: #d7fff0;
-  --flopha-terminal-text: rgba(227, 244, 237, 0.88);
-  --flopha-terminal-text-soft: rgba(230, 249, 241, 0.82);
+  --docusaurus-highlighted-code-line-bg: rgba(169, 76, 71, 0.12);
+  --flopha-accent: #c76861;
+  --flopha-accent-strong: #8f3a38;
+  --flopha-ink-strong: #271c1e;
+  --flopha-ink-soft: #6a585a;
+  --flopha-line: rgba(52, 31, 34, 0.12);
+  --flopha-surface-strong: rgba(255, 250, 248, 0.88);
+  --flopha-surface-soft: rgba(255, 250, 248, 0.78);
+  --flopha-code-surface: #f1e8e5;
+  --flopha-code-surface-strong: #fbf6f3;
+  --flopha-code-border: rgba(52, 31, 34, 0.12);
+  --flopha-code-text: #3f2d30;
+  --flopha-terminal-surface: #1f191b;
+  --flopha-terminal-surface-strong: #171214;
+  --flopha-terminal-line: rgba(255, 228, 220, 0.09);
+  --flopha-terminal-chip-surface: rgba(96, 42, 47, 0.34);
+  --flopha-terminal-chip-border: rgba(227, 141, 130, 0.2);
+  --flopha-terminal-chip-text: #ffe2da;
+  --flopha-terminal-text: rgba(247, 234, 230, 0.9);
+  --flopha-terminal-text-soft: rgba(226, 205, 198, 0.82);
+  --flopha-chip-surface: rgba(255, 247, 244, 0.92);
+  --flopha-chip-border: rgba(169, 76, 71, 0.18);
+  --flopha-chip-text: #9a433f;
+  --flopha-glow-primary: rgba(122, 33, 40, 0.2);
+  --flopha-glow-secondary: rgba(227, 141, 130, 0.2);
+  --flopha-button-start: #9f413d;
+  --flopha-button-end: #db8378;
 }
 
 [data-theme='dark'] {
-  --ifm-color-primary: #28c6a2;
-  --ifm-color-primary-dark: #1ab896;
-  --ifm-color-primary-darker: #18ad8d;
-  --ifm-color-primary-darkest: #148f74;
-  --ifm-color-primary-light: #3dd0ae;
-  --ifm-color-primary-lighter: #4fd4b4;
-  --ifm-color-primary-lightest: #76dcc4;
-  --ifm-background-color: #0d1412;
-  --ifm-background-surface-color: rgba(20, 28, 26, 0.9);
-  --ifm-navbar-background-color: rgba(13, 20, 18, 0.84);
-  --ifm-heading-color: #edf7f3;
-  --ifm-font-color-base: #c7d8d3;
-  --docusaurus-highlighted-code-line-bg: rgba(40, 198, 162, 0.15);
-  --flopha-accent: #28c6a2;
-  --flopha-accent-strong: #7ce5ca;
-  --flopha-ink-strong: #edf7f3;
-  --flopha-ink-soft: #9eb3ad;
-  --flopha-line: rgba(255, 255, 255, 0.08);
-  --flopha-surface-strong: rgba(20, 28, 26, 0.92);
-  --flopha-surface-soft: rgba(20, 28, 26, 0.88);
-  --flopha-code-surface: #16231f;
-  --flopha-code-surface-strong: #0f1816;
-  --flopha-code-border: rgba(255, 255, 255, 0.08);
-  --flopha-code-text: #e7f4ee;
-  --flopha-terminal-surface: #16231f;
-  --flopha-terminal-surface-strong: #0f1816;
-  --flopha-terminal-line: rgba(255, 255, 255, 0.08);
-  --flopha-terminal-chip-surface: rgba(18, 63, 56, 0.72);
-  --flopha-terminal-chip-border: rgba(128, 231, 203, 0.18);
-  --flopha-terminal-chip-text: #d7fff0;
-  --flopha-terminal-text: rgba(227, 244, 237, 0.88);
-  --flopha-terminal-text-soft: rgba(230, 249, 241, 0.82);
+  --ifm-color-primary: #e38d82;
+  --ifm-color-primary-dark: #dc786b;
+  --ifm-color-primary-darker: #d66e61;
+  --ifm-color-primary-darkest: #c44d3d;
+  --ifm-color-primary-light: #e9a297;
+  --ifm-color-primary-lighter: #edada4;
+  --ifm-color-primary-lightest: #f4cbc5;
+  --ifm-background-color: #1d191a;
+  --ifm-background-surface-color: rgba(33, 26, 28, 0.92);
+  --ifm-navbar-background-color: rgba(23, 18, 20, 0.88);
+  --ifm-heading-color: #fff2ee;
+  --ifm-font-color-base: #e4d2cd;
+  --docusaurus-highlighted-code-line-bg: rgba(227, 141, 130, 0.14);
+  --flopha-accent: #e38d82;
+  --flopha-accent-strong: #f1b2a6;
+  --flopha-ink-strong: #fff2ee;
+  --flopha-ink-soft: #baa4a0;
+  --flopha-line: rgba(255, 226, 219, 0.1);
+  --flopha-surface-strong: rgba(33, 26, 28, 0.94);
+  --flopha-surface-soft: rgba(33, 26, 28, 0.9);
+  --flopha-code-surface: #241d1f;
+  --flopha-code-surface-strong: #1a1416;
+  --flopha-code-border: rgba(255, 226, 219, 0.08);
+  --flopha-code-text: #fae7e2;
+  --flopha-terminal-surface: #1b1517;
+  --flopha-terminal-surface-strong: #141012;
+  --flopha-terminal-line: rgba(255, 226, 219, 0.1);
+  --flopha-terminal-chip-surface: rgba(116, 47, 53, 0.34);
+  --flopha-terminal-chip-border: rgba(227, 141, 130, 0.24);
+  --flopha-terminal-chip-text: #ffd9d0;
+  --flopha-terminal-text: rgba(251, 236, 230, 0.9);
+  --flopha-terminal-text-soft: rgba(223, 198, 191, 0.82);
+  --flopha-chip-surface: rgba(92, 40, 45, 0.42);
+  --flopha-chip-border: rgba(227, 141, 130, 0.24);
+  --flopha-chip-text: #ffd8d0;
+  --flopha-glow-primary: rgba(96, 28, 35, 0.34);
+  --flopha-glow-secondary: rgba(227, 141, 130, 0.22);
+  --flopha-button-start: #a44642;
+  --flopha-button-end: #e38d82;
 }
 
 html {
@@ -121,8 +135,8 @@ code {
 
 .theme-code-block {
   background:
-    radial-gradient(circle at 10% 8%, rgba(245, 137, 48, 0.16), transparent 28%),
-    radial-gradient(circle at 82% 12%, rgba(12, 163, 129, 0.1), transparent 24%),
+    radial-gradient(circle at 10% 8%, rgba(227, 141, 130, 0.16), transparent 28%),
+    radial-gradient(circle at 82% 12%, rgba(122, 33, 40, 0.14), transparent 24%),
     linear-gradient(180deg, var(--flopha-terminal-surface) 0%, var(--flopha-terminal-surface-strong) 100%);
   border: 1px solid var(--flopha-terminal-line);
   border-radius: 1.1rem;
@@ -138,7 +152,7 @@ code {
   position: absolute;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0) 42%),
-    radial-gradient(circle at 16% 14%, rgba(245, 137, 48, 0.08), transparent 20%);
+    radial-gradient(circle at 16% 14%, rgba(227, 141, 130, 0.08), transparent 20%);
   z-index: 0;
 }
 
@@ -210,11 +224,11 @@ code {
 }
 
 .menu__link--active:not(.menu__link--sublist) {
-  background: rgba(12, 163, 129, 0.12);
+  background: rgba(169, 76, 71, 0.12);
 }
 
 [data-theme='dark'] .menu__link--active:not(.menu__link--sublist) {
-  background: rgba(40, 198, 162, 0.16);
+  background: rgba(227, 141, 130, 0.16);
 }
 
 .navbar__toggle {
