@@ -1,3 +1,4 @@
 /.docusaurus
 /build
 /node_modules
+/static/img/logo.svg
