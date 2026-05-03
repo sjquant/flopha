@@ -135,12 +135,13 @@ code {
 
 .theme-code-block {
   background:
-    radial-gradient(circle at 10% 8%, rgba(227, 141, 130, 0.16), transparent 28%),
-    radial-gradient(circle at 82% 12%, rgba(122, 33, 40, 0.14), transparent 24%),
+    linear-gradient(140deg, rgba(227, 141, 130, 0.08) 0%, rgba(227, 141, 130, 0) 32%),
+    radial-gradient(circle at 88% 0%, rgba(122, 33, 40, 0.18), transparent 34%),
+    radial-gradient(circle at 12% 100%, rgba(169, 76, 71, 0.08), transparent 28%),
     linear-gradient(180deg, var(--flopha-terminal-surface) 0%, var(--flopha-terminal-surface-strong) 100%);
   border: 1px solid var(--flopha-terminal-line);
   border-radius: 1.1rem;
-  box-shadow: 0 1.7rem 3.4rem rgba(12, 18, 17, 0.22);
+  box-shadow: 0 1.2rem 2.8rem rgba(12, 10, 11, 0.2);
   overflow: hidden;
   position: relative;
 }
@@ -151,29 +152,19 @@ code {
   pointer-events: none;
   position: absolute;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0) 42%),
-    radial-gradient(circle at 16% 14%, rgba(227, 141, 130, 0.08), transparent 20%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0) 24%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.025) 0%, rgba(255, 255, 255, 0) 46%);
   z-index: 0;
 }
 
 .theme-code-block::after {
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.48) 0 44%, transparent 46%) left center / 0.72rem 0.72rem no-repeat,
-    radial-gradient(circle, rgba(255, 255, 255, 0.48) 0 44%, transparent 46%) center center / 0.72rem 0.72rem no-repeat,
-    radial-gradient(circle, rgba(255, 255, 255, 0.48) 0 44%, transparent 46%) right center / 0.72rem 0.72rem no-repeat;
-  content: '';
-  height: 0.72rem;
-  left: 1rem;
-  position: absolute;
-  top: 0.95rem;
-  width: 2.5rem;
-  z-index: 1;
+  content: none;
 }
 
 .theme-code-block pre {
   background: transparent !important;
   color: var(--flopha-terminal-text) !important;
-  padding: 1.35rem 1.2rem 1.2rem !important;
+  padding: 1.15rem 1.15rem 1.1rem !important;
   position: relative;
   z-index: 1;
 }
