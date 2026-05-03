@@ -18,9 +18,16 @@ else
 fi
 ARGS+=(--pattern "${INPUT_PATTERN:-v{major}.{minor}.{patch}}")
 [ -n "${INPUT_PRE:-}" ]  && ARGS+=(--pre "$INPUT_PRE")
-while IFS= read -r rule; do
-  [ -n "$rule" ] && ARGS+=(--rule "$rule")
-done <<< "${INPUT_RULE:-}"
+
+# rule > major/minor-pattern > built-in conventional-commit defaults
+if [ -n "${INPUT_RULE:-}" ]; then
+  while IFS= read -r rule; do
+    [ -n "$rule" ] && ARGS+=(--rule "$rule")
+  done <<< "$INPUT_RULE"
+elif [ -n "${INPUT_MAJOR_PATTERN:-}" ] || [ -n "${INPUT_MINOR_PATTERN:-}" ]; then
+  [ -n "${INPUT_MAJOR_PATTERN:-}" ] && ARGS+=(--rule "major:${INPUT_MAJOR_PATTERN}")
+  [ -n "${INPUT_MINOR_PATTERN:-}" ] && ARGS+=(--rule "minor:${INPUT_MINOR_PATTERN}")
+fi
 
 # ── dry-run: compute only, no side effects ───────────────────────────────────
 if [ "${INPUT_DRY_RUN:-false}" = "true" ]; then

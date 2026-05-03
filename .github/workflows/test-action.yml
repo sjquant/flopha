@@ -160,6 +160,45 @@ jobs:
             exit 1
           }
 
+  # ── custom pattern dry-run ────────────────────────────────────────────────
+  dry-run-pattern:
+    name: Dry-run (custom major/minor pattern)
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download flopha binary
+        uses: actions/download-artifact@v4
+        with:
+          name: flopha-linux
+          path: /home/runner/.flopha/bin
+
+      - name: Make binary executable
+        run: chmod +x /home/runner/.flopha/bin/flopha
+
+      - name: Run flopha with custom patterns (dry-run)
+        id: flopha
+        uses: ./
+        with:
+          major-pattern: 'BREAKING CHANGE'
+          minor-pattern: '^feat'
+          dry-run: true
+
+      - name: Assert outputs
+        shell: bash
+        run: |
+          TAG="${{ steps.flopha.outputs.tag }}"
+          VER="${{ steps.flopha.outputs.version }}"
+          echo "tag=$TAG  version=$VER"
+          [[ -n "$TAG" ]] || { echo "::error::tag output is empty"; exit 1; }
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]] || {
+            echo "::error::tag '$TAG' does not match expected semver pattern"
+            exit 1
+          }
+
   # ── install script ─────────────────────────────────────────────────────────
   install:
     name: Install (${{ matrix.os }})
