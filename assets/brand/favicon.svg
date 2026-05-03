@@ -1,0 +1,43 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="favicon-flow-main" x1="10" y1="54" x2="52" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#591821" />
+      <stop offset="1" stop-color="#EDA08F" />
+    </linearGradient>
+    <linearGradient id="favicon-flow-secondary" x1="16" y1="60" x2="57" y2="25" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3E1218" />
+      <stop offset="1" stop-color="#AF514A" />
+    </linearGradient>
+    <filter id="favicon-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="2.5" flood-color="#E38D82" flood-opacity="0.26" />
+    </filter>
+  </defs>
+
+  <rect width="64" height="64" rx="14" fill="#171214" />
+
+  <g stroke-linecap="round" stroke-linejoin="round" filter="url(#favicon-glow)">
+    <path
+      d="M 7 43 C 19 43 25 19 39 12"
+      stroke="#F6C9BD"
+      stroke-width="2.35"
+      opacity="0.92"
+    />
+    <path
+      d="M 10 53 C 29 53 31 25 50 21"
+      stroke="url(#favicon-flow-main)"
+      stroke-width="6"
+    />
+    <path
+      d="M 15 59 C 34 59 39 33 55 29"
+      stroke="url(#favicon-flow-secondary)"
+      stroke-width="3.8"
+      opacity="0.88"
+    />
+  </g>
+
+  <g transform="translate(50 21)">
+    <circle cx="0" cy="0" r="6.2" fill="#E38D82" opacity="0.24" />
+    <circle cx="0" cy="0" r="3.5" fill="#FFF6F2" />
+    <circle cx="0" cy="0" r="1.45" fill="#FFFFFF" />
+  </g>
+</svg>
