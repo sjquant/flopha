@@ -7,25 +7,58 @@ on:
       - 'action.yml'
       - 'action/**'
       - '.github/workflows/test-action.yml'
+      - 'src/**'
+      - 'Cargo.toml'
   pull_request:
     paths:
       - 'action.yml'
       - 'action/**'
       - '.github/workflows/test-action.yml'
+      - 'src/**'
+      - 'Cargo.toml'
 
 concurrency:
   group: test-action-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # ── build binary from source (shared by all dry-run jobs via cache) ────────
+  # Dry-run tests need the current source binary, not the latest release, so
+  # that features not yet in a release (--auto, --pre, --rule) can be tested.
+  build:
+    name: Build flopha from source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build release binary
+        run: cargo build --release
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: flopha-linux
+          path: target/release/flopha
+          retention-days: 1
+
   # ── basic dry-run ──────────────────────────────────────────────────────────
   dry-run:
     name: Dry-run (auto)
     runs-on: ubuntu-latest
+    needs: build
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Download flopha binary
+        uses: actions/download-artifact@v4
+        with:
+          name: flopha-linux
+          path: /home/runner/.flopha/bin
+
+      - name: Make binary executable
+        run: chmod +x /home/runner/.flopha/bin/flopha
 
       - name: Run flopha (dry-run)
         id: flopha
@@ -44,26 +77,33 @@ jobs:
           [[ -n "$TAG" ]] || { echo "::error::tag output is empty"; exit 1; }
           [[ -n "$VER" ]] || { echo "::error::version output is empty"; exit 1; }
 
-          # tag must match pattern v<semver> or v<semver>-<pre>.<n>
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]] || {
             echo "::error::tag '$TAG' does not match expected semver pattern"
             exit 1
           }
-
-          # version must be the bare semver without leading 'v'
           [[ "$VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] || {
             echo "::error::version '$VER' is not bare semver"
             exit 1
           }
 
-  # ── manual increment dry-run ──────────────────────────────────────────────
+  # ── manual increment dry-run ───────────────────────────────────────────────
   dry-run-increment:
     name: Dry-run (manual minor bump)
     runs-on: ubuntu-latest
+    needs: build
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Download flopha binary
+        uses: actions/download-artifact@v4
+        with:
+          name: flopha-linux
+          path: /home/runner/.flopha/bin
+
+      - name: Make binary executable
+        run: chmod +x /home/runner/.flopha/bin/flopha
 
       - name: Run flopha with manual minor bump (dry-run)
         id: flopha
@@ -87,10 +127,20 @@ jobs:
   dry-run-pre:
     name: Dry-run (pre-release)
     runs-on: ubuntu-latest
+    needs: build
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Download flopha binary
+        uses: actions/download-artifact@v4
+        with:
+          name: flopha-linux
+          path: /home/runner/.flopha/bin
+
+      - name: Make binary executable
+        run: chmod +x /home/runner/.flopha/bin/flopha
 
       - name: Run flopha pre-release (dry-run)
         id: flopha

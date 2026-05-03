@@ -16,6 +16,15 @@ case "$OS/$ARCH" in
     ;;
 esac
 
+BIN_DIR="${HOME}/.flopha/bin"
+
+# Skip download if flopha is already on PATH (e.g. built from source in CI)
+if command -v flopha >/dev/null 2>&1; then
+  echo "flopha $(flopha --version) already on PATH at $(command -v flopha), skipping download"
+  echo "$BIN_DIR" >> "$GITHUB_PATH"
+  exit 0
+fi
+
 VERSION="${FLOPHA_VERSION:-latest}"
 if [ "$VERSION" = "latest" ]; then
   URL="https://github.com/sjquant/flopha/releases/latest/download/flopha-${TARGET}.tar.gz"
@@ -23,7 +32,6 @@ else
   URL="https://github.com/sjquant/flopha/releases/download/${VERSION}/flopha-${TARGET}.tar.gz"
 fi
 
-BIN_DIR="${HOME}/.flopha/bin"
 mkdir -p "$BIN_DIR"
 
 echo "Installing flopha ${VERSION} (${TARGET})..."

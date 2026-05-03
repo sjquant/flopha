@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure flopha installed by the action is on PATH regardless of whether
+# $GITHUB_PATH propagation between composite-action steps is reliable.
+export PATH="${HOME}/.flopha/bin:${PATH}"
+
 # ── git identity ────────────────────────────────────────────────────────────
 git config --local user.name  "github-actions[bot]"
 git config --local user.email "github-actions[bot]@users.noreply.github.com"
