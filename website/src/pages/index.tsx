@@ -7,58 +7,63 @@ import Layout from '@theme/Layout';
 import styles from './index.module.css';
 
 const siteDescription =
-  'flopha is a Git versioning CLI for semantic tag and branch workflows, automated bumps, and pre-release generation.';
+  'flopha is a semantic versioning CLI for Git that calculates the next release, supports tags or branches, and keeps pre-releases moving without manual version math.';
 
 const proofPoints = [
   {
-    title: 'Tag or branch driven',
-    body: 'Version from Git tags by default or switch to release branches when your workflow calls for it.',
+    title: 'Stop doing release math by hand',
+    body: 'Resolve the next semantic version from Git history instead of manually checking tags, commit types, and pre-release counters.',
   },
   {
-    title: 'Auto-detect bump level',
-    body: 'Resolve major, minor, and patch changes from conventional commits or your own regex rules.',
+    title: 'Fit the release flow you already have',
+    body: 'Use Git tags by default, switch to release branches when needed, and keep custom version patterns without shell glue.',
   },
   {
-    title: 'Release history on demand',
-    body: 'Inspect the latest matching version or a timeline of releases without hand-rolled Git queries.',
+    title: 'Keep release candidates moving',
+    body: 'Generate alpha, beta, and rc versions from the next stable release so your team can ship previews without guesswork.',
   },
 ];
 
-const heroSignals = ['Tags', 'Branches', 'Pre-releases', 'Auto bumping'];
+const heroSignals = [
+  'Semantic versioning',
+  'Conventional commits',
+  'Tag or branch releases',
+  'Pre-release automation',
+];
 
 const workflow = [
   {
     command: 'flopha last-version',
-    detail: 'Check the latest published version before planning the next release.',
+    detail: 'See the current release before you decide what ships next.',
   },
   {
     command: 'flopha next-version --auto --pre rc',
-    detail: 'Compute the next release candidate from commit history instead of bumping by hand.',
+    detail: 'Generate the next release candidate from commit history instead of bumping by hand.',
   },
   {
     command: 'flopha next-version --source branch --create',
-    detail: 'Create a release branch directly when the version stream lives in branch names.',
+    detail: 'Create the release branch directly when your version stream lives in branch names.',
   },
 ];
 
 const docsCards = [
   {
-    title: 'Install and verify',
-    body: 'Install the binary, put it on your PATH, and run it in a repository with an origin remote.',
+    title: 'Get it running fast',
+    body: 'Install the binary, add it to your PATH, and verify it inside a Git repository in a few minutes.',
     href: '/docs/installation',
     label: 'Installation',
   },
   {
-    title: 'Common commands',
-    body: 'Read the shortest route through last-version, next-version, pre-releases, and log output.',
+    title: 'Ship the next version',
+    body: 'Start with the shortest path through last-version, next-version, auto bumping, and release creation.',
     href: '/docs/quick-start',
     label: 'Quick Start',
   },
   {
-    title: 'Patterns and workflows',
-    body: 'Apply custom patterns, branch-based streams, and regex-based bump rules without guesswork.',
-    href: '/docs/version-patterns',
-    label: 'Patterns',
+    title: 'Browse the commands',
+    body: 'See the full CLI surface when you want the exact flags for release creation, pre-releases, and history lookups.',
+    href: '/docs/command-reference',
+    label: 'Command Reference',
   },
 ];
 
@@ -74,7 +79,7 @@ export default function Home(): ReactNode {
   };
 
   return (
-    <Layout title="Release versioning for Git tags and branches" description={siteDescription}>
+    <Layout title="Semantic versioning CLI for Git releases" description={siteDescription}>
       <SiteHead jsonLd={jsonLd} />
       <main className={styles.page}>
         <HeroSection />
@@ -90,8 +95,12 @@ function SiteHead({jsonLd}: {jsonLd: Record<string, unknown>}): ReactNode {
     <Head>
       <meta
         name="keywords"
-        content="git versioning cli, semantic version automation, git tag workflow, release branch workflow"
+        content="semantic versioning cli, git release automation, conventional commits versioning, git tag workflow, release branch workflow, prerelease automation"
       />
+      <meta property="og:title" content="flopha | Semantic versioning CLI for Git releases" />
+      <meta property="og:description" content={siteDescription} />
+      <meta name="twitter:title" content="flopha | Semantic versioning CLI for Git releases" />
+      <meta name="twitter:description" content={siteDescription} />
       <script type="application/ld+json">{JSON.stringify(jsonLd)}</script>
     </Head>
   );
@@ -103,14 +112,14 @@ function HeroSection(): ReactNode {
       <div className={clsx('container', styles.heroInner)}>
         <div className={styles.copyColumn}>
           <p className={styles.eyebrow}>Git versioning CLI</p>
-          <h1 className={styles.title}>Release versioning for Git tags and branches</h1>
+          <h1 className={styles.title}>Ship the next version without release-script sprawl</h1>
           <p className={styles.lead}>
-            <code>flopha</code> resolves the latest semantic version, calculates the next one, and
-            can create it as a Git tag or branch.
+            <code>flopha</code> finds the latest version, calculates the next semantic release, and
+            creates it as a Git tag or branch from the same CLI flow.
           </p>
           <p className={styles.support}>
-            Use it when manual release math, mixed version patterns, or conventional commit
-            detection are slowing down your shipping flow.
+            Use it when releases still depend on shell glue, manual bump decisions, or repo
+            rituals nobody wants to debug twice.
           </p>
           <ul className={styles.signalList}>
             {heroSignals.map((item) => (
@@ -150,7 +159,7 @@ function HeroTerminal(): ReactNode {
       </div>
       <div className={styles.terminalIntro}>
         <p className={styles.terminalEyebrow}>Typical release flow</p>
-        <h2>Plan, bump, and create without hand-written Git steps</h2>
+        <h2>Go from current version to next release in three commands</h2>
       </div>
       <div className={styles.terminalBody}>
         {workflow.map((item) => (
@@ -160,9 +169,6 @@ function HeroTerminal(): ReactNode {
           </article>
         ))}
       </div>
-      <p className={styles.terminalFootnote}>
-        Default pattern: <span className={styles.footnoteChip}>v&#123;major&#125;.&#123;minor&#125;.&#123;patch&#125;</span>
-      </p>
     </section>
   );
 }
@@ -172,25 +178,25 @@ function ProblemSection(): ReactNode {
     <section className={clsx('container', styles.problemSection)}>
       <div className={styles.sectionIntro}>
         <p className={styles.sectionLabel}>What it solves</p>
-        <h2>Stop rebuilding release versions from scratch every time</h2>
+        <h2>Built for release moments that usually turn messy</h2>
       </div>
       <div className={styles.problemGrid}>
         <article className={styles.problemCard}>
-          <h3>Custom patterns are first-class</h3>
+          <h3>Custom versions without custom tooling</h3>
           <p>
             Track versions like <code>desktop@1.6.3</code> or <code>release/1.6.3</code> without
-            writing ad hoc shell scripts for each repository.
+            building repo-specific release scripts.
           </p>
         </article>
         <article className={styles.problemCard}>
-          <h3>Commit history can drive the bump</h3>
+          <h3>Version bumps that follow your commit language</h3>
           <p>
             Promote `feat`, breaking changes, or your own message conventions into version math
             with `--auto` and `--rule`.
           </p>
         </article>
         <article className={styles.problemCard}>
-          <h3>Pre-releases are incremental, not manual</h3>
+          <h3>Pre-releases that do not drift</h3>
           <p>
             Generate `alpha`, `beta`, or `rc` series from the next stable version instead of
             keeping counters in your head.
@@ -206,7 +212,7 @@ function DocsSection(): ReactNode {
     <section className={clsx('container', styles.docsSection)}>
       <div className={styles.sectionIntro}>
         <p className={styles.sectionLabel}>Docs</p>
-        <h2>Start with the path that matches your release workflow</h2>
+        <h2>Start with the docs that get you to a real release fastest</h2>
       </div>
       <div className={styles.docsGrid}>
         {docsCards.map((item) => (

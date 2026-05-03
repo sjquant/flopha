@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'flopha',
-  tagline: 'Release versioning for Git tags and branches',
+  tagline: 'Semantic versioning CLI for Git releases',
   favicon: 'img/logo.svg',
   future: {
     v4: true,
@@ -44,7 +44,7 @@ const config: Config = {
       {
         name: 'keywords',
         content:
-          'git versioning cli, semantic version cli, git tag release workflow, branch versioning tool, conventional commits release automation',
+          'semantic versioning cli, git release automation, conventional commits versioning, git tag release workflow, branch versioning tool, prerelease automation',
       },
     ],
     colorMode: {
