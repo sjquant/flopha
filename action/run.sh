@@ -13,6 +13,7 @@ git config --local user.email "github-actions[bot]@users.noreply.github.com"
 ARGS=()
 if [ "${INPUT_AUTO:-true}" = "true" ]; then
   ARGS+=(--auto)
+  [ -n "${INPUT_INCREMENT:-}" ] && echo "Note: 'increment' is ignored when 'auto: true'"
 else
   ARGS+=(--increment "${INPUT_INCREMENT:-patch}")
 fi
@@ -41,8 +42,9 @@ fi
 # ── create and push the version tag ─────────────────────────────────────────
 NEW_TAG=$(flopha next-version "${ARGS[@]}" --create)
 
-if ! git push origin "$NEW_TAG" 2>&1; then
-  echo "::error::Failed to push tag '$NEW_TAG'."
+if ! PUSH_OUT=$(git push origin "$NEW_TAG" 2>&1); then
+  git tag -d "$NEW_TAG" 2>/dev/null || true
+  echo "::error::Failed to push tag '$NEW_TAG': $PUSH_OUT"
   echo "::error::Make sure the calling workflow has 'permissions: contents: write'."
   exit 1
 fi
@@ -69,11 +71,12 @@ elif [ "${INPUT_GENERATE_RELEASE_NOTES:-true}" = "true" ]; then
   RELEASE_ARGS+=(--generate-notes)
 fi
 
-if ! RELEASE_URL=$(gh release create "${RELEASE_ARGS[@]}" --json url --jq '.url' 2>&1); then
-  echo "::error::Failed to create GitHub Release for tag '$NEW_TAG': $RELEASE_URL"
+if ! RELEASE_OUT=$(gh release create "${RELEASE_ARGS[@]}" --json url --jq '.url' 2>&1); then
+  echo "::error::Failed to create GitHub Release for tag '$NEW_TAG': $RELEASE_OUT"
   echo "::error::Make sure the calling workflow has 'permissions: contents: write'."
   exit 1
 fi
 
+RELEASE_URL="$RELEASE_OUT"
 echo "release-url=$RELEASE_URL" >> "$GITHUB_OUTPUT"
 echo "Created GitHub Release: $RELEASE_URL"

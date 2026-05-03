@@ -33,13 +33,15 @@ inputs:
   major-pattern:
     description: >
       Regex that marks a commit as a major (breaking) bump.
-      Ignored when 'rule' is set. Defaults to the conventional-commit breaking-change pattern.
+      Ignored when 'rule' is set. Note: supplying either major-pattern or minor-pattern (or both)
+      replaces the built-in conventional-commit defaults entirely; unspecified levels fall through to patch.
     required: false
     default: ''
   minor-pattern:
     description: >
       Regex that marks a commit as a minor (feature) bump.
-      Ignored when 'rule' is set. Defaults to the conventional-commit feat pattern.
+      Ignored when 'rule' is set. Note: supplying either major-pattern or minor-pattern (or both)
+      replaces the built-in conventional-commit defaults entirely; unspecified levels fall through to patch.
     required: false
     default: ''
   rule:
@@ -79,7 +81,7 @@ inputs:
     description: 'Compute and print the next tag without creating or pushing anything.'
     required: false
     default: 'false'
-  version:
+  flopha-version:
     description: "flopha binary version to install, e.g. 'v0.2.0'. Defaults to latest."
     required: false
     default: 'latest'
@@ -110,7 +112,7 @@ runs:
     - name: Install flopha
       shell: bash
       env:
-        FLOPHA_VERSION: ${{ inputs.version }}
+        FLOPHA_VERSION: ${{ inputs.flopha-version }}
       run: ${{ github.action_path }}/action/install.sh
 
     - name: Fetch full history and tags
@@ -143,8 +145,8 @@ runs:
     - name: Extract bare version
       id: version
       shell: bash
+      env:
+        TAG: ${{ steps.run.outputs.tag }}
       run: |
-        TAG="${{ steps.run.outputs.tag }}"
-        # Strip leading non-numeric characters: v1.2.3→1.2.3 | app@1.2.3→1.2.3
         VERSION="${TAG#"${TAG%%[0-9]*}"}"
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"

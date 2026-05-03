@@ -35,7 +35,14 @@ fi
 mkdir -p "$BIN_DIR"
 
 echo "Installing flopha ${VERSION} (${TARGET})..."
-curl -sfL "$URL" | tar -xz -C "$BIN_DIR"
+TMP=$(mktemp)
+if ! curl -fsSL "$URL" -o "$TMP"; then
+  rm -f "$TMP"
+  echo "::error::Failed to download flopha from $URL"
+  exit 1
+fi
+tar -xz -C "$BIN_DIR" < "$TMP"
+rm -f "$TMP"
 chmod +x "$BIN_DIR/flopha"
 echo "$BIN_DIR" >> "$GITHUB_PATH"
 

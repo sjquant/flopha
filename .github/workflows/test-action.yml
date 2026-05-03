@@ -28,6 +28,8 @@ jobs:
   build:
     name: Build flopha from source
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -46,6 +48,8 @@ jobs:
     name: Dry-run (auto)
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -91,6 +95,8 @@ jobs:
     name: Dry-run (manual minor bump)
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -128,6 +134,8 @@ jobs:
     name: Dry-run (pre-release)
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -165,6 +173,8 @@ jobs:
     name: Dry-run (custom major/minor pattern)
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -199,10 +209,53 @@ jobs:
             exit 1
           }
 
+  # ── custom rule dry-run ───────────────────────────────────────────────────
+  dry-run-rule:
+    name: Dry-run (custom rule input)
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download flopha binary
+        uses: actions/download-artifact@v4
+        with:
+          name: flopha-linux
+          path: /home/runner/.flopha/bin
+
+      - name: Make binary executable
+        run: chmod +x /home/runner/.flopha/bin/flopha
+
+      - name: Run flopha with custom rule (dry-run)
+        id: flopha
+        uses: ./
+        with:
+          rule: |
+            major:BREAKING CHANGE
+            minor:^feat
+          dry-run: true
+
+      - name: Assert outputs
+        shell: bash
+        run: |
+          TAG="${{ steps.flopha.outputs.tag }}"
+          echo "tag=$TAG"
+          [[ -n "$TAG" ]] || { echo "::error::tag output is empty"; exit 1; }
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]] || {
+            echo "::error::tag '$TAG' does not match expected semver pattern"
+            exit 1
+          }
+
   # ── install script ─────────────────────────────────────────────────────────
   install:
     name: Install (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -225,13 +278,15 @@ jobs:
   install-pinned:
     name: Install (pinned version)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
       - name: Run install script with pinned version
         shell: bash
         env:
-          FLOPHA_VERSION: v0.2.0
+          FLOPHA_VERSION: v0.2.0  # last release without --auto/--pre/--rule; tests install path only
         run: bash action/install.sh
 
       - name: Verify binary version
