@@ -91,6 +91,7 @@
   flex-wrap: wrap;
   gap: 0.7rem;
   justify-content: flex-start;
+  justify-self: start;
   list-style: none;
   margin: 0;
   padding: 0;
