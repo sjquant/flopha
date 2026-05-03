@@ -9,9 +9,9 @@ html[data-theme='light']:not(#flopha-theme-override):not(#flopha-theme-override-
   --ifm-color-primary-light: #a5615d;
   --ifm-color-primary-lighter: #af6b66;
   --ifm-color-primary-lightest: #c18881;
-  --ifm-background-color: #f7f1ee;
-  --ifm-background-surface-color: rgba(255, 250, 248, 0.84);
-  --ifm-navbar-background-color: rgba(247, 241, 238, 0.88);
+  --ifm-background-color: #f6f4f2;
+  --ifm-background-surface-color: rgba(252, 250, 248, 0.9);
+  --ifm-navbar-background-color: rgba(246, 244, 242, 0.88);
   --ifm-footer-background-color: #171214;
   --ifm-font-family-base: 'Space Grotesk', 'Segoe UI', sans-serif;
   --ifm-font-family-monospace: 'IBM Plex Mono', 'SFMono-Regular', monospace;
@@ -24,33 +24,33 @@ html[data-theme='light']:not(#flopha-theme-override):not(#flopha-theme-override-
   --ifm-pagination-nav-color-hover: #8b4a46;
   --ifm-breadcrumb-color-active: #6f3a37;
   --ifm-code-font-size: 94%;
-  --docusaurus-highlighted-code-line-bg: rgba(151, 81, 77, 0.1);
-  --flopha-accent: #ac6962;
-  --flopha-accent-strong: #7f4743;
+  --docusaurus-highlighted-code-line-bg: rgba(151, 81, 77, 0.08);
+  --flopha-accent: #a36b66;
+  --flopha-accent-strong: #7a4d49;
   --flopha-ink-strong: #271c1e;
   --flopha-ink-soft: #6a585a;
   --flopha-line: rgba(52, 31, 34, 0.12);
-  --flopha-surface-strong: rgba(255, 250, 248, 0.88);
-  --flopha-surface-soft: rgba(255, 250, 248, 0.78);
-  --flopha-code-surface: #f1e8e5;
-  --flopha-code-surface-strong: #fbf6f3;
+  --flopha-surface-strong: rgba(255, 255, 255, 0.88);
+  --flopha-surface-soft: rgba(255, 255, 255, 0.8);
+  --flopha-code-surface: #efebe8;
+  --flopha-code-surface-strong: #f8f5f2;
   --flopha-code-border: rgba(52, 31, 34, 0.12);
   --flopha-code-text: #3f2d30;
   --flopha-terminal-surface: #1f191b;
   --flopha-terminal-surface-strong: #171214;
   --flopha-terminal-line: rgba(255, 228, 220, 0.09);
-  --flopha-terminal-chip-surface: rgba(108, 58, 61, 0.24);
-  --flopha-terminal-chip-border: rgba(221, 163, 154, 0.16);
-  --flopha-terminal-chip-text: #f6ddd6;
+  --flopha-terminal-chip-surface: rgba(126, 102, 105, 0.16);
+  --flopha-terminal-chip-border: rgba(223, 208, 204, 0.14);
+  --flopha-terminal-chip-text: #f1e7e4;
   --flopha-terminal-text: rgba(247, 234, 230, 0.9);
   --flopha-terminal-text-soft: rgba(226, 205, 198, 0.82);
-  --flopha-chip-surface: rgba(255, 249, 247, 0.86);
-  --flopha-chip-border: rgba(151, 81, 77, 0.12);
-  --flopha-chip-text: #88504b;
-  --flopha-glow-primary: rgba(108, 42, 47, 0.08);
-  --flopha-glow-secondary: rgba(206, 150, 139, 0.08);
-  --flopha-button-start: #8f514d;
-  --flopha-button-end: #b9746d;
+  --flopha-chip-surface: rgba(255, 255, 255, 0.92);
+  --flopha-chip-border: rgba(57, 45, 46, 0.08);
+  --flopha-chip-text: #7f5753;
+  --flopha-glow-primary: rgba(103, 93, 96, 0.04);
+  --flopha-glow-secondary: rgba(198, 189, 185, 0.06);
+  --flopha-button-start: #9e6863;
+  --flopha-button-end: #a8736d;
 }
 
 html[data-theme='dark']:not(#flopha-theme-override):not(#flopha-theme-override-2) {
@@ -61,9 +61,9 @@ html[data-theme='dark']:not(#flopha-theme-override):not(#flopha-theme-override-2
   --ifm-color-primary-light: #d3aaa3;
   --ifm-color-primary-lighter: #d9b6b0;
   --ifm-color-primary-lightest: #e7d1cd;
-  --ifm-background-color: #1d191a;
-  --ifm-background-surface-color: rgba(33, 26, 28, 0.92);
-  --ifm-navbar-background-color: rgba(23, 18, 20, 0.88);
+  --ifm-background-color: #171515;
+  --ifm-background-surface-color: rgba(26, 24, 24, 0.92);
+  --ifm-navbar-background-color: rgba(18, 17, 17, 0.88);
   --ifm-heading-color: #fff2ee;
   --ifm-font-color-base: #e4d2cd;
   --ifm-link-color: #d5aaa2;
@@ -72,13 +72,13 @@ html[data-theme='dark']:not(#flopha-theme-override):not(#flopha-theme-override-2
   --ifm-pagination-nav-color-hover: #e0b8b1;
   --ifm-breadcrumb-color-active: #e8cbc5;
   --docusaurus-highlighted-code-line-bg: rgba(200, 155, 147, 0.12);
-  --flopha-accent: #c7a097;
-  --flopha-accent-strong: #e4c3bc;
+  --flopha-accent: #bea39e;
+  --flopha-accent-strong: #dcc5c0;
   --flopha-ink-strong: #fff2ee;
   --flopha-ink-soft: #baa4a0;
   --flopha-line: rgba(255, 226, 219, 0.1);
-  --flopha-surface-strong: rgba(33, 26, 28, 0.94);
-  --flopha-surface-soft: rgba(33, 26, 28, 0.9);
+  --flopha-surface-strong: rgba(27, 25, 25, 0.94);
+  --flopha-surface-soft: rgba(27, 25, 25, 0.9);
   --flopha-code-surface: #241d1f;
   --flopha-code-surface-strong: #1a1416;
   --flopha-code-border: rgba(255, 226, 219, 0.08);
@@ -86,18 +86,18 @@ html[data-theme='dark']:not(#flopha-theme-override):not(#flopha-theme-override-2
   --flopha-terminal-surface: #1b1517;
   --flopha-terminal-surface-strong: #141012;
   --flopha-terminal-line: rgba(255, 226, 219, 0.1);
-  --flopha-terminal-chip-surface: rgba(105, 61, 65, 0.24);
-  --flopha-terminal-chip-border: rgba(213, 170, 162, 0.18);
-  --flopha-terminal-chip-text: #f5ddd8;
+  --flopha-terminal-chip-surface: rgba(127, 103, 107, 0.16);
+  --flopha-terminal-chip-border: rgba(222, 205, 201, 0.14);
+  --flopha-terminal-chip-text: #f0e5e2;
   --flopha-terminal-text: rgba(251, 236, 230, 0.9);
   --flopha-terminal-text-soft: rgba(223, 198, 191, 0.82);
-  --flopha-chip-surface: rgba(70, 45, 47, 0.46);
-  --flopha-chip-border: rgba(213, 170, 162, 0.15);
-  --flopha-chip-text: #e8cac4;
-  --flopha-glow-primary: rgba(89, 35, 40, 0.12);
-  --flopha-glow-secondary: rgba(200, 155, 147, 0.1);
-  --flopha-button-start: #89524e;
-  --flopha-button-end: #b67972;
+  --flopha-chip-surface: rgba(47, 40, 41, 0.5);
+  --flopha-chip-border: rgba(223, 206, 201, 0.12);
+  --flopha-chip-text: #e2ccc7;
+  --flopha-glow-primary: rgba(63, 57, 58, 0.08);
+  --flopha-glow-secondary: rgba(124, 116, 114, 0.08);
+  --flopha-button-start: #8f625e;
+  --flopha-button-end: #9d726d;
 }
 
 html {
@@ -172,9 +172,9 @@ code {
 
 .theme-code-block {
   background:
-    linear-gradient(140deg, rgba(227, 141, 130, 0.08) 0%, rgba(227, 141, 130, 0) 32%),
-    radial-gradient(circle at 88% 0%, rgba(122, 33, 40, 0.18), transparent 34%),
-    radial-gradient(circle at 12% 100%, rgba(169, 76, 71, 0.08), transparent 28%),
+    linear-gradient(140deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 32%),
+    radial-gradient(circle at 88% 0%, rgba(90, 72, 75, 0.1), transparent 34%),
+    radial-gradient(circle at 12% 100%, rgba(134, 122, 120, 0.06), transparent 28%),
     linear-gradient(180deg, var(--flopha-terminal-surface) 0%, var(--flopha-terminal-surface-strong) 100%);
   border: 1px solid var(--flopha-terminal-line);
   border-radius: 1.1rem;
