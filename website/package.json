@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "sync:brand": "node ../scripts/sync-brand.mjs",
+    "prestart": "pnpm sync:brand",
+    "prebuild": "pnpm sync:brand",
+    "preserve": "pnpm sync:brand",
+    "pretypecheck": "pnpm sync:brand",
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
     "build": "docusaurus build",

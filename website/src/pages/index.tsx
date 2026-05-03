@@ -24,6 +24,8 @@ const proofPoints = [
   },
 ];
 
+const heroSignals = ['Tags', 'Branches', 'Pre-releases', 'Auto bumping'];
+
 const workflow = [
   {
     command: 'flopha last-version',
@@ -110,6 +112,11 @@ function HeroSection(): ReactNode {
             Use it when manual release math, mixed version patterns, or conventional commit
             detection are slowing down your shipping flow.
           </p>
+          <ul className={styles.signalList}>
+            {heroSignals.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
           <div className={styles.actions}>
             <Link className={clsx('button button--lg', styles.primaryAction)} to="/docs/quick-start">
               Quick Start
@@ -141,6 +148,10 @@ function HeroTerminal(): ReactNode {
         <span />
         <span />
       </div>
+      <div className={styles.terminalIntro}>
+        <p className={styles.terminalEyebrow}>Typical release flow</p>
+        <h2>Plan, bump, and create without hand-written Git steps</h2>
+      </div>
       <div className={styles.terminalBody}>
         {workflow.map((item) => (
           <article key={item.command} className={styles.terminalStep}>
@@ -149,6 +160,7 @@ function HeroTerminal(): ReactNode {
           </article>
         ))}
       </div>
+      <p className={styles.terminalFootnote}>Default pattern: <code>v&#123;major&#125;.&#123;minor&#125;.&#123;patch&#125;</code></p>
     </section>
   );
 }

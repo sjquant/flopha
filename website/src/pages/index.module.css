@@ -6,7 +6,7 @@
 
 .hero {
   overflow: hidden;
-  padding: 4.5rem 0 1rem;
+  padding: 5.5rem 0 1.5rem;
   position: relative;
 }
 
@@ -35,9 +35,9 @@
 }
 
 .heroInner {
-  align-items: center;
+  align-items: start;
   display: grid;
-  gap: 2rem;
+  gap: 2.5rem;
   grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.9fr);
   position: relative;
   z-index: 1;
@@ -45,7 +45,8 @@
 
 .copyColumn {
   display: grid;
-  gap: 1rem;
+  gap: 1.15rem;
+  padding-top: 1rem;
 }
 
 .eyebrow,
@@ -78,6 +79,25 @@
   line-height: 1.8;
   margin: 0;
   max-width: 38rem;
+}
+
+.signalList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.signalList li {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(15, 109, 97, 0.15);
+  border-radius: 999px;
+  color: var(--flopha-accent-strong);
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.5rem 0.8rem;
 }
 
 .actions {
@@ -137,12 +157,39 @@
 .terminalBody {
   display: grid;
   gap: 1rem;
-  padding: 1.15rem;
+  padding: 1.15rem 1.15rem 1rem;
+}
+
+.terminalIntro {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: grid;
+  gap: 0.35rem;
+  padding: 1.15rem 1.15rem 1rem;
+}
+
+.terminalIntro h2 {
+  color: #f3f8f5 !important;
+  font-size: 1.25rem;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+  margin: 0;
+  max-width: 16ch;
+  text-shadow: 0 0 18px rgba(12, 163, 129, 0.18);
+}
+
+.terminalEyebrow {
+  color: rgba(215, 255, 240, 0.7);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  margin: 0;
+  text-transform: uppercase;
 }
 
 .terminalStep {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0.9rem;
   display: grid;
   gap: 0.75rem;
@@ -150,8 +197,28 @@
 }
 
 .terminalStep code {
-  color: #d7fff0;
+  background: rgba(246, 250, 249, 0.98);
+  border: 1px solid rgba(12, 163, 129, 0.28);
+  color: #0f6d61;
+  display: inline-flex;
   font-size: 0.92rem;
+  font-weight: 600;
+  justify-self: start;
+  padding: 0.35rem 0.55rem;
+  text-shadow: none;
+}
+
+.terminalFootnote {
+  color: rgba(230, 249, 241, 0.82);
+  font-size: 0.92rem;
+  margin: 0;
+  padding: 0 1.15rem 1.15rem;
+}
+
+.terminalFootnote code {
+  background: rgba(12, 163, 129, 0.18);
+  border: 1px solid rgba(12, 163, 129, 0.22);
+  color: #f5fdf9;
 }
 
 .terminalStep p {
@@ -248,5 +315,9 @@
 
   .title {
     max-width: 14ch;
+  }
+
+  .copyColumn {
+    padding-top: 0;
   }
 }
