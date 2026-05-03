@@ -121,7 +121,8 @@ code {
 
 .theme-code-block {
   background:
-    radial-gradient(circle at top left, rgba(245, 137, 48, 0.14), transparent 38%),
+    radial-gradient(circle at 10% 8%, rgba(245, 137, 48, 0.16), transparent 28%),
+    radial-gradient(circle at 82% 12%, rgba(12, 163, 129, 0.1), transparent 24%),
     linear-gradient(180deg, var(--flopha-terminal-surface) 0%, var(--flopha-terminal-surface-strong) 100%);
   border: 1px solid var(--flopha-terminal-line);
   border-radius: 1.1rem;
@@ -131,11 +132,14 @@ code {
 }
 
 .theme-code-block::before {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   content: '';
-  display: block;
-  height: 3rem;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0) 42%),
+    radial-gradient(circle at 16% 14%, rgba(245, 137, 48, 0.08), transparent 20%);
+  z-index: 0;
 }
 
 .theme-code-block::after {
@@ -147,14 +151,17 @@ code {
   height: 0.72rem;
   left: 1rem;
   position: absolute;
-  top: 1.12rem;
+  top: 0.95rem;
   width: 2.5rem;
+  z-index: 1;
 }
 
 .theme-code-block pre {
   background: transparent !important;
   color: var(--flopha-terminal-text) !important;
-  padding: 1.25rem 1.45rem 1.45rem !important;
+  padding: 1.35rem 1.2rem 1.2rem !important;
+  position: relative;
+  z-index: 1;
 }
 
 .theme-code-block code {
@@ -168,8 +175,22 @@ code {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.65rem;
   box-shadow: 0 0.45rem 1.1rem rgba(0, 0, 0, 0.16);
-  right: 0.9rem;
-  top: 0.78rem;
+  opacity: 0;
+  pointer-events: none;
+  right: 0.8rem;
+  top: 0.72rem;
+  transform: translateY(-0.12rem);
+  transition:
+    opacity var(--ifm-transition-fast) ease,
+    transform var(--ifm-transition-fast) ease;
+  z-index: 1;
+}
+
+.theme-code-block:hover [class*='buttonGroup'],
+.theme-code-block:focus-within [class*='buttonGroup'] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .theme-code-block [class*='buttonGroup'] > button {
@@ -178,6 +199,14 @@ code {
 
 .theme-code-block [class*='buttonGroup'] > button:hover {
   color: #ffffff;
+}
+
+@media (hover: none) {
+  .theme-code-block [class*='buttonGroup'] {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
 }
 
 .menu__link--active:not(.menu__link--sublist) {

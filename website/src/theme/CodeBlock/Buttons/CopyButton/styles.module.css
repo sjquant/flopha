@@ -10,14 +10,14 @@
   border-radius: 0.7rem;
   color: #f3fbf7;
   display: inline-flex;
-  height: 2.2rem;
+  height: 1.95rem;
   justify-content: center;
   transition:
     background-color var(--ifm-transition-fast) ease,
     border-color var(--ifm-transition-fast) ease,
     color var(--ifm-transition-fast) ease,
     transform var(--ifm-transition-fast) ease;
-  width: 2.2rem;
+  width: 1.95rem;
 }
 
 .copyButton:hover {
@@ -33,8 +33,8 @@
 
 .copyButtonIcons {
   position: relative;
-  width: 1.2rem;
-  height: 1.2rem;
+  width: 0.92rem;
+  height: 0.92rem;
 }
 
 .copyButtonIcon,
