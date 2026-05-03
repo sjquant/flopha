@@ -1,0 +1,26 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path
+    d="M 7 43 C 19 43 25 19 39 12"
+    stroke="black"
+    stroke-width="2.35"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.7"
+  />
+  <path
+    d="M 10 53 C 29 53 31 25 50 21"
+    stroke="black"
+    stroke-width="6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M 15 59 C 34 59 39 33 55 29"
+    stroke="black"
+    stroke-width="3.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.6"
+  />
+  <circle cx="50" cy="21" r="3.5" fill="black" />
+</svg>
