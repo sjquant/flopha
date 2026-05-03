@@ -56,31 +56,30 @@ jobs:
             exit 1
           }
 
-  # ── custom pattern dry-run ─────────────────────────────────────────────────
-  dry-run-pattern:
-    name: Dry-run (custom pattern)
+  # ── manual increment dry-run ──────────────────────────────────────────────
+  dry-run-increment:
+    name: Dry-run (manual minor bump)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run flopha with custom pattern (dry-run)
+      - name: Run flopha with manual minor bump (dry-run)
         id: flopha
         uses: ./
         with:
           auto: false
           increment: minor
-          pattern: 'release-{major}.{minor}.{patch}'
           dry-run: true
 
-      - name: Assert pattern in output
+      - name: Assert minor bump (patch must be 0)
         shell: bash
         run: |
           TAG="${{ steps.flopha.outputs.tag }}"
           echo "tag=$TAG"
-          [[ "$TAG" =~ ^release-[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-            echo "::error::tag '$TAG' does not match 'release-X.Y.Z'"
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.0$ ]] || {
+            echo "::error::tag '$TAG' should end in .0 (minor bump resets patch)"
             exit 1
           }
 

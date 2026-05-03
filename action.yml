@@ -130,7 +130,6 @@ runs:
       shell: bash
       run: |
         TAG="${{ steps.run.outputs.tag }}"
-        # Strip everything up to and including the last non-numeric prefix character
-        # e.g. v1.2.3 → 1.2.3 | app@1.2.3 → 1.2.3 | 1.2.3 → 1.2.3
-        VERSION=$(echo "$TAG" | grep -oP '\d+\.\d+\.\d+.*')
+        # Strip leading non-numeric characters: v1.2.3→1.2.3 | app@1.2.3→1.2.3
+        VERSION="${TAG#"${TAG%%[0-9]*}"}"
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"

@@ -23,6 +23,13 @@ else
   URL="https://github.com/sjquant/flopha/releases/download/${VERSION}/flopha-${TARGET}.tar.gz"
 fi
 
+BIN_DIR="${HOME}/.flopha/bin"
+mkdir -p "$BIN_DIR"
+
 echo "Installing flopha ${VERSION} (${TARGET})..."
-curl -sfL "$URL" | tar -xz -C /usr/local/bin
+curl -sfL "$URL" | tar -xz -C "$BIN_DIR"
+chmod +x "$BIN_DIR/flopha"
+echo "$BIN_DIR" >> "$GITHUB_PATH"
+
+export PATH="$BIN_DIR:$PATH"
 echo "Installed $(flopha --version)"
