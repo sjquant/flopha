@@ -164,16 +164,20 @@ code {
 }
 
 .theme-code-block [class*='buttonGroup'] {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--flopha-terminal-line);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.65rem;
-  box-shadow: none;
+  box-shadow: 0 0.45rem 1.1rem rgba(0, 0, 0, 0.16);
   right: 0.9rem;
   top: 0.78rem;
 }
 
 .theme-code-block [class*='buttonGroup'] > button {
-  color: var(--flopha-terminal-text-soft);
+  color: #f3fbf7;
+}
+
+.theme-code-block [class*='buttonGroup'] > button:hover {
+  color: #ffffff;
 }
 
 .menu__link--active:not(.menu__link--sublist) {
