@@ -1,0 +1,42 @@
+---
+id: installation
+title: Installation
+---
+
+# Installation
+
+## Install the binary
+
+For macOS and Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh
+```
+
+The installer places the binary under `~/.flopha/bin` unless `FLOPHA_INSTALL` is already set.
+
+## Add it to your shell
+
+If `flopha` is not already on your `PATH`, add this to your shell profile:
+
+```bash
+export FLOPHA_INSTALL="$HOME/.flopha"
+export PATH="$FLOPHA_INSTALL/bin:$PATH"
+```
+
+## Verify the install
+
+```bash
+flopha last-version
+```
+
+Run the command inside a Git repository that has an `origin` remote and tags or branches that match your chosen pattern.
+
+## Build locally
+
+If you prefer building from source:
+
+```bash
+cargo build --release
+./target/release/flopha last-version
+```

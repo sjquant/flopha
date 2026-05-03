@@ -1,0 +1,48 @@
+---
+id: quick-start
+title: Quick Start
+---
+
+# Quick Start
+
+## Read the latest version
+
+```bash
+flopha last-version
+```
+
+## Calculate the next patch release
+
+```bash
+flopha next-version
+```
+
+## Auto-detect the bump from conventional commits
+
+```bash
+flopha next-version --auto
+```
+
+Built-in rules treat breaking changes as `major`, `feat` commits as `minor`, and everything else as `patch`.
+
+## Create a release candidate
+
+```bash
+flopha next-version --pre rc
+```
+
+If `v1.8.0` is the next stable version, the first pre-release becomes `v1.8.0-rc.1`.
+
+## Create the version in Git
+
+```bash
+flopha next-version --create
+```
+
+Use `--source branch` when the version should be created as a branch rather than a tag.
+
+## Show recent release history
+
+```bash
+flopha log --limit 10
+```

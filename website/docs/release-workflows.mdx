@@ -1,0 +1,53 @@
+---
+id: release-workflows
+title: Release Workflows
+---
+
+# Release Workflows
+
+## Conventional commits
+
+Use `--auto` to infer the next bump from commit messages since the latest version:
+
+```bash
+flopha next-version --auto
+```
+
+Built-in behavior:
+
+- `BREAKING CHANGE` or `feat!:` style commits produce a major bump.
+- `feat:` style commits produce a minor bump.
+- Any other history falls back to patch.
+
+## Custom bump rules
+
+If your team uses a different convention, replace the built-in rules with `--rule`:
+
+```bash
+flopha next-version \
+  --auto \
+  --rule 'major:BREAKING CHANGE' \
+  --rule 'minor:^feature'
+```
+
+Each rule uses the format `level:regex`, where `level` is `major`, `minor`, or `patch`.
+
+## Branch-based release streams
+
+Some teams publish from branches instead of tags. In that case, use `--source branch` consistently:
+
+```bash
+flopha last-version --source branch --pattern "release/{major}.{minor}.{patch}"
+flopha next-version --source branch --pattern "release/{major}.{minor}.{patch}"
+flopha next-version --source branch --pattern "release/{major}.{minor}.{patch}" --create
+```
+
+## Auditing release history
+
+Use `log` to confirm what has already been published:
+
+```bash
+flopha log --pattern "desktop@{major}.{minor}.{patch}" --limit 20
+```
+
+The log output includes the version, the release date, and the number of commits since the previous matching version.

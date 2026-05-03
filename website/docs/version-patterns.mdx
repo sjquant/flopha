@@ -1,0 +1,53 @@
+---
+id: version-patterns
+title: Version Patterns
+---
+
+# Version Patterns
+
+`flopha` matches and generates versions from string patterns with three placeholders:
+
+- `{major}`
+- `{minor}`
+- `{patch}`
+
+## Common examples
+
+```bash
+flopha last-version --pattern "v{major}.{minor}.{patch}"
+flopha next-version --pattern "desktop@{major}.{minor}.{patch}"
+flopha next-version --pattern "release/{major}.{minor}.{patch}" --source branch
+```
+
+## How matching works
+
+The pattern is converted into a full regular expression internally. Static text must match exactly, while placeholders are treated as numeric capture groups.
+
+That means:
+
+- `desktop@{major}.{minor}.{patch}` matches `desktop@1.3.7`
+- `release/{major}.{minor}.{patch}` matches `release/2.0.0`
+- `v1.{minor}.{patch}` scopes operations to the `1.x` line
+
+## When to use branches instead of tags
+
+Use `--source branch` when versions represent release branches instead of Git tags:
+
+```bash
+flopha next-version \
+  --source branch \
+  --pattern "release/{major}.{minor}.{patch}" \
+  --create
+```
+
+## Pre-release channels
+
+Pre-releases always extend the computed stable version:
+
+```bash
+flopha next-version --pre alpha
+flopha next-version --pre beta
+flopha next-version --pre rc
+```
+
+If the repository already contains `v2.4.0-rc.1`, the next invocation produces `v2.4.0-rc.2`.
