@@ -164,7 +164,7 @@ code {
 .theme-code-block pre {
   background: transparent !important;
   color: var(--flopha-terminal-text) !important;
-  padding: 1.15rem 1.15rem 1.1rem !important;
+  padding: 1rem 1rem 0.96rem !important;
   position: relative;
   z-index: 1;
 }
