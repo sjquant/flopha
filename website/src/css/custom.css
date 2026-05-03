@@ -36,14 +36,14 @@ html[data-theme='light']:not(#flopha-theme-override):not(#flopha-theme-override-
   --flopha-code-surface-strong: #f8fafb;
   --flopha-code-border: rgba(52, 31, 34, 0.12);
   --flopha-code-text: #3f2d30;
-  --flopha-terminal-surface: #1f191b;
-  --flopha-terminal-surface-strong: #171214;
-  --flopha-terminal-line: rgba(255, 228, 220, 0.09);
-  --flopha-terminal-chip-surface: rgba(126, 102, 105, 0.16);
-  --flopha-terminal-chip-border: rgba(223, 208, 204, 0.14);
-  --flopha-terminal-chip-text: #f1e7e4;
-  --flopha-terminal-text: rgba(247, 234, 230, 0.9);
-  --flopha-terminal-text-soft: rgba(226, 205, 198, 0.82);
+  --flopha-terminal-surface: #1b1c1f;
+  --flopha-terminal-surface-strong: #141518;
+  --flopha-terminal-line: rgba(225, 229, 235, 0.08);
+  --flopha-terminal-chip-surface: rgba(133, 141, 151, 0.14);
+  --flopha-terminal-chip-border: rgba(215, 221, 228, 0.12);
+  --flopha-terminal-chip-text: #edf1f5;
+  --flopha-terminal-text: rgba(236, 240, 244, 0.9);
+  --flopha-terminal-text-soft: rgba(201, 209, 216, 0.78);
   --flopha-chip-surface: rgba(252, 254, 255, 0.94);
   --flopha-chip-border: rgba(57, 45, 46, 0.08);
   --flopha-chip-text: #7f5753;
@@ -51,6 +51,8 @@ html[data-theme='light']:not(#flopha-theme-override):not(#flopha-theme-override-
   --flopha-glow-secondary: rgba(198, 189, 185, 0.06);
   --flopha-button-start: #9e6863;
   --flopha-button-end: #a8736d;
+  --flopha-footer-link: #b5bac3;
+  --flopha-footer-link-hover: #d2d8e0;
 }
 
 html[data-theme='dark']:not(#flopha-theme-override):not(#flopha-theme-override-2) {
@@ -83,14 +85,14 @@ html[data-theme='dark']:not(#flopha-theme-override):not(#flopha-theme-override-2
   --flopha-code-surface-strong: #1a1416;
   --flopha-code-border: rgba(255, 226, 219, 0.08);
   --flopha-code-text: #fae7e2;
-  --flopha-terminal-surface: #1b1517;
-  --flopha-terminal-surface-strong: #141012;
-  --flopha-terminal-line: rgba(255, 226, 219, 0.1);
-  --flopha-terminal-chip-surface: rgba(127, 103, 107, 0.16);
-  --flopha-terminal-chip-border: rgba(222, 205, 201, 0.14);
-  --flopha-terminal-chip-text: #f0e5e2;
-  --flopha-terminal-text: rgba(251, 236, 230, 0.9);
-  --flopha-terminal-text-soft: rgba(223, 198, 191, 0.82);
+  --flopha-terminal-surface: #18191d;
+  --flopha-terminal-surface-strong: #121317;
+  --flopha-terminal-line: rgba(226, 232, 240, 0.08);
+  --flopha-terminal-chip-surface: rgba(131, 139, 149, 0.14);
+  --flopha-terminal-chip-border: rgba(214, 220, 227, 0.12);
+  --flopha-terminal-chip-text: #ebf0f4;
+  --flopha-terminal-text: rgba(238, 243, 247, 0.9);
+  --flopha-terminal-text-soft: rgba(197, 205, 214, 0.78);
   --flopha-chip-surface: rgba(47, 40, 41, 0.5);
   --flopha-chip-border: rgba(223, 206, 201, 0.12);
   --flopha-chip-text: #e2ccc7;
@@ -98,6 +100,8 @@ html[data-theme='dark']:not(#flopha-theme-override):not(#flopha-theme-override-2
   --flopha-glow-secondary: rgba(124, 116, 114, 0.08);
   --flopha-button-start: #8f625e;
   --flopha-button-end: #9d726d;
+  --flopha-footer-link: #a9b0ba;
+  --flopha-footer-link-hover: #d0d7e0;
 }
 
 html {
@@ -121,6 +125,16 @@ body {
 .navbar__link,
 .footer__link-item {
   font-weight: 700;
+}
+
+.footer .footer__link-item,
+.footer .footer__title,
+.footer .footer__copyright {
+  color: var(--flopha-footer-link) !important;
+}
+
+.footer .footer__link-item:hover {
+  color: var(--flopha-footer-link-hover) !important;
 }
 
 a,

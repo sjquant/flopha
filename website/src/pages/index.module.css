@@ -142,12 +142,12 @@
 .terminal {
   animation: floatIn 800ms ease-out both;
   background:
-    radial-gradient(circle at top left, rgba(188, 181, 178, 0.06), transparent 34%),
-    radial-gradient(circle at 82% 16%, rgba(88, 76, 78, 0.08), transparent 28%),
+    radial-gradient(circle at top left, rgba(172, 179, 187, 0.05), transparent 34%),
+    radial-gradient(circle at 82% 16%, rgba(75, 83, 91, 0.06), transparent 28%),
     linear-gradient(180deg, var(--flopha-terminal-surface) 0%, var(--flopha-terminal-surface-strong) 100%);
   border: 1px solid var(--flopha-terminal-line);
   border-radius: 1.2rem;
-  box-shadow: 0 1.35rem 2.6rem rgba(12, 14, 14, 0.16);
+  box-shadow: 0 1.2rem 2.3rem rgba(11, 13, 15, 0.14);
   margin-bottom: 0;
   overflow: hidden;
   position: relative;
@@ -190,11 +190,11 @@
   line-height: 1.15;
   margin: 0;
   max-width: 16ch;
-  text-shadow: 0 0 10px rgba(174, 165, 161, 0.06);
+  text-shadow: 0 0 10px rgba(165, 173, 180, 0.05);
 }
 
 .terminalEyebrow {
-  color: rgba(220, 229, 226, 0.68);
+  color: rgba(202, 213, 222, 0.66);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.14em;
