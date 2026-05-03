@@ -5,7 +5,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'flopha',
   tagline: 'Semantic versioning CLI for Git releases',
-  favicon: 'img/logo.svg',
+  favicon: 'img/flopha-icon.svg',
   future: {
     v4: true,
   },
@@ -55,7 +55,7 @@ const config: Config = {
       title: 'flopha',
       logo: {
         alt: 'flopha logo',
-        src: 'img/logo.svg',
+        src: 'img/flopha-icon.svg',
       },
       items: [
         {
