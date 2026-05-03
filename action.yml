@@ -1,81 +1,104 @@
 name: 'flopha'
 description: >
-  Auto-tag the next version based on conventional commits.
-  Requires `permissions: contents: write` in the calling workflow.
+  Auto-tag the next version and optionally create a GitHub Release,
+  driven by conventional commits. Requires permissions: contents: write.
 branding:
   icon: 'tag'
   color: 'blue'
 
+# ── inputs ───────────────────────────────────────────────────────────────────
+
 inputs:
+
+  # -- versioning -------------------------------------------------------------
   auto:
     description: >
-      Detect bump level from conventional commits
-      (feat→minor, feat!/BREAKING CHANGE→major, else patch).
+      Detect bump level from conventional commits:
+      feat→minor, feat!/BREAKING CHANGE→major, anything else→patch.
     required: false
     default: 'true'
   increment:
-    description: 'Version part to bump when auto is false: major, minor, or patch.'
+    description: 'Bump level when auto is false: major, minor, or patch.'
     required: false
     default: 'patch'
   pattern:
-    description: "Version tag pattern, e.g. 'v{major}.{minor}.{patch}'."
+    description: "Tag pattern, e.g. 'v{major}.{minor}.{patch}' or 'app@{major}.{minor}.{patch}'."
     required: false
     default: 'v{major}.{minor}.{patch}'
   pre:
-    description: 'Pre-release channel name, e.g. alpha, beta, rc.'
+    description: 'Pre-release channel: alpha, beta, rc, etc. Marks the release as a pre-release.'
     required: false
     default: ''
   rule:
     description: >
       Custom bump rules, one per line, as 'level:regex'.
-      Replaces the built-in conventional-commit defaults when provided.
+      When provided, replaces the built-in conventional-commit defaults entirely.
       Example: "major:BREAKING CHANGE\nminor:^feat"
     required: false
     default: ''
+
+  # -- release ----------------------------------------------------------------
+  create-release:
+    description: 'Create a GitHub Release for the new tag.'
+    required: false
+    default: 'false'
+  draft:
+    description: 'Create the GitHub Release as a draft (requires create-release: true).'
+    required: false
+    default: 'false'
+  release-title:
+    description: 'Title for the GitHub Release. Defaults to the tag name.'
+    required: false
+    default: ''
+  release-body:
+    description: >
+      Body text for the GitHub Release.
+      When set, takes precedence over generate-release-notes.
+    required: false
+    default: ''
+  generate-release-notes:
+    description: 'Auto-generate release notes from commits using the GitHub API.'
+    required: false
+    default: 'true'
+
+  # -- behaviour --------------------------------------------------------------
   dry-run:
-    description: 'Print the next tag without creating or pushing it.'
+    description: 'Compute and print the next tag without creating or pushing anything.'
     required: false
     default: 'false'
   version:
-    description: 'flopha release to install, e.g. v0.2.0. Defaults to latest.'
+    description: "flopha binary version to install, e.g. 'v0.2.0'. Defaults to latest."
     required: false
     default: 'latest'
   github-token:
-    description: 'Token used to push the version tag.'
+    description: 'Token used to push the tag and create the GitHub Release.'
     required: false
     default: ${{ github.token }}
 
+# ── outputs ──────────────────────────────────────────────────────────────────
+
 outputs:
   tag:
-    description: 'The next version tag (created and pushed unless dry-run is true).'
-    value: ${{ steps.tag.outputs.tag }}
+    description: 'The version tag that was created and pushed (or would be, on dry-run).'
+    value: ${{ steps.run.outputs.tag }}
+  version:
+    description: 'The bare version number, e.g. 1.2.3 (tag without leading v or other prefix).'
+    value: ${{ steps.version.outputs.version }}
+  release-url:
+    description: 'URL of the GitHub Release. Empty when create-release is false or dry-run is true.'
+    value: ${{ steps.run.outputs.release-url }}
+
+# ── steps ────────────────────────────────────────────────────────────────────
 
 runs:
   using: 'composite'
   steps:
+
     - name: Install flopha
       shell: bash
       env:
         FLOPHA_VERSION: ${{ inputs.version }}
-      run: |
-        set -euo pipefail
-        OS=$(uname -s)
-        ARCH=$(uname -m)
-        case "$OS/$ARCH" in
-          Linux/x86_64)  TARGET="x86_64-unknown-linux-musl" ;;
-          Darwin/x86_64) TARGET="x86_64-apple-darwin" ;;
-          Darwin/arm64)  TARGET="aarch64-apple-darwin" ;;
-          *)
-            echo "::error::flopha: unsupported platform $OS/$ARCH (supported: Linux/x86_64, Darwin/x86_64, Darwin/arm64 — Windows runners are not supported)"
-            exit 1
-            ;;
-        esac
-        if [ "$FLOPHA_VERSION" = "latest" ]; then
-          URL="https://github.com/sjquant/flopha/releases/latest/download/flopha-${TARGET}.tar.gz"
-        else
-          URL="https://github.com/sjquant/flopha/releases/download/${FLOPHA_VERSION}/flopha-${TARGET}.tar.gz"
-        fi
-        curl -sfL "$URL" | tar -xz -C /usr/local/bin
+      run: ${{ github.action_path }}/action/install.sh
 
     - name: Fetch full history and tags
       shell: bash
@@ -83,45 +106,31 @@ runs:
         git fetch --unshallow 2>/dev/null || true
         git fetch --tags --force
 
-    - name: Create and push version tag
-      id: tag
+    - name: Run
+      id: run
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        GH_TOKEN: ${{ inputs.github-token }}
         INPUT_AUTO: ${{ inputs.auto }}
         INPUT_INCREMENT: ${{ inputs.increment }}
         INPUT_PATTERN: ${{ inputs.pattern }}
         INPUT_PRE: ${{ inputs.pre }}
         INPUT_RULE: ${{ inputs.rule }}
         INPUT_DRY_RUN: ${{ inputs.dry-run }}
+        INPUT_CREATE_RELEASE: ${{ inputs.create-release }}
+        INPUT_DRAFT: ${{ inputs.draft }}
+        INPUT_RELEASE_TITLE: ${{ inputs.release-title }}
+        INPUT_RELEASE_BODY: ${{ inputs.release-body }}
+        INPUT_GENERATE_RELEASE_NOTES: ${{ inputs.generate-release-notes }}
+      run: ${{ github.action_path }}/action/run.sh
+
+    - name: Extract bare version
+      id: version
+      shell: bash
       run: |
-        set -euo pipefail
-
-        git config --local user.name "github-actions[bot]"
-        git config --local user.email "github-actions[bot]@users.noreply.github.com"
-
-        ARGS=()
-        if [ "$INPUT_AUTO" = "true" ]; then
-          ARGS+=(--auto)
-        else
-          ARGS+=(--increment "$INPUT_INCREMENT")
-        fi
-        ARGS+=(--pattern "$INPUT_PATTERN")
-        [ -n "$INPUT_PRE" ] && ARGS+=(--pre "$INPUT_PRE")
-        while IFS= read -r rule; do
-          [ -n "$rule" ] && ARGS+=(--rule "$rule")
-        done <<< "$INPUT_RULE"
-
-        if [ "$INPUT_DRY_RUN" = "true" ]; then
-          NEW_TAG=$(flopha next-version "${ARGS[@]}")
-          echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
-          echo "Dry run — next tag would be: $NEW_TAG"
-        else
-          NEW_TAG=$(flopha next-version "${ARGS[@]}" --create)
-          if ! git push origin "$NEW_TAG" 2>&1; then
-            echo "::error::Failed to push tag $NEW_TAG. Make sure the workflow has 'permissions: contents: write'."
-            exit 1
-          fi
-          echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
-          echo "Created and pushed tag: $NEW_TAG"
-        fi
+        TAG="${{ steps.run.outputs.tag }}"
+        # Strip everything up to and including the last non-numeric prefix character
+        # e.g. v1.2.3 → 1.2.3 | app@1.2.3 → 1.2.3 | 1.2.3 → 1.2.3
+        VERSION=$(echo "$TAG" | grep -oP '\d+\.\d+\.\d+.*')
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"

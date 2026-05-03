@@ -1,0 +1,151 @@
+name: Test action
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths:
+      - 'action.yml'
+      - 'action/**'
+      - '.github/workflows/test-action.yml'
+  pull_request:
+    paths:
+      - 'action.yml'
+      - 'action/**'
+      - '.github/workflows/test-action.yml'
+
+concurrency:
+  group: test-action-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── basic dry-run ──────────────────────────────────────────────────────────
+  dry-run:
+    name: Dry-run (auto)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run flopha (dry-run)
+        id: flopha
+        uses: ./
+        with:
+          auto: true
+          dry-run: true
+
+      - name: Assert outputs
+        shell: bash
+        run: |
+          TAG="${{ steps.flopha.outputs.tag }}"
+          VER="${{ steps.flopha.outputs.version }}"
+          echo "tag=$TAG  version=$VER"
+
+          [[ -n "$TAG" ]] || { echo "::error::tag output is empty"; exit 1; }
+          [[ -n "$VER" ]] || { echo "::error::version output is empty"; exit 1; }
+
+          # tag must match pattern v<semver> or v<semver>-<pre>.<n>
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]] || {
+            echo "::error::tag '$TAG' does not match expected semver pattern"
+            exit 1
+          }
+
+          # version must be the bare semver without leading 'v'
+          [[ "$VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] || {
+            echo "::error::version '$VER' is not bare semver"
+            exit 1
+          }
+
+  # ── custom pattern dry-run ─────────────────────────────────────────────────
+  dry-run-pattern:
+    name: Dry-run (custom pattern)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run flopha with custom pattern (dry-run)
+        id: flopha
+        uses: ./
+        with:
+          auto: false
+          increment: minor
+          pattern: 'release-{major}.{minor}.{patch}'
+          dry-run: true
+
+      - name: Assert pattern in output
+        shell: bash
+        run: |
+          TAG="${{ steps.flopha.outputs.tag }}"
+          echo "tag=$TAG"
+          [[ "$TAG" =~ ^release-[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::tag '$TAG' does not match 'release-X.Y.Z'"
+            exit 1
+          }
+
+  # ── pre-release dry-run ────────────────────────────────────────────────────
+  dry-run-pre:
+    name: Dry-run (pre-release)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run flopha pre-release (dry-run)
+        id: flopha
+        uses: ./
+        with:
+          auto: true
+          pre: rc
+          dry-run: true
+
+      - name: Assert pre-release suffix
+        shell: bash
+        run: |
+          TAG="${{ steps.flopha.outputs.tag }}"
+          echo "tag=$TAG"
+          [[ "$TAG" =~ -rc\.[0-9]+$ ]] || {
+            echo "::error::tag '$TAG' does not have -rc.<n> suffix"
+            exit 1
+          }
+
+  # ── install script ─────────────────────────────────────────────────────────
+  install:
+    name: Install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run install script
+        shell: bash
+        env:
+          FLOPHA_VERSION: latest
+        run: bash action/install.sh
+
+      - name: Verify binary
+        shell: bash
+        run: |
+          flopha --version
+          flopha --help
+
+  # ── pinned version install ─────────────────────────────────────────────────
+  install-pinned:
+    name: Install (pinned version)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run install script with pinned version
+        shell: bash
+        env:
+          FLOPHA_VERSION: v0.2.0
+        run: bash action/install.sh
+
+      - name: Verify binary version
+        shell: bash
+        run: flopha --version
