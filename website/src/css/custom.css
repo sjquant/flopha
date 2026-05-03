@@ -33,9 +33,9 @@
   --flopha-terminal-surface: #16231f;
   --flopha-terminal-surface-strong: #0f1816;
   --flopha-terminal-line: rgba(255, 255, 255, 0.08);
-  --flopha-terminal-chip-surface: rgba(246, 250, 249, 0.98);
-  --flopha-terminal-chip-border: rgba(12, 163, 129, 0.28);
-  --flopha-terminal-chip-text: #0f6d61;
+  --flopha-terminal-chip-surface: rgba(18, 63, 56, 0.72);
+  --flopha-terminal-chip-border: rgba(128, 231, 203, 0.14);
+  --flopha-terminal-chip-text: #d7fff0;
   --flopha-terminal-text: rgba(227, 244, 237, 0.88);
   --flopha-terminal-text-soft: rgba(230, 249, 241, 0.82);
 }
@@ -68,9 +68,9 @@
   --flopha-terminal-surface: #16231f;
   --flopha-terminal-surface-strong: #0f1816;
   --flopha-terminal-line: rgba(255, 255, 255, 0.08);
-  --flopha-terminal-chip-surface: rgba(246, 250, 249, 0.98);
-  --flopha-terminal-chip-border: rgba(40, 198, 162, 0.3);
-  --flopha-terminal-chip-text: #0f6d61;
+  --flopha-terminal-chip-surface: rgba(18, 63, 56, 0.72);
+  --flopha-terminal-chip-border: rgba(128, 231, 203, 0.18);
+  --flopha-terminal-chip-text: #d7fff0;
   --flopha-terminal-text: rgba(227, 244, 237, 0.88);
   --flopha-terminal-text-soft: rgba(230, 249, 241, 0.82);
 }
@@ -116,38 +116,64 @@ code {
   border: 1px solid var(--flopha-line);
   color: var(--flopha-code-text);
   border-radius: 0.4rem;
-  padding: 0.12rem 0.35rem;
+  padding: 0.16rem 0.42rem;
 }
 
 .theme-code-block {
   background:
-    radial-gradient(circle at top left, rgba(245, 137, 48, 0.12), transparent 38%),
-    linear-gradient(180deg, var(--flopha-code-surface-strong) 0%, var(--flopha-code-surface) 100%);
-  border: 1px solid var(--flopha-code-border);
-  border-radius: 0.9rem;
-  box-shadow: 0 1.3rem 2.8rem rgba(8, 13, 12, 0.2);
+    radial-gradient(circle at top left, rgba(245, 137, 48, 0.14), transparent 38%),
+    linear-gradient(180deg, var(--flopha-terminal-surface) 0%, var(--flopha-terminal-surface-strong) 100%);
+  border: 1px solid var(--flopha-terminal-line);
+  border-radius: 1.1rem;
+  box-shadow: 0 1.7rem 3.4rem rgba(12, 18, 17, 0.22);
+  overflow: hidden;
+  position: relative;
+}
+
+.theme-code-block::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  content: '';
+  display: block;
+  height: 3rem;
+}
+
+.theme-code-block::after {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.48) 0 44%, transparent 46%) left center / 0.72rem 0.72rem no-repeat,
+    radial-gradient(circle, rgba(255, 255, 255, 0.48) 0 44%, transparent 46%) center center / 0.72rem 0.72rem no-repeat,
+    radial-gradient(circle, rgba(255, 255, 255, 0.48) 0 44%, transparent 46%) right center / 0.72rem 0.72rem no-repeat;
+  content: '';
+  height: 0.72rem;
+  left: 1rem;
+  position: absolute;
+  top: 1.12rem;
+  width: 2.5rem;
 }
 
 .theme-code-block pre {
   background: transparent !important;
-  color: var(--flopha-code-text) !important;
+  color: var(--flopha-terminal-text) !important;
+  padding: 1.25rem 1.45rem 1.45rem !important;
 }
 
 .theme-code-block code {
   border: 0;
-  color: inherit;
+  color: var(--flopha-terminal-text);
   padding: 0;
 }
 
 .theme-code-block [class*='buttonGroup'] {
-  background: rgba(15, 24, 22, 0.74);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 0.55rem;
-  box-shadow: 0 0.6rem 1.4rem rgba(12, 18, 17, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--flopha-terminal-line);
+  border-radius: 0.65rem;
+  box-shadow: none;
+  right: 0.9rem;
+  top: 0.78rem;
 }
 
 .theme-code-block [class*='buttonGroup'] > button {
-  color: #f2faf6;
+  color: var(--flopha-terminal-text-soft);
 }
 
 .menu__link--active:not(.menu__link--sublist) {

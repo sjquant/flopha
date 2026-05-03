@@ -155,12 +155,14 @@ function HeroTerminal(): ReactNode {
       <div className={styles.terminalBody}>
         {workflow.map((item) => (
           <article key={item.command} className={styles.terminalStep}>
-            <code>{item.command}</code>
+            <span className={styles.commandChip}>{item.command}</span>
             <p>{item.detail}</p>
           </article>
         ))}
       </div>
-      <p className={styles.terminalFootnote}>Default pattern: <code>v&#123;major&#125;.&#123;minor&#125;.&#123;patch&#125;</code></p>
+      <p className={styles.terminalFootnote}>
+        Default pattern: <span className={styles.footnoteChip}>v&#123;major&#125;.&#123;minor&#125;.&#123;patch&#125;</span>
+      </p>
     </section>
   );
 }
