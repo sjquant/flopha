@@ -74,7 +74,7 @@ inputs:
   generate-release-notes:
     description: 'Auto-generate release notes from commits using the GitHub API.'
     required: false
-    default: 'true'
+    default: 'false'
 
   # -- behaviour --------------------------------------------------------------
   dry-run:

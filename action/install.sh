@@ -20,7 +20,11 @@ BIN_DIR="${HOME}/.flopha/bin"
 
 # Skip download if flopha is already on PATH (e.g. built from source in CI)
 if command -v flopha >/dev/null 2>&1; then
-  echo "flopha $(flopha --version) already on PATH at $(command -v flopha), skipping download"
+  FOUND="$(command -v flopha)"
+  VERSION_STR="$(flopha --version)"
+  echo "$VERSION_STR already on PATH at $FOUND, skipping download"
+  # Ensure BIN_DIR is on PATH for subsequent steps even if binary lives elsewhere
+  mkdir -p "$BIN_DIR"
   echo "$BIN_DIR" >> "$GITHUB_PATH"
   exit 0
 fi
@@ -47,4 +51,5 @@ chmod +x "$BIN_DIR/flopha"
 echo "$BIN_DIR" >> "$GITHUB_PATH"
 
 export PATH="$BIN_DIR:$PATH"
-echo "Installed $(flopha --version)"
+INSTALLED="$(flopha --version)"
+echo "Installed $INSTALLED"

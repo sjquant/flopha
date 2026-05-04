@@ -31,7 +31,7 @@ Requires `permissions: contents: write` in the calling workflow.
 | `draft` | `false` | Create the release as a draft. |
 | `release-title` | tag name | Title for the GitHub Release. |
 | `release-body` | | Body text for the release. Takes precedence over `generate-release-notes`. |
-| `generate-release-notes` | `true` | Auto-generate release notes from commits (GitHub API). |
+| `generate-release-notes` | `false` | Auto-generate release notes from commits (GitHub API). |
 | `dry-run` | `false` | Compute and print the next tag without creating or pushing anything. |
 | `flopha-version` | `latest` | Pin the flopha binary version, e.g. `v0.3.0`. |
 | `github-token` | `github.token` | Token used to push the tag and create the release. |
