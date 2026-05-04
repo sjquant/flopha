@@ -35,6 +35,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build release binary
+        env:
+          CARGO_INCREMENTAL: '0'
         run: cargo build --release
       - name: Upload binary
         uses: actions/upload-artifact@v4
