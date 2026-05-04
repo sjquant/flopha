@@ -176,16 +176,28 @@ impl Versioner {
     }
 
     fn get_regex(&self) -> Regex {
-        let mut expr = regex::escape(&self.pattern)
-            .replace("\\{major\\}", "{major}")
-            .replace("\\{minor\\}", "{minor}")
-            .replace("\\{patch\\}", "{patch}")
-            .replace("{major}", "(?P<major>\\d+)")
-            .replace("{minor}", "(?P<minor>\\d+)")
-            .replace("{patch}", "(?P<patch>\\d+)");
-        // Add ^ and $ to match the whole string
-        expr = format!("^{}$", expr);
-        Regex::new(&expr).unwrap()
+        // Replace placeholders with unique sentinels BEFORE escaping, so
+        // regex::escape never touches the placeholder text.  The sentinels
+        // use \x01 delimiters which are not regex metacharacters and will
+        // survive escape unchanged.
+        const SENTINELS: &[(&str, &str, &str)] = &[
+            ("{major}", "\x01MAJOR\x01", "(?P<major>\\d+)"),
+            ("{minor}", "\x01MINOR\x01", "(?P<minor>\\d+)"),
+            ("{patch}", "\x01PATCH\x01", "(?P<patch>\\d+)"),
+        ];
+
+        let mut marked = self.pattern.clone();
+        for (placeholder, sentinel, _) in SENTINELS {
+            marked = marked.replace(placeholder, sentinel);
+        }
+
+        let mut expr = regex::escape(&marked);
+        for (_, sentinel, group) in SENTINELS {
+            expr = expr.replace(sentinel, group);
+        }
+
+        Regex::new(&format!("^{}$", expr))
+            .unwrap_or_else(|e| panic!("invalid pattern {:?}: {}", self.pattern, e))
     }
 }
 

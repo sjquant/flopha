@@ -1,0 +1,152 @@
+name: 'flopha'
+description: >
+  Auto-tag the next version and optionally create a GitHub Release.
+  Bump level is detected from commit messages via regex — conventional
+  commits by default, fully customisable. Requires permissions: contents: write.
+branding:
+  icon: 'tag'
+  color: 'blue'
+
+# ── inputs ───────────────────────────────────────────────────────────────────
+
+inputs:
+
+  # -- versioning -------------------------------------------------------------
+  auto:
+    description: >
+      Detect bump level from conventional commits:
+      feat→minor, feat!/BREAKING CHANGE→major, anything else→patch.
+    required: false
+    default: 'true'
+  increment:
+    description: 'Bump level when auto is false: major, minor, or patch.'
+    required: false
+    default: 'patch'
+  pattern:
+    description: "Tag pattern, e.g. 'v{major}.{minor}.{patch}' or 'app@{major}.{minor}.{patch}'."
+    required: false
+    default: 'v{major}.{minor}.{patch}'
+  pre:
+    description: 'Pre-release channel: alpha, beta, rc, etc. Marks the release as a pre-release.'
+    required: false
+    default: ''
+  major-pattern:
+    description: >
+      Regex that marks a commit as a major (breaking) bump.
+      Ignored when 'rule' is set. Note: supplying either major-pattern or minor-pattern (or both)
+      replaces the built-in conventional-commit defaults entirely; unspecified levels fall through to patch.
+    required: false
+    default: ''
+  minor-pattern:
+    description: >
+      Regex that marks a commit as a minor (feature) bump.
+      Ignored when 'rule' is set. Note: supplying either major-pattern or minor-pattern (or both)
+      replaces the built-in conventional-commit defaults entirely; unspecified levels fall through to patch.
+    required: false
+    default: ''
+  rule:
+    description: >
+      Custom bump rules, one per line, as 'level:regex'.
+      When provided, replaces major-pattern, minor-pattern, and the built-in defaults entirely.
+      Example: "major:BREAKING CHANGE\nminor:^feat"
+    required: false
+    default: ''
+
+  # -- release ----------------------------------------------------------------
+  create-release:
+    description: 'Create a GitHub Release for the new tag.'
+    required: false
+    default: 'false'
+  draft:
+    description: 'Create the GitHub Release as a draft (requires create-release: true).'
+    required: false
+    default: 'false'
+  release-title:
+    description: 'Title for the GitHub Release. Defaults to the tag name.'
+    required: false
+    default: ''
+  release-body:
+    description: >
+      Body text for the GitHub Release.
+      When set, takes precedence over generate-release-notes.
+    required: false
+    default: ''
+  generate-release-notes:
+    description: 'Auto-generate release notes from commits using the GitHub API.'
+    required: false
+    default: 'false'
+
+  # -- behaviour --------------------------------------------------------------
+  dry-run:
+    description: 'Compute and print the next tag without creating or pushing anything.'
+    required: false
+    default: 'false'
+  flopha-version:
+    description: "flopha binary version to install, e.g. 'v0.2.0'. Defaults to latest."
+    required: false
+    default: 'latest'
+  github-token:
+    description: 'Token used to push the tag and create the GitHub Release.'
+    required: false
+    default: ${{ github.token }}
+
+# ── outputs ──────────────────────────────────────────────────────────────────
+
+outputs:
+  tag:
+    description: 'The version tag that was created and pushed (or would be, on dry-run).'
+    value: ${{ steps.run.outputs.tag }}
+  version:
+    description: 'The bare version number, e.g. 1.2.3 (tag without leading v or other prefix).'
+    value: ${{ steps.version.outputs.version }}
+  release-url:
+    description: 'URL of the GitHub Release. Empty when create-release is false or dry-run is true.'
+    value: ${{ steps.run.outputs.release-url }}
+
+# ── steps ────────────────────────────────────────────────────────────────────
+
+runs:
+  using: 'composite'
+  steps:
+
+    - name: Install flopha
+      shell: bash
+      env:
+        FLOPHA_VERSION: ${{ inputs.flopha-version }}
+      run: ${{ github.action_path }}/action/install.sh
+
+    - name: Fetch full history and tags
+      shell: bash
+      run: |
+        git fetch --unshallow 2>/dev/null || true
+        git fetch --tags --force
+
+    - name: Run
+      id: run
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        INPUT_AUTO: ${{ inputs.auto }}
+        INPUT_INCREMENT: ${{ inputs.increment }}
+        INPUT_PATTERN: ${{ inputs.pattern }}
+        INPUT_PRE: ${{ inputs.pre }}
+        INPUT_MAJOR_PATTERN: ${{ inputs.major-pattern }}
+        INPUT_MINOR_PATTERN: ${{ inputs.minor-pattern }}
+        INPUT_RULE: ${{ inputs.rule }}
+        INPUT_DRY_RUN: ${{ inputs.dry-run }}
+        INPUT_CREATE_RELEASE: ${{ inputs.create-release }}
+        INPUT_DRAFT: ${{ inputs.draft }}
+        INPUT_RELEASE_TITLE: ${{ inputs.release-title }}
+        INPUT_RELEASE_BODY: ${{ inputs.release-body }}
+        INPUT_GENERATE_RELEASE_NOTES: ${{ inputs.generate-release-notes }}
+      run: ${{ github.action_path }}/action/run.sh
+
+    - name: Extract bare version
+      id: version
+      shell: bash
+      env:
+        TAG: ${{ steps.run.outputs.tag }}
+      run: |
+        VERSION="${TAG#"${TAG%%[0-9]*}"}"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
