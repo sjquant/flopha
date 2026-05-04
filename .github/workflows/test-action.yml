@@ -65,6 +65,9 @@ jobs:
       - name: Make binary executable
         run: chmod +x /home/runner/.flopha/bin/flopha
 
+      - name: Add flopha binary to PATH
+        run: echo "/home/runner/.flopha/bin" >> "$GITHUB_PATH"
+
       - name: Run flopha (dry-run)
         id: flopha
         uses: ./
@@ -113,6 +116,9 @@ jobs:
       - name: Make binary executable
         run: chmod +x /home/runner/.flopha/bin/flopha
 
+      - name: Add flopha binary to PATH
+        run: echo "/home/runner/.flopha/bin" >> "$GITHUB_PATH"
+
       - name: Run flopha with manual minor bump (dry-run)
         id: flopha
         uses: ./
@@ -153,6 +159,9 @@ jobs:
       - name: Make binary executable
         run: chmod +x /home/runner/.flopha/bin/flopha
 
+      - name: Add flopha binary to PATH
+        run: echo "/home/runner/.flopha/bin" >> "$GITHUB_PATH"
+
       - name: Run flopha pre-release (dry-run)
         id: flopha
         uses: ./
@@ -192,6 +201,9 @@ jobs:
 
       - name: Make binary executable
         run: chmod +x /home/runner/.flopha/bin/flopha
+
+      - name: Add flopha binary to PATH
+        run: echo "/home/runner/.flopha/bin" >> "$GITHUB_PATH"
 
       - name: Run flopha with custom patterns (dry-run)
         id: flopha
@@ -234,6 +246,9 @@ jobs:
 
       - name: Make binary executable
         run: chmod +x /home/runner/.flopha/bin/flopha
+
+      - name: Add flopha binary to PATH
+        run: echo "/home/runner/.flopha/bin" >> "$GITHUB_PATH"
 
       - name: Run flopha with custom rule (dry-run)
         id: flopha
