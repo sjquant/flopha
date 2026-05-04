@@ -10,28 +10,31 @@ git config --local user.name  "github-actions[bot]"
 git config --local user.email "github-actions[bot]@users.noreply.github.com"
 
 # ── build flopha args ────────────────────────────────────────────────────────
+# All INPUT_* vars are guaranteed set by action.yml defaults — do NOT use
+# ${VAR:-default} for values containing {}, as bash finds the first } and
+# closes the expansion early, corrupting the value.
 ARGS=()
-if [ "${INPUT_AUTO:-true}" = "true" ]; then
+if [ "$INPUT_AUTO" = "true" ]; then
   ARGS+=(--auto)
-  [ -n "${INPUT_INCREMENT:-}" ] && echo "Note: 'increment' is ignored when 'auto: true'"
+  [ -n "$INPUT_INCREMENT" ] && echo "Note: 'increment' is ignored when 'auto: true'"
 else
-  ARGS+=(--increment "${INPUT_INCREMENT:-patch}")
+  ARGS+=(--increment "$INPUT_INCREMENT")
 fi
-ARGS+=(--pattern "${INPUT_PATTERN:-v{major}.{minor}.{patch}}")
-[ -n "${INPUT_PRE:-}" ]  && ARGS+=(--pre "$INPUT_PRE")
+ARGS+=(--pattern "$INPUT_PATTERN")
+[ -n "$INPUT_PRE" ] && ARGS+=(--pre "$INPUT_PRE")
 
 # rule > major/minor-pattern > built-in conventional-commit defaults
-if [ -n "${INPUT_RULE:-}" ]; then
+if [ -n "$INPUT_RULE" ]; then
   while IFS= read -r rule; do
     [ -n "$rule" ] && ARGS+=(--rule "$rule")
   done <<< "$INPUT_RULE"
-elif [ -n "${INPUT_MAJOR_PATTERN:-}" ] || [ -n "${INPUT_MINOR_PATTERN:-}" ]; then
-  [ -n "${INPUT_MAJOR_PATTERN:-}" ] && ARGS+=(--rule "major:${INPUT_MAJOR_PATTERN}")
-  [ -n "${INPUT_MINOR_PATTERN:-}" ] && ARGS+=(--rule "minor:${INPUT_MINOR_PATTERN}")
+elif [ -n "$INPUT_MAJOR_PATTERN" ] || [ -n "$INPUT_MINOR_PATTERN" ]; then
+  [ -n "$INPUT_MAJOR_PATTERN" ] && ARGS+=(--rule "major:${INPUT_MAJOR_PATTERN}")
+  [ -n "$INPUT_MINOR_PATTERN" ] && ARGS+=(--rule "minor:${INPUT_MINOR_PATTERN}")
 fi
 
 # ── dry-run: compute only, no side effects ───────────────────────────────────
-if [ "${INPUT_DRY_RUN:-false}" = "true" ]; then
+if [ "$INPUT_DRY_RUN" = "true" ]; then
   NEW_TAG=$(flopha next-version "${ARGS[@]}")
   echo "tag=$NEW_TAG"         >> "$GITHUB_OUTPUT"
   echo "release-url="         >> "$GITHUB_OUTPUT"
@@ -53,7 +56,7 @@ echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
 echo "Created and pushed tag: $NEW_TAG"
 
 # ── optionally create a GitHub Release ──────────────────────────────────────
-if [ "${INPUT_CREATE_RELEASE:-false}" != "true" ]; then
+if [ "$INPUT_CREATE_RELEASE" != "true" ]; then
   echo "release-url=" >> "$GITHUB_OUTPUT"
   exit 0
 fi
@@ -61,13 +64,13 @@ fi
 RELEASE_ARGS=("$NEW_TAG")
 RELEASE_ARGS+=(--title "${INPUT_RELEASE_TITLE:-$NEW_TAG}")
 
-[ "${INPUT_DRAFT:-false}"    = "true" ] && RELEASE_ARGS+=(--draft)
-[ -n "${INPUT_PRE:-}" ]                 && RELEASE_ARGS+=(--prerelease)
+[ "$INPUT_DRAFT" = "true" ] && RELEASE_ARGS+=(--draft)
+[ -n "$INPUT_PRE" ]         && RELEASE_ARGS+=(--prerelease)
 
 # --notes and --generate-notes are mutually exclusive in gh CLI
-if [ -n "${INPUT_RELEASE_BODY:-}" ]; then
+if [ -n "$INPUT_RELEASE_BODY" ]; then
   RELEASE_ARGS+=(--notes "$INPUT_RELEASE_BODY")
-elif [ "${INPUT_GENERATE_RELEASE_NOTES:-true}" = "true" ]; then
+elif [ "$INPUT_GENERATE_RELEASE_NOTES" = "true" ]; then
   RELEASE_ARGS+=(--generate-notes)
 fi
 
