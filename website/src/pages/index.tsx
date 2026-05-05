@@ -105,8 +105,8 @@ function SiteHead({jsonLd}: {jsonLd: Record<string, unknown>}): ReactNode {
       <meta property="og:description" content={siteDescription} />
       <meta property="og:image" content={socialPreviewUrl} />
       <meta property="og:image:alt" content="flopha social preview" />
-      <meta property="og:image:width" content="1731" />
-      <meta property="og:image:height" content="909" />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content="flopha | Semantic versioning CLI for Git releases" />
       <meta name="twitter:description" content={siteDescription} />
