@@ -8,6 +8,8 @@ import styles from './index.module.css';
 
 const siteDescription =
   'flopha is a semantic versioning CLI for Git that calculates the next release, supports tags or branches, and keeps pre-releases moving without manual version math.';
+const siteUrl = 'https://sjquant.github.io/flopha/';
+const socialPreviewUrl = 'https://sjquant.github.io/flopha/img/flopha-social-preview.png';
 
 const proofPoints = [
   {
@@ -97,10 +99,19 @@ function SiteHead({jsonLd}: {jsonLd: Record<string, unknown>}): ReactNode {
         name="keywords"
         content="semantic versioning cli, git release automation, conventional commits versioning, git tag workflow, release branch workflow, prerelease automation"
       />
+      <meta property="og:type" content="website" />
+      <meta property="og:url" content={siteUrl} />
       <meta property="og:title" content="flopha | Semantic versioning CLI for Git releases" />
       <meta property="og:description" content={siteDescription} />
+      <meta property="og:image" content={socialPreviewUrl} />
+      <meta property="og:image:alt" content="flopha social preview" />
+      <meta property="og:image:width" content="1731" />
+      <meta property="og:image:height" content="909" />
+      <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content="flopha | Semantic versioning CLI for Git releases" />
       <meta name="twitter:description" content={siteDescription} />
+      <meta name="twitter:image" content={socialPreviewUrl} />
+      <meta name="twitter:image:alt" content="flopha social preview" />
       <script type="application/ld+json">{JSON.stringify(jsonLd)}</script>
     </Head>
   );

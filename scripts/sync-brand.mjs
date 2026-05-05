@@ -4,9 +4,19 @@ import {fileURLToPath} from 'node:url';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDir, '..');
-const sourcePath = path.join(repoRoot, 'assets', 'brand', 'flopha-icon.svg');
-const targetPath = path.join(repoRoot, 'website', 'static', 'img', 'flopha-icon.svg');
+const brandAssets = [
+  ['flopha-icon.svg', 'flopha-icon.svg'],
+  ['flopha-social-preview.png', 'flopha-social-preview.png'],
+];
 
-await mkdir(path.dirname(targetPath), {recursive: true});
-const source = await readFile(sourcePath, 'utf8');
-await writeFile(targetPath, source);
+const targetDir = path.join(repoRoot, 'website', 'static', 'img');
+
+await mkdir(targetDir, {recursive: true});
+
+for (const [sourceName, targetName] of brandAssets) {
+  const sourcePath = path.join(repoRoot, 'assets', 'brand', sourceName);
+  const targetPath = path.join(targetDir, targetName);
+  const source = await readFile(sourcePath);
+
+  await writeFile(targetPath, source);
+}

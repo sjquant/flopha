@@ -40,6 +40,7 @@ const config: Config = {
     ],
   ],
   themeConfig: {
+    image: 'img/flopha-social-preview.png',
     metadata: [
       {
         name: 'keywords',
