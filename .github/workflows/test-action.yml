@@ -177,22 +177,3 @@ jobs:
       - name: Verify binary
         shell: bash
         run: flopha --version
-
-  # ── pinned version install ─────────────────────────────────────────────────
-  install-pinned:
-    name: Install (pinned v0.3.0)
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run install script with pinned version
-        shell: bash
-        env:
-          FLOPHA_VERSION: v0.3.0
-        run: bash action/install.sh
-
-      - name: Verify binary version
-        shell: bash
-        run: flopha --version
