@@ -10,6 +10,10 @@ Auto-tag the next semantic version and optionally create a GitHub Release.
 
 Requires `permissions: contents: write` in the calling workflow.
 
+## When to use
+
+flopha treats **Git tags as the authoritative version source**. It is not the right tool when the version lives in a file (`Cargo.toml`, `package.json`, etc.) and is bumped manually before release.
+
 ## Inputs
 
 | Input | Default | Description |
