@@ -8,8 +8,7 @@ use crate::versioning::{self, BumpRule, Increment, Versioner};
 
 pub fn last_version(path: &Path, args: &LastVersionArgs) -> Result<Option<String>, FlophaError> {
     let repo = gitutils::get_repo(path)?;
-    let mut remote = gitutils::get_remote(&repo, "origin")?;
-    gitutils::fetch_all(&mut remote)?;
+    try_fetch_from_origin(&repo);
     let pattern = args
         .pattern
         .clone()
@@ -32,8 +31,7 @@ pub fn last_version(path: &Path, args: &LastVersionArgs) -> Result<Option<String
 
 pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String>, FlophaError> {
     let repo = gitutils::get_repo(path)?;
-    let mut remote = gitutils::get_remote(&repo, "origin")?;
-    gitutils::fetch_all(&mut remote)?;
+    try_fetch_from_origin(&repo);
     let pattern = args
         .pattern
         .clone()
@@ -107,8 +105,7 @@ fn pre_release_tag(base_version: &str, channel: &str, repo: &git2::Repository) -
 
 pub fn log_versions(path: &Path, args: &LogArgs) -> Result<(), FlophaError> {
     let repo = gitutils::get_repo(path)?;
-    let mut remote = gitutils::get_remote(&repo, "origin")?;
-    gitutils::fetch_all(&mut remote)?;
+    try_fetch_from_origin(&repo);
 
     let pattern = args
         .pattern
@@ -171,6 +168,17 @@ pub fn log_versions(path: &Path, args: &LogArgs) -> Result<(), FlophaError> {
     }
 
     Ok(())
+}
+
+fn try_fetch_from_origin(repo: &git2::Repository) {
+    match gitutils::get_remote(repo, "origin") {
+        Ok(mut remote) => {
+            if let Err(e) = gitutils::fetch_all(&mut remote) {
+                log::warn!("Failed to fetch from origin: {}", e);
+            }
+        }
+        Err(_) => log::debug!("No remote 'origin' found, using local data only"),
+    }
 }
 
 const SEP: &str = "─";
