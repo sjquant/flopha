@@ -1,0 +1,106 @@
+name: Test action
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'action.yml'
+      - 'action/**'
+      - '.github/workflows/test-action.yml'
+      - 'src/**'
+      - 'Cargo.toml'
+  pull_request:
+    paths:
+      - 'action.yml'
+      - 'action/**'
+      - '.github/workflows/test-action.yml'
+      - 'src/**'
+      - 'Cargo.toml'
+
+concurrency:
+  group: test-action-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── build binary from source (shared by behavior + dry-run via cache) ───────
+  build:
+    name: Build flopha from source
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build release binary
+        env:
+          CARGO_INCREMENTAL: '0'
+        run: cargo build --release
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: flopha-linux
+          path: target/release/flopha
+          retention-days: 1
+
+  # ── dry-run: verify action wiring (env vars, outputs, install) ─────────────
+  dry-run:
+    name: Dry-run (action wiring)
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download flopha binary
+        uses: actions/download-artifact@v4
+        with:
+          name: flopha-linux
+          path: /home/runner/.flopha/bin
+
+      - name: Make binary executable
+        run: chmod +x /home/runner/.flopha/bin/flopha
+
+      - name: Add flopha binary to PATH
+        run: echo "/home/runner/.flopha/bin" >> "$GITHUB_PATH"
+
+      - name: Run flopha (dry-run)
+        id: flopha
+        uses: ./
+        with:
+          auto: true
+          dry-run: true
+
+      - name: Assert outputs are set and well-formed
+        shell: bash
+        run: |
+          TAG="${{ steps.flopha.outputs.tag }}"
+          VER="${{ steps.flopha.outputs.version }}"
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]] || { echo "::error::bad tag: $TAG"; exit 1; }
+          [[ "$VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] || { echo "::error::bad version: $VER"; exit 1; }
+
+  # ── install script ─────────────────────────────────────────────────────────
+  install:
+    name: Install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run install script
+        shell: bash
+        env:
+          FLOPHA_VERSION: latest
+        run: bash action/install.sh
+
+      - name: Verify binary
+        shell: bash
+        run: flopha --version

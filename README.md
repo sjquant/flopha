@@ -4,6 +4,18 @@ flopha is a CLI for semantic versioning and Git release workflows. It helps team
 
 Use flopha when you want a lightweight release management tool for Git repositories without wiring up a larger release pipeline.
 
+## GitHub Action
+
+Use flopha as a GitHub Action to auto-tag the next semantic version and optionally create a GitHub Release — no setup required.
+
+```yaml
+- uses: sjquant/flopha@v1
+```
+
+→ [Full action docs: inputs, outputs, and examples](docs/github-action.md)
+
+---
+
 ## Install
 
 Shell (Mac, Linux):
