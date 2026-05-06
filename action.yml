@@ -30,20 +30,6 @@ inputs:
     description: 'Pre-release channel: alpha, beta, rc, etc. Marks the release as a pre-release.'
     required: false
     default: ''
-  major-pattern:
-    description: >
-      Regex that marks a commit as a major (breaking) bump.
-      Ignored when 'rule' is set. Note: supplying either major-pattern or minor-pattern (or both)
-      replaces the built-in conventional-commit defaults entirely; unspecified levels fall through to patch.
-    required: false
-    default: ''
-  minor-pattern:
-    description: >
-      Regex that marks a commit as a minor (feature) bump.
-      Ignored when 'rule' is set. Note: supplying either major-pattern or minor-pattern (or both)
-      replaces the built-in conventional-commit defaults entirely; unspecified levels fall through to patch.
-    required: false
-    default: ''
   rule:
     description: >
       Custom bump rules, one per line, as 'level:regex'.
@@ -131,8 +117,6 @@ runs:
         INPUT_INCREMENT: ${{ inputs.increment }}
         INPUT_PATTERN: ${{ inputs.pattern }}
         INPUT_PRE: ${{ inputs.pre }}
-        INPUT_MAJOR_PATTERN: ${{ inputs.major-pattern }}
-        INPUT_MINOR_PATTERN: ${{ inputs.minor-pattern }}
         INPUT_RULE: ${{ inputs.rule }}
         INPUT_DRY_RUN: ${{ inputs.dry-run }}
         INPUT_CREATE_RELEASE: ${{ inputs.create-release }}

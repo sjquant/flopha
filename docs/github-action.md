@@ -65,9 +65,7 @@ flopha itself follows this pattern — its version lives in `Cargo.toml`, so it 
 | `increment` | `patch` | Bump level when `auto: false`: `major`, `minor`, or `patch`. |
 | `pattern` | `v{major}.{minor}.{patch}` | Tag pattern. Use `{major}`, `{minor}`, `{patch}` as placeholders. |
 | `pre` | | Pre-release channel: `alpha`, `beta`, `rc`, etc. Produces tags like `v1.2.3-rc.1`. |
-| `major-pattern` | | Regex for a major bump. Replaces built-in defaults when set (see note). |
-| `minor-pattern` | | Regex for a minor bump. Replaces built-in defaults when set (see note). |
-| `rule` | | Custom bump rules, one per line, as `level:regex`. Overrides `major-pattern`, `minor-pattern`, and built-in defaults. |
+| `rule` | | Custom bump rules, one per line, as `level:regex`. Replaces built-in conventional-commit defaults entirely. |
 | `create-release` | `false` | Create a GitHub Release for the new tag. |
 | `draft` | `false` | Create the release as a draft. |
 | `release-title` | tag name | Title for the GitHub Release. |
@@ -77,7 +75,6 @@ flopha itself follows this pattern — its version lives in `Cargo.toml`, so it 
 | `flopha-version` | `latest` | Pin the flopha binary version, e.g. `v0.3.0`. |
 | `github-token` | `github.token` | Token used to push the tag and create the release. |
 
-> **Note on `major-pattern` / `minor-pattern`:** supplying either one replaces the built-in conventional-commit defaults entirely. Levels not covered fall through to patch. Use `rule` for full control.
 
 ## Outputs
 
@@ -127,16 +124,7 @@ steps:
     create-release: true
 ```
 
-**Custom bump patterns:**
-
-```yaml
-- uses: sjquant/flopha@v1
-  with:
-    major-pattern: '\[major\]'
-    minor-pattern: '\[minor\]'
-```
-
-**Full custom rules:**
+**Custom bump rules:**
 
 ```yaml
 - uses: sjquant/flopha@v1
