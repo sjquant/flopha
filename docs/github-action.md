@@ -10,6 +10,53 @@ Auto-tag the next semantic version and optionally create a GitHub Release.
 
 Requires `permissions: contents: write` in the calling workflow.
 
+## When to use this action
+
+flopha treats **Git tags as the authoritative version source**. It reads existing tags, computes the next one from commit history, and creates the new tag.
+
+This fits projects where:
+- The version lives entirely in Git tags (no version file to update)
+- You want commit-message-driven bumps with no manual version management
+
+**It is not the right tool** when the version is stored in a file (`Cargo.toml`, `package.json`, `pyproject.toml`, etc.) and that file is the source of truth. In that pattern, the typical workflow is:
+
+1. Developer bumps the version in the file and opens a PR
+2. On merge, CI reads the file version, compares it to the latest release tag, and creates the release if the version changed
+
+Example for a Cargo project:
+
+```yaml
+name: release
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check version change
+        id: check
+        run: |
+          latest=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest \
+            | jq -r '.tag_name // "v0.0.0"' | tr -d v)
+          cargo=$(grep -m1 '^version' Cargo.toml | awk -F'"' '{print $2}')
+          echo "changed=$([[ "$latest" != "$cargo" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "version=$cargo" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        if: steps.check.outputs.changed == 'true'
+        run: gh release create "v${{ steps.check.outputs.version }}" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+```
+
+flopha itself follows this pattern — its version lives in `Cargo.toml`, so it cannot dogfood its own action.
+
 ## Inputs
 
 | Input | Default | Description |
