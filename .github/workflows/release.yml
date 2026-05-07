@@ -26,29 +26,39 @@ jobs:
           echo "Cargo version: $cargo_version"
           echo "new_version=$cargo_version" >> $GITHUB_OUTPUT
 
-          release_info=$(curl -s -H "Authorization: token ${{ github.token }}" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/v${cargo_version}")
-
-          if echo "$release_info" | jq -e '.message' >/dev/null 2>&1; then
-            api_message=$(echo "$release_info" | jq -r '.message')
-            if [ "$api_message" != "Not Found" ]; then
-              echo "::error::GitHub API error: $api_message"
-              exit 1
+          api_error() {
+            local info="$1" label="$2"
+            if echo "$info" | jq -e '.message' >/dev/null 2>&1; then
+              local msg; msg=$(echo "$info" | jq -r '.message')
+              if [ "$msg" != "Not Found" ]; then
+                echo "::error::GitHub API error ($label): $msg"
+                exit 1
+              fi
             fi
-          fi
+          }
 
-          tag_name=$(echo "$release_info" | jq -r '.tag_name // empty')
+          # Tags are the source of truth for version existence.
+          tag_info=$(curl -s -H "Authorization: token ${{ github.token }}" \
+            "https://api.github.com/repos/${{ github.repository }}/git/ref/tags/v${cargo_version}")
+          api_error "$tag_info" "git/ref/tags"
 
-          if [ -z "$tag_name" ]; then
+          tag_ref=$(echo "$tag_info" | jq -r '.ref // empty')
+
+          if [ -z "$tag_ref" ]; then
             echo "New version detected: $cargo_version"
             echo "should_release=true" >> $GITHUB_OUTPUT
             echo "release_exists=false" >> $GITHUB_OUTPUT
           else
-            asset_count=$(echo "$release_info" | jq '.assets | length')
-            echo "Release v${cargo_version} exists with $asset_count assets"
+            # Tag exists — check the release for asset completeness (re-run detection).
+            release_info=$(curl -s -H "Authorization: token ${{ github.token }}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/v${cargo_version}")
+            api_error "$release_info" "releases/tags"
+
+            asset_count=$(echo "$release_info" | jq '.assets | length // 0')
+            echo "Tag v${cargo_version} exists; release has $asset_count asset(s)"
             # 3 = number of matrix targets (linux, macos, macos-arm64)
             if [ "$asset_count" -lt 3 ]; then
-              echo "Release incomplete ($asset_count/3 assets), re-running builds"
+              echo "Assets incomplete ($asset_count/3), re-running builds"
               echo "should_release=true" >> $GITHUB_OUTPUT
               echo "release_exists=true" >> $GITHUB_OUTPUT
             else
