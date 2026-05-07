@@ -29,6 +29,14 @@ jobs:
           release_info=$(curl -s -H "Authorization: token ${{ github.token }}" \
             "https://api.github.com/repos/${{ github.repository }}/releases/tags/v${cargo_version}")
 
+          if echo "$release_info" | jq -e '.message' >/dev/null 2>&1; then
+            api_message=$(echo "$release_info" | jq -r '.message')
+            if [ "$api_message" != "Not Found" ]; then
+              echo "::error::GitHub API error: $api_message"
+              exit 1
+            fi
+          fi
+
           tag_name=$(echo "$release_info" | jq -r '.tag_name // empty')
 
           if [ -z "$tag_name" ]; then
@@ -38,6 +46,7 @@ jobs:
           else
             asset_count=$(echo "$release_info" | jq '.assets | length')
             echo "Release v${cargo_version} exists with $asset_count assets"
+            # 3 = number of matrix targets (linux, macos, macos-arm64)
             if [ "$asset_count" -lt 3 ]; then
               echo "Release incomplete ($asset_count/3 assets), re-running builds"
               echo "should_release=true" >> $GITHUB_OUTPUT
