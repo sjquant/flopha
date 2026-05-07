@@ -9,7 +9,56 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.version_check.outputs.should_release }}
+      new_version: ${{ steps.version_check.outputs.new_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine version and release status
+        id: version_check
+        shell: bash
+        run: |
+          cargo_version=$(grep -m1 '^version\s*=' Cargo.toml | awk -F '"' '{print $2}')
+          echo "Cargo version: $cargo_version"
+          echo "new_version=$cargo_version" >> $GITHUB_OUTPUT
+
+          release_info=$(curl -s -H "Authorization: token ${{ github.token }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/v${cargo_version}")
+
+          tag_name=$(echo "$release_info" | jq -r '.tag_name // empty')
+
+          if [ -z "$tag_name" ]; then
+            echo "New version detected: $cargo_version"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+          else
+            asset_count=$(echo "$release_info" | jq '.assets | length')
+            echo "Release v${cargo_version} exists with $asset_count assets"
+            if [ "$asset_count" -lt 3 ]; then
+              echo "Release incomplete ($asset_count/3 assets), re-running builds"
+              echo "should_release=true" >> $GITHUB_OUTPUT
+              echo "release_exists=true" >> $GITHUB_OUTPUT
+            else
+              echo "Release complete, skipping"
+              echo "should_release=false" >> $GITHUB_OUTPUT
+              echo "release_exists=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Create GitHub release
+        if: steps.version_check.outputs.should_release == 'true' && steps.version_check.outputs.release_exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version_check.outputs.new_version }}
+          generate_release_notes: true
+
   build-release:
+    needs: prepare-release
+    if: needs.prepare-release.outputs.should_release == 'true'
     name: build-release ${{ matrix.build }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -35,49 +84,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Determine version changes
-        id: version_check
-        shell: bash
-        run: |
-          latest_release=$(curl -s -H "Authorization: token ${{ github.token }}" \
-            https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.tag_name' | tr -d 'v')
-          echo "Latest release version: $latest_release"
-
-          cargo_version=$(grep -m1 '^version\s*=' Cargo.toml | awk -F '"' '{print $2}')
-          echo "Cargo version: $cargo_version"
-
-          if [ "$latest_release" != "$cargo_version" ]; then
-            echo "Version has changed to $cargo_version"
-            echo "version_changed=true" >> $GITHUB_OUTPUT
-            echo "NEW_VERSION=$cargo_version" >> $GITHUB_ENV
-          else
-            echo "Version has not changed"
-            echo "version_changed=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Install packages (Ubuntu)
-        if: steps.version_check.outputs.version_changed == 'true' && matrix.os == 'ubuntu-22.04'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools
 
       - name: Install Rust
-        if: steps.version_check.outputs.version_changed == 'true'
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
 
       - name: Build and Package
-        if: steps.version_check.outputs.version_changed == 'true'
         shell: bash
         run: |
           scripts/package.sh --target ${{ matrix.target }}
           echo "ASSET=dist/flopha-${{ matrix.target }}.tar.gz" >> $GITHUB_ENV
 
       - name: Upload release archive
-        if: steps.version_check.outputs.version_changed == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.NEW_VERSION }}
-          generate_release_notes: True
+          tag_name: v${{ needs.prepare-release.outputs.new_version }}
           files: ${{ env.ASSET }}
