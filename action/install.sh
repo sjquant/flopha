@@ -23,8 +23,12 @@ if command -v flopha >/dev/null 2>&1; then
   FOUND="$(command -v flopha)"
   VERSION_STR="$(flopha --version)"
   echo "$VERSION_STR already on PATH at $FOUND, skipping download"
-  # Ensure BIN_DIR is on PATH for subsequent steps even if binary lives elsewhere
   mkdir -p "$BIN_DIR"
+  # Symlink into BIN_DIR so run.sh's PATH prepend always finds the binary
+  # regardless of where it was originally installed.
+  if [ "$FOUND" != "$BIN_DIR/flopha" ]; then
+    ln -sf "$FOUND" "$BIN_DIR/flopha"
+  fi
   echo "$BIN_DIR" >> "$GITHUB_PATH"
   exit 0
 fi
