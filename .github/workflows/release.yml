@@ -18,61 +18,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Determine version and release status
+      - name: Check version
         id: version_check
         shell: bash
         run: |
           cargo_version=$(grep -m1 '^version\s*=' Cargo.toml | awk -F '"' '{print $2}')
-          echo "Cargo version: $cargo_version"
           echo "new_version=$cargo_version" >> $GITHUB_OUTPUT
 
-          api_error() {
-            local info="$1" label="$2"
-            if echo "$info" | jq -e '.message' >/dev/null 2>&1; then
-              local msg; msg=$(echo "$info" | jq -r '.message')
-              if [ "$msg" != "Not Found" ]; then
-                echo "::error::GitHub API error ($label): $msg"
-                exit 1
-              fi
-            fi
-          }
-
-          # Tags are the source of truth for version existence.
-          tag_info=$(curl -s -H "Authorization: token ${{ github.token }}" \
-            "https://api.github.com/repos/${{ github.repository }}/git/ref/tags/v${cargo_version}")
-          api_error "$tag_info" "git/ref/tags"
-
-          tag_ref=$(echo "$tag_info" | jq -r '.ref // empty')
-
-          if [ -z "$tag_ref" ]; then
-            echo "New version detected: $cargo_version"
-            echo "should_release=true" >> $GITHUB_OUTPUT
-            echo "release_exists=false" >> $GITHUB_OUTPUT
+          git fetch --tags
+          if git tag --list "v${cargo_version}" | grep -q .; then
+            echo "Tag v${cargo_version} already published, skipping"
+            echo "should_release=false" >> $GITHUB_OUTPUT
           else
-            # Tag exists — check the release for asset completeness (re-run detection).
-            release_info=$(curl -s -H "Authorization: token ${{ github.token }}" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/tags/v${cargo_version}")
-            api_error "$release_info" "releases/tags"
-
-            asset_count=$(echo "$release_info" | jq '.assets | length // 0')
-            echo "Tag v${cargo_version} exists; release has $asset_count asset(s)"
-            # 3 = number of matrix targets (linux, macos, macos-arm64)
-            if [ "$asset_count" -lt 3 ]; then
-              echo "Assets incomplete ($asset_count/3), re-running builds"
-              echo "should_release=true" >> $GITHUB_OUTPUT
-              echo "release_exists=true" >> $GITHUB_OUTPUT
-            else
-              echo "Release complete, skipping"
-              echo "should_release=false" >> $GITHUB_OUTPUT
-              echo "release_exists=true" >> $GITHUB_OUTPUT
-            fi
+            echo "New version: $cargo_version"
+            echo "should_release=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create GitHub release
-        if: steps.version_check.outputs.should_release == 'true' && steps.version_check.outputs.release_exists == 'false'
+      - name: Create draft release
+        if: steps.version_check.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version_check.outputs.new_version }}
+          draft: true
           generate_release_notes: true
 
   build-release:
@@ -82,6 +49,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         include:
           - build: linux
@@ -120,8 +88,22 @@ jobs:
           scripts/package.sh --target ${{ matrix.target }}
           echo "ASSET=dist/flopha-${{ matrix.target }}.tar.gz" >> $GITHUB_ENV
 
-      - name: Upload release archive
+      - name: Upload asset to draft release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.prepare-release.outputs.new_version }}
+          draft: true
           files: ${{ env.ASSET }}
+
+  publish-release:
+    needs: [prepare-release, build-release]
+    if: needs.prepare-release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit "v${{ needs.prepare-release.outputs.new_version }}" \
+            --repo "${{ github.repository }}" \
+            --draft=false
