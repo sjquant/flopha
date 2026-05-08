@@ -7,7 +7,8 @@ first_line=$(head -1 "$1")
 if python3 -c "
 import sys, re
 line = sys.argv[1]
-if re.match(r'^(:[a-z0-9_]+:|[^\x00-\x7f])', line):
+# U+1F300-U+1FAFF: most emoji; U+2300-U+27FF: dingbats, misc symbols
+if re.match(r'^(:[a-z0-9_]+:|[\U0001F300-\U0001FAFF⌀-⟿])', line):
     sys.exit(0)
 sys.exit(1)
 " "$first_line"; then
