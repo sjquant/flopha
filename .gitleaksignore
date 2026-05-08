@@ -1,0 +1,3 @@
+# Gitleaks allowlist — add SHA-256 hashes of known false-positive lines here.
+# Generate with: gitleaks detect --report-format json | jq '.[].RuleID'
+# Format: <sha256-of-offending-line>

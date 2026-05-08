@@ -27,9 +27,10 @@ hooks = [
   {
     id = "cargo-fmt",
     name = "cargo fmt",
-    entry = "cargo fmt --",
+    entry = "cargo fmt -- --check",
     language = "system",
     types = ["rust"],
+    stages = ["pre-commit"],
     pass_filenames = false,
   },
   {
@@ -38,6 +39,7 @@ hooks = [
     entry = "cargo clippy --tests -- -D warnings",
     language = "system",
     types = ["rust"],
+    stages = ["pre-commit"],
     pass_filenames = false,
   },
 ]
