@@ -1,0 +1,44 @@
+#:schema https://www.schemastore.org/prek.json
+
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "detect-private-key", stages = ["pre-commit"] },
+]
+
+[[repos]]
+repo = "https://github.com/gitleaks/gitleaks"
+rev = "v8.21.2"
+hooks = [
+  { id = "gitleaks" },
+]
+
+[[repos]]
+repo = "local"
+hooks = [
+  {
+    id = "gitmoji",
+    name = "gitmoji commit message",
+    language = "system",
+    entry = ".prek/check-gitmoji.sh",
+    stages = ["commit-msg"],
+  },
+  {
+    id = "cargo-fmt",
+    name = "cargo fmt",
+    entry = "cargo fmt -- --check",
+    language = "system",
+    types = ["rust"],
+    stages = ["pre-commit"],
+    pass_filenames = false,
+  },
+  {
+    id = "cargo-clippy",
+    name = "cargo clippy",
+    entry = "cargo clippy --tests -- -D warnings",
+    language = "system",
+    types = ["rust"],
+    stages = ["pre-commit"],
+    pass_filenames = false,
+  },
+]
