@@ -17,7 +17,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 if python3 - "$first_line" <<'PYEOF'
-import sys, re
+import sys
 
 # Official gitmoji set — https://gitmoji.dev (variation selectors stripped on comparison)
 GITMOJI = {
@@ -31,10 +31,8 @@ GITMOJI = {
     '🧑‍💻','💸','🧵','🦺','✈','🦖',
 }
 
-strip_vs = re.compile(r'[︎️]')
-
 def normalize(s):
-    return strip_vs.sub('', s)
+    return s.replace('︎', '').replace('️', '')
 
 line = sys.argv[1]
 norm = normalize(line)
