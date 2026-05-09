@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validates that the commit message starts with an official gitmoji emoji or :alias:.
+# Validates that the commit message starts with an official gitmoji emoji.
 # See https://gitmoji.dev for the full list.
 set -euo pipefail
 
@@ -37,10 +37,6 @@ def normalize(s):
     return strip_vs.sub('', s)
 
 line = sys.argv[1]
-
-if re.match(r'^:[a-z0-9_]+:', line):
-    sys.exit(0)
-
 norm = normalize(line)
 if any(norm.startswith(normalize(e)) for e in GITMOJI):
     sys.exit(0)
@@ -51,8 +47,7 @@ then
     exit 0
 fi
 
-echo "ERROR: Commit message must start with a gitmoji." >&2
-echo "  Emoji:  ✨ Add new feature" >&2
-echo "  Alias:  :sparkles: Add new feature" >&2
+echo "ERROR: Commit message must start with a gitmoji emoji." >&2
+echo "  Example: ✨ Add new feature" >&2
 echo "  Full list: https://gitmoji.dev" >&2
 exit 1
