@@ -190,6 +190,18 @@ Aliases: `lg`
 
 - `-v`, `--verbose`: Enable verbose output for detailed information.
 
+## Contributing
+
+Install dev tools and activate git hooks after cloning:
+
+```sh
+cargo install prek
+prek install
+prek install --hook-type commit-msg
+```
+
+Hooks enforce formatting, linting, secret detection, and [gitmoji](https://gitmoji.dev) commit messages.
+
 ## License
 
 flopha is released under the [MIT License](LICENSE).
