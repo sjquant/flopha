@@ -3,49 +3,27 @@
 # See https://gitmoji.dev for the full list.
 set -euo pipefail
 
-# Skip Git-generated commit messages
-git rev-parse -q --verify MERGE_HEAD      >/dev/null 2>&1 && exit 0
+# Skip Git-generated messages
+git rev-parse -q --verify MERGE_HEAD       >/dev/null 2>&1 && exit 0
 git rev-parse -q --verify CHERRY_PICK_HEAD >/dev/null 2>&1 && exit 0
 
 first_line=$(head -1 "$1")
-
 case "$first_line" in squash!*|fixup!*) exit 0 ;; esac
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "WARNING: python3 not found, skipping gitmoji check" >&2
-  exit 0
-fi
+# Strip variation selectors (U+FE0E = \xef\xb8\x8e, U+FE0F = \xef\xb8\x8f)
+normalized=$(printf '%s' "$first_line" | sed 's/\xef\xb8\x8e//g; s/\xef\xb8\x8f//g')
 
-if python3 - "$first_line" <<'PYEOF'
-import sys
+# Official gitmoji — https://gitmoji.dev — must be followed by a space
+PATTERN="^(🎨|⚡|🔥|🐛|🚑|✨|📝|🚀|💄|🎉|✅|🔒|🔐|🔖|🚨|🚧|💚|⬇|⬆|📌|\
+👷|📈|♻|➕|➖|🔧|🔨|🌐|✏|💩|⏪|🔀|📦|👽|🚚|📄|💥|🍱|♿|💡|\
+🍻|💬|🗃|🔊|🔇|👥|🚸|🏗|📱|🤡|🥚|🙈|📸|⚗|🔍|🏷|🌱|🚩|🥅|💫|\
+🗑|🛂|🩹|🧐|⚰|🧪|👔|🩺|🧱|🧑‍💻|💸|🧵|🦺|✈|🦖) "
 
-# Official gitmoji set — https://gitmoji.dev (variation selectors stripped on comparison)
-GITMOJI = {
-    '🎨','⚡','🔥','🐛','🚑','✨','📝','🚀','💄','🎉',
-    '✅','🔒','🔐','🔖','🚨','🚧','💚','⬇','⬆','📌',
-    '👷','📈','♻','➕','➖','🔧','🔨','🌐','✏','💩',
-    '⏪','🔀','📦','👽','🚚','📄','💥','🍱','♿','💡',
-    '🍻','💬','🗃','🔊','🔇','👥','🚸','🏗','📱','🤡',
-    '🥚','🙈','📸','⚗','🔍','🏷','🌱','🚩','🥅','💫',
-    '🗑','🛂','🩹','🧐','⚰','🧪','👔','🩺','🧱',
-    '🧑‍💻','💸','🧵','🦺','✈','🦖',
-}
-
-def normalize(s):
-    return s.replace('︎', '').replace('️', '')
-
-line = sys.argv[1]
-norm = normalize(line)
-if any(norm.startswith(normalize(e)) for e in GITMOJI):
-    sys.exit(0)
-
-sys.exit(1)
-PYEOF
-then
+if printf '%s' "$normalized" | grep -qE "$PATTERN"; then
     exit 0
 fi
 
-echo "ERROR: Commit message must start with a gitmoji emoji." >&2
+echo "ERROR: Commit message must start with a gitmoji emoji followed by a space." >&2
 echo "  Example: ✨ Add new feature" >&2
 echo "  Full list: https://gitmoji.dev" >&2
 exit 1
