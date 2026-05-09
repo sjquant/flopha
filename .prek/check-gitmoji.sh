@@ -1,27 +1,58 @@
 #!/usr/bin/env bash
-# Validates that the commit message starts with a gitmoji (emoji or :alias: format).
+# Validates that the commit message starts with an official gitmoji emoji or :alias:.
+# See https://gitmoji.dev for the full list.
 set -euo pipefail
+
+# Skip Git-generated commit messages
+git rev-parse -q --verify MERGE_HEAD      >/dev/null 2>&1 && exit 0
+git rev-parse -q --verify CHERRY_PICK_HEAD >/dev/null 2>&1 && exit 0
+
+first_line=$(head -1 "$1")
+
+case "$first_line" in squash!*|fixup!*) exit 0 ;; esac
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "WARNING: python3 not found, skipping gitmoji check" >&2
   exit 0
 fi
 
-first_line=$(head -1 "$1")
-
-if python3 -c "
+if python3 - "$first_line" <<'PYEOF'
 import sys, re
+
+# Official gitmoji set — https://gitmoji.dev (variation selectors stripped on comparison)
+GITMOJI = {
+    '🎨','⚡','🔥','🐛','🚑','✨','📝','🚀','💄','🎉',
+    '✅','🔒','🔐','🔖','🚨','🚧','💚','⬇','⬆','📌',
+    '👷','📈','♻','➕','➖','🔧','🔨','🌐','✏','💩',
+    '⏪','🔀','📦','👽','🚚','📄','💥','🍱','♿','💡',
+    '🍻','💬','🗃','🔊','🔇','👥','🚸','🏗','📱','🤡',
+    '🥚','🙈','📸','⚗','🔍','🏷','🌱','🚩','🥅','💫',
+    '🗑','🛂','🩹','🧐','⚰','🧪','👔','🩺','🧱',
+    '🧑‍💻','💸','🧵','🦺','✈','🦖',
+}
+
+strip_vs = re.compile(r'[︎️]')
+
+def normalize(s):
+    return strip_vs.sub('', s)
+
 line = sys.argv[1]
-# U+1F300-U+1FAFF: misc symbols, emoticons, transport, activities, objects, etc.
-# U+2190-U+2BFF:  arrows, math operators, misc technical, dingbats, misc symbols
-if re.match(r'^(:[a-z0-9_]+:|[\U0001F300-\U0001FAFF←-⯿])', line):
+
+if re.match(r'^:[a-z0-9_]+:', line):
     sys.exit(0)
+
+norm = normalize(line)
+if any(norm.startswith(normalize(e)) for e in GITMOJI):
+    sys.exit(0)
+
 sys.exit(1)
-" "$first_line"; then
+PYEOF
+then
     exit 0
 fi
 
 echo "ERROR: Commit message must start with a gitmoji." >&2
 echo "  Emoji:  ✨ Add new feature" >&2
 echo "  Alias:  :sparkles: Add new feature" >&2
+echo "  Full list: https://gitmoji.dev" >&2
 exit 1

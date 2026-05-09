@@ -3,7 +3,7 @@
 [[repos]]
 repo = "builtin"
 hooks = [
-  { id = "detect-private-key" },
+  { id = "detect-private-key", stages = ["pre-commit"] },
 ]
 
 [[repos]]
@@ -22,7 +22,6 @@ hooks = [
     language = "system",
     entry = ".prek/check-gitmoji.sh",
     stages = ["commit-msg"],
-    always_run = true,
   },
   {
     id = "cargo-fmt",
