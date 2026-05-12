@@ -993,4 +993,63 @@ mod tests {
         let mut branch = repo.find_branch(branch, git2::BranchType::Local).unwrap();
         gitutils::push_branch(remote, &mut branch).unwrap();
     }
+
+    // ── JSON format tests ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_changelog_json_structure() {
+        let sections = vec![
+            ("Features".to_string(), vec![
+                ChangelogEntry { subject: "add search".to_string(), hash: "abc1234".to_string() },
+            ]),
+            ("Bug Fixes".to_string(), vec![
+                ChangelogEntry { subject: "fix crash".to_string(), hash: "def5678".to_string() },
+            ]),
+        ];
+        let json = format_changelog_json("v1.0.0", &sections);
+        let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+
+        assert_eq!(v["from"], "v1.0.0");
+        assert_eq!(v["sections"].as_array().unwrap().len(), 2);
+        assert_eq!(v["sections"][0]["title"], "Features");
+        assert_eq!(v["sections"][0]["entries"][0]["subject"], "add search");
+        assert_eq!(v["sections"][0]["entries"][0]["hash"], "abc1234");
+        assert_eq!(v["sections"][1]["title"], "Bug Fixes");
+    }
+
+    #[test]
+    fn test_changelog_json_escapes_special_chars() {
+        let sections = vec![
+            (r#"Section "A""#.to_string(), vec![
+                ChangelogEntry {
+                    subject: r#"feat: support "quoted" args and backslash \"#.to_string(),
+                    hash: "abc1234".to_string(),
+                },
+            ]),
+        ];
+        let json = format_changelog_json(r#"v1.0.0"edge"#, &sections);
+
+        // Must parse without error despite embedded quotes and backslashes.
+        let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON with special chars");
+        assert_eq!(v["from"], r#"v1.0.0"edge"#);
+        assert_eq!(v["sections"][0]["title"], r#"Section "A""#);
+        assert_eq!(v["sections"][0]["entries"][0]["subject"], r#"feat: support "quoted" args and backslash \"#);
+    }
+
+    #[test]
+    fn test_changelog_json_empty_sections() {
+        let json = format_changelog_json("v1.0.0", &[]);
+        let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(v["from"], "v1.0.0");
+        assert!(v["sections"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_version_json_escapes_special_chars() {
+        // Verifies the serde_json::json! pattern used in last_version / next_version.
+        let tricky = r#"v1.0.0"snapshot""#;
+        let json = serde_json::json!({"version": tricky}).to_string();
+        let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(v["version"], tricky);
+    }
 }
