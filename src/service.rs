@@ -18,7 +18,7 @@ pub fn last_version(path: &Path, args: &LastVersionArgs) -> Result<Option<String
     let versioner = versioner_factory(&repo, pattern, &args.source);
     if let Some(version) = versioner.last_version() {
         match args.format {
-            OutputFormat::Json => println!("{{\"version\":\"{}\"}}", version.tag),
+            OutputFormat::Json => println!("{}", serde_json::json!({"version": version.tag})),
             OutputFormat::Text => println!("{}", version.tag),
         }
 
@@ -82,7 +82,7 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
     };
 
     match args.format {
-        OutputFormat::Json => println!("{{\"version\":\"{}\"}}", final_tag),
+        OutputFormat::Json => println!("{}", serde_json::json!({"version": final_tag})),
         OutputFormat::Text => println!("{}", final_tag),
     }
 
@@ -166,22 +166,19 @@ pub fn log_versions(path: &Path, args: &LogArgs) -> Result<(), FlophaError> {
 
     match args.format {
         OutputFormat::Json => {
-            let entries: Vec<String> = rows
+            let entries: Vec<serde_json::Value> = rows
                 .iter()
                 .enumerate()
                 .map(|(i, (tag, date, count))| {
-                    let commits_val = if i + 1 < rows.len() {
-                        count.to_string()
+                    let commits = if i + 1 < rows.len() {
+                        serde_json::Value::Number((*count).into())
                     } else {
-                        "null".to_string()
+                        serde_json::Value::Null
                     };
-                    format!(
-                        "{{\"version\":\"{}\",\"date\":\"{}\",\"commits\":{}}}",
-                        tag, date, commits_val
-                    )
+                    serde_json::json!({"version": tag, "date": date, "commits": commits})
                 })
                 .collect();
-            println!("[{}]", entries.join(","));
+            println!("{}", serde_json::Value::Array(entries));
         }
         OutputFormat::Text => {
             let tag_width = rows.iter().map(|(t, _, _)| t.len()).max().unwrap_or(0);
@@ -232,7 +229,7 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
     };
 
     let section_rules = build_section_rules(&args.group)?;
-    let commits = gitutils::commits_since_tag_with_info(&repo, &from_tag).unwrap_or_default();
+    let commits = gitutils::commits_since_tag_with_info(&repo, &from_tag)?;
 
     // Pre-build ordered section labels from the rules (deduplicated).
     let mut section_order: Vec<String> = Vec::new();
@@ -339,32 +336,17 @@ fn format_changelog_text(from: &str, sections: &[(String, Vec<ChangelogEntry>)])
 }
 
 fn format_changelog_json(from: &str, sections: &[(String, Vec<ChangelogEntry>)]) -> String {
-    fn entries_json(entries: &[ChangelogEntry]) -> String {
-        let items: Vec<String> = entries
-            .iter()
-            .map(|e| format!(
-                "{{\"subject\":{},\"hash\":\"{}\"}}",
-                serde_json::Value::String(e.subject.clone()),
-                e.hash
-            ))
-            .collect();
-        format!("[{}]", items.join(","))
-    }
-
-    let sections_json: Vec<String> = sections
+    let sections_val: Vec<serde_json::Value> = sections
         .iter()
-        .map(|(title, entries)| format!(
-            "{{\"title\":{},\"entries\":{}}}",
-            serde_json::Value::String(title.clone()),
-            entries_json(entries)
-        ))
+        .map(|(title, entries)| {
+            let entries_val: Vec<serde_json::Value> = entries
+                .iter()
+                .map(|e| serde_json::json!({"subject": e.subject, "hash": e.hash}))
+                .collect();
+            serde_json::json!({"title": title, "entries": entries_val})
+        })
         .collect();
-
-    format!(
-        "{{\"from\":\"{}\",\"sections\":[{}]}}",
-        from,
-        sections_json.join(",")
-    )
+    serde_json::json!({"from": from, "sections": sections_val}).to_string()
 }
 
 fn try_fetch_from_origin(repo: &git2::Repository) {
