@@ -228,46 +228,46 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
         }
     };
 
-    let section_rules = build_section_rules(&args.group)?;
+    let group_rules = build_group_rules(&args.group)?;
     let commits = gitutils::commits_since_tag_with_info(&repo, &from_tag)?;
 
     // Pre-build ordered section labels from the rules (deduplicated).
-    let mut section_order: Vec<String> = Vec::new();
-    for rule in &section_rules {
-        if !section_order.contains(&rule.title) {
-            section_order.push(rule.title.clone());
+    let mut group_order: Vec<String> = Vec::new();
+    for rule in &group_rules {
+        if !group_order.contains(&rule.title) {
+            group_order.push(rule.title.clone());
         }
     }
-    let mut section_entries: HashMap<String, Vec<ChangelogEntry>> = HashMap::new();
+    let mut group_entries: HashMap<String, Vec<ChangelogEntry>> = HashMap::new();
     let mut other: Vec<ChangelogEntry> = Vec::new();
 
     for commit in &commits {
         let subject = commit.message.lines().next().unwrap_or("").trim().to_string();
         let entry = ChangelogEntry { subject, hash: commit.short_id.clone() };
-        match section_rules.iter().find(|r| r.pattern.is_match(&commit.message)) {
-            Some(rule) => section_entries.entry(rule.title.clone()).or_default().push(entry),
+        match group_rules.iter().find(|r| r.pattern.is_match(&commit.message)) {
+            Some(rule) => group_entries.entry(rule.title.clone()).or_default().push(entry),
             None => other.push(entry),
         }
     }
 
     // Collect in rule-defined order, skipping empty sections.
-    let mut sections: Vec<(String, Vec<ChangelogEntry>)> = section_order
+    let mut groups: Vec<(String, Vec<ChangelogEntry>)> = group_order
         .into_iter()
         .filter_map(|title| {
-            section_entries.remove(&title).filter(|e| !e.is_empty()).map(|e| (title, e))
+            group_entries.remove(&title).filter(|e| !e.is_empty()).map(|e| (title, e))
         })
         .collect();
     if !other.is_empty() {
         match args.other.as_deref() {
             Some("") => {}  // suppress unmatched commits
-            Some(title) => sections.push((title.to_string(), other)),
-            None => sections.push(("Other Changes".to_string(), other)),
+            Some(title) => groups.push((title.to_string(), other)),
+            None => groups.push(("Other Changes".to_string(), other)),
         }
     }
 
     let content = match args.format {
-        OutputFormat::Json => format_changelog_json(&from_tag, &sections),
-        OutputFormat::Text => format_changelog_text(&from_tag, &sections),
+        OutputFormat::Json => format_changelog_json(&from_tag, &groups),
+        OutputFormat::Text => format_changelog_text(&from_tag, &groups),
     };
 
     if let Some(ref output_path) = args.output {
@@ -284,12 +284,12 @@ struct ChangelogEntry {
     hash: String,
 }
 
-struct SectionRule {
+struct GroupRule {
     title: String,
     pattern: regex::Regex,
 }
 
-impl SectionRule {
+impl GroupRule {
     fn new(title: &str, pattern: &str) -> Result<Self, regex::Error> {
         Ok(Self {
             title: title.to_string(),
@@ -298,35 +298,35 @@ impl SectionRule {
     }
 }
 
-fn default_changelog_sections() -> Vec<SectionRule> {
+fn default_changelog_groups() -> Vec<GroupRule> {
     vec![
-        SectionRule::new("Breaking Changes", r"BREAKING[- ]CHANGE|(?m)^[a-z]+(\([^)]+\))?!:").unwrap(),
-        SectionRule::new("Features", r"(?m)^feat(\([^)]+\))?:").unwrap(),
-        SectionRule::new("Bug Fixes", r"(?m)^fix(\([^)]+\))?:").unwrap(),
+        GroupRule::new("Breaking Changes", r"BREAKING[- ]CHANGE|(?m)^[a-z]+(\([^)]+\))?!:").unwrap(),
+        GroupRule::new("Features", r"(?m)^feat(\([^)]+\))?:").unwrap(),
+        GroupRule::new("Bug Fixes", r"(?m)^fix(\([^)]+\))?:").unwrap(),
     ]
 }
 
-fn build_section_rules(raw: &[String]) -> Result<Vec<SectionRule>, FlophaError> {
+fn build_group_rules(raw: &[String]) -> Result<Vec<GroupRule>, FlophaError> {
     if raw.is_empty() {
-        return Ok(default_changelog_sections());
+        return Ok(default_changelog_groups());
     }
-    raw.iter().map(|s| parse_section_rule(s)).collect()
+    raw.iter().map(|s| parse_group_rule(s)).collect()
 }
 
-fn parse_section_rule(s: &str) -> Result<SectionRule, FlophaError> {
+fn parse_group_rule(s: &str) -> Result<GroupRule, FlophaError> {
     let (title, pattern) = s.split_once(':').ok_or_else(|| FlophaError::InvalidRule {
         input: s.to_string(),
         reason: "expected format 'TITLE:PATTERN'".to_string(),
     })?;
-    SectionRule::new(title, pattern).map_err(|e| FlophaError::InvalidRule {
+    GroupRule::new(title, pattern).map_err(|e| FlophaError::InvalidRule {
         input: s.to_string(),
         reason: format!("invalid regex: {}", e),
     })
 }
 
-fn format_changelog_text(from: &str, sections: &[(String, Vec<ChangelogEntry>)]) -> String {
+fn format_changelog_text(from: &str, groups: &[(String, Vec<ChangelogEntry>)]) -> String {
     let mut out = format!("## Changelog since {}\n", from);
-    for (title, entries) in sections {
+    for (title, entries) in groups {
         out.push_str(&format!("\n### {}\n", title));
         for e in entries {
             out.push_str(&format!("- {} ({})\n", e.subject, e.hash));
@@ -335,8 +335,8 @@ fn format_changelog_text(from: &str, sections: &[(String, Vec<ChangelogEntry>)])
     out
 }
 
-fn format_changelog_json(from: &str, sections: &[(String, Vec<ChangelogEntry>)]) -> String {
-    let sections_val: Vec<serde_json::Value> = sections
+fn format_changelog_json(from: &str, groups: &[(String, Vec<ChangelogEntry>)]) -> String {
+    let groups_val: Vec<serde_json::Value> = groups
         .iter()
         .map(|(title, entries)| {
             let entries_val: Vec<serde_json::Value> = entries
@@ -346,7 +346,7 @@ fn format_changelog_json(from: &str, sections: &[(String, Vec<ChangelogEntry>)])
             serde_json::json!({"title": title, "entries": entries_val})
         })
         .collect();
-    serde_json::json!({"from": from, "sections": sections_val}).to_string()
+    serde_json::json!({"from": from, "groups": groups_val}).to_string()
 }
 
 fn try_fetch_from_origin(repo: &git2::Repository) {
@@ -998,7 +998,7 @@ mod tests {
 
     #[test]
     fn test_changelog_json_structure() {
-        let sections = vec![
+        let groups = vec![
             ("Features".to_string(), vec![
                 ChangelogEntry { subject: "add search".to_string(), hash: "abc1234".to_string() },
             ]),
@@ -1006,42 +1006,42 @@ mod tests {
                 ChangelogEntry { subject: "fix crash".to_string(), hash: "def5678".to_string() },
             ]),
         ];
-        let json = format_changelog_json("v1.0.0", &sections);
+        let json = format_changelog_json("v1.0.0", &groups);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
 
         assert_eq!(v["from"], "v1.0.0");
-        assert_eq!(v["sections"].as_array().unwrap().len(), 2);
-        assert_eq!(v["sections"][0]["title"], "Features");
-        assert_eq!(v["sections"][0]["entries"][0]["subject"], "add search");
-        assert_eq!(v["sections"][0]["entries"][0]["hash"], "abc1234");
-        assert_eq!(v["sections"][1]["title"], "Bug Fixes");
+        assert_eq!(v["groups"].as_array().unwrap().len(), 2);
+        assert_eq!(v["groups"][0]["title"], "Features");
+        assert_eq!(v["groups"][0]["entries"][0]["subject"], "add search");
+        assert_eq!(v["groups"][0]["entries"][0]["hash"], "abc1234");
+        assert_eq!(v["groups"][1]["title"], "Bug Fixes");
     }
 
     #[test]
     fn test_changelog_json_escapes_special_chars() {
-        let sections = vec![
-            (r#"Section "A""#.to_string(), vec![
+        let groups = vec![
+            (r#"Group "A""#.to_string(), vec![
                 ChangelogEntry {
                     subject: r#"feat: support "quoted" args and backslash \"#.to_string(),
                     hash: "abc1234".to_string(),
                 },
             ]),
         ];
-        let json = format_changelog_json(r#"v1.0.0"edge"#, &sections);
+        let json = format_changelog_json(r#"v1.0.0"edge"#, &groups);
 
         // Must parse without error despite embedded quotes and backslashes.
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON with special chars");
         assert_eq!(v["from"], r#"v1.0.0"edge"#);
-        assert_eq!(v["sections"][0]["title"], r#"Section "A""#);
-        assert_eq!(v["sections"][0]["entries"][0]["subject"], r#"feat: support "quoted" args and backslash \"#);
+        assert_eq!(v["groups"][0]["title"], r#"Group "A""#);
+        assert_eq!(v["groups"][0]["entries"][0]["subject"], r#"feat: support "quoted" args and backslash \"#);
     }
 
     #[test]
-    fn test_changelog_json_empty_sections() {
+    fn test_changelog_json_empty_groups() {
         let json = format_changelog_json("v1.0.0", &[]);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(v["from"], "v1.0.0");
-        assert!(v["sections"].as_array().unwrap().is_empty());
+        assert!(v["groups"].as_array().unwrap().is_empty());
     }
 
     #[test]
