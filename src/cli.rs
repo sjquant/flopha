@@ -3,7 +3,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use crate::versioning::Increment;
 
 #[derive(Parser)]
-#[clap(author, version, about, long_about = None)]
+#[clap(author, version, about, long_about = None, disable_version_flag = true)]
 pub struct Cli {
     #[clap(short = 'V', long = "version", action)]
     pub version: bool,
