@@ -212,6 +212,13 @@ pub struct ChangelogArgs {
     )]
     pub group: Vec<String>,
     #[clap(
+        help = "Title for commits that match no group (default: \"Other Changes\"). \
+                Pass an empty string to suppress unmatched commits entirely.",
+        long,
+        value_name = "TITLE"
+    )]
+    pub other: Option<String>,
+    #[clap(
         help = "Write the changelog to a file instead of stdout",
         long,
         short = 'o'

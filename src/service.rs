@@ -261,7 +261,11 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
         })
         .collect();
     if !other.is_empty() {
-        sections.push(("Other Changes".to_string(), other));
+        match args.other.as_deref() {
+            Some("") => {}  // suppress unmatched commits
+            Some(title) => sections.push((title.to_string(), other)),
+            None => sections.push(("Other Changes".to_string(), other)),
+        }
     }
 
     let content = match args.format {
@@ -953,6 +957,7 @@ mod tests {
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
             group: vec![],
+            other: None,
             output: None,
             format: OutputFormat::Text,
         };
@@ -976,6 +981,7 @@ mod tests {
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
             group: vec!["Breaking:BUMP_MAJOR:".to_string(), "Additions:^ADD:".to_string()],
+            other: None,
             output: None,
             format: OutputFormat::Text,
         };
