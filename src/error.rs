@@ -20,4 +20,6 @@ pub enum FlophaError {
     MissingVersionComponent(String),
     #[error("invalid rule '{input}': {reason}")]
     InvalidRule { input: String, reason: String },
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
 }

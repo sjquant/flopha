@@ -38,6 +38,17 @@ pub enum Commands {
         alias = "lg"
     )]
     Log(LogArgs),
+    #[clap(
+        about = "Generates a changelog from commits since the last (or a given) version. (alias: cl)",
+        alias = "cl"
+    )]
+    Changelog(ChangelogArgs),
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum OutputFormat {
+    Text,
+    Json,
 }
 
 #[derive(Args, Debug)]
@@ -98,6 +109,14 @@ pub struct NextVersionArgs {
         default_value = "tag"
     )]
     pub source: VersionSourceName,
+    #[clap(
+        help = "Output format: text (default) or json",
+        long,
+        short = 'f',
+        value_enum,
+        default_value = "text"
+    )]
+    pub format: OutputFormat,
 }
 
 #[derive(Args, Debug)]
@@ -118,6 +137,14 @@ pub struct LastVersionArgs {
     pub source: VersionSourceName,
     #[clap(help = "Checkout the last version", long, action)]
     pub checkout: bool,
+    #[clap(
+        help = "Output format: text (default) or json",
+        long,
+        short = 'f',
+        value_enum,
+        default_value = "text"
+    )]
+    pub format: OutputFormat,
 }
 
 #[derive(Args, Debug)]
@@ -142,6 +169,51 @@ pub struct LogArgs {
         short = 'n'
     )]
     pub limit: Option<usize>,
+    #[clap(
+        help = "Output format: text (default) or json",
+        long,
+        short = 'f',
+        value_enum,
+        default_value = "text"
+    )]
+    pub format: OutputFormat,
+}
+
+#[derive(Args, Debug)]
+pub struct ChangelogArgs {
+    #[clap(
+        help = "Version tag to start the changelog from (default: latest version matching pattern)",
+        long
+    )]
+    pub from: Option<String>,
+    #[clap(
+        help = "Pattern for version matching (e.g., 'v{major}.{minor}.{patch}')",
+        long,
+        short = 'p'
+    )]
+    pub pattern: Option<String>,
+    #[clap(
+        help = "Specify the source for versioning: tag (default) or branch",
+        long,
+        short = 's',
+        value_enum,
+        default_value = "tag"
+    )]
+    pub source: VersionSourceName,
+    #[clap(
+        help = "Write the changelog to a file instead of stdout",
+        long,
+        short = 'o'
+    )]
+    pub output: Option<String>,
+    #[clap(
+        help = "Output format: text (default) or json",
+        long,
+        short = 'f',
+        value_enum,
+        default_value = "text"
+    )]
+    pub format: OutputFormat,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
