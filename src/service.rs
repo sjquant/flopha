@@ -1,11 +1,12 @@
 use std::path::Path;
 
+use std::collections::HashMap;
+
 use crate::cli::{ChangelogArgs, LastVersionArgs, LogArgs, NextVersionArgs, OutputFormat, VersionSourceName};
 use crate::error::FlophaError;
 use crate::gitutils;
 use crate::version_source::{BranchVersionSource, TagVersionSource, VersionSource};
 use crate::versioning::{self, BumpRule, Increment, Versioner};
-use crate::versioning::classify_commit;
 
 pub fn last_version(path: &Path, args: &LastVersionArgs) -> Result<Option<String>, FlophaError> {
     let repo = gitutils::get_repo(path)?;
@@ -230,28 +231,42 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
         }
     };
 
-    let rules = build_changelog_rules(&args.rule)?;
+    let section_rules = build_section_rules(&args.section)?;
     let commits = gitutils::commits_since_tag_with_info(&repo, &from_tag).unwrap_or_default();
 
-    let mut breaking: Vec<ChangelogEntry> = Vec::new();
-    let mut features: Vec<ChangelogEntry> = Vec::new();
-    let mut fixes: Vec<ChangelogEntry> = Vec::new();
+    // Pre-build ordered section labels from the rules (deduplicated).
+    let mut section_order: Vec<String> = Vec::new();
+    for rule in &section_rules {
+        if !section_order.contains(&rule.title) {
+            section_order.push(rule.title.clone());
+        }
+    }
+    let mut section_entries: HashMap<String, Vec<ChangelogEntry>> = HashMap::new();
     let mut other: Vec<ChangelogEntry> = Vec::new();
 
     for commit in &commits {
         let subject = commit.message.lines().next().unwrap_or("").trim().to_string();
         let entry = ChangelogEntry { subject, hash: commit.short_id.clone() };
-        match classify_commit(&commit.message, &rules) {
-            Some(Increment::Major) => breaking.push(entry),
-            Some(Increment::Minor) => features.push(entry),
-            Some(Increment::Patch) => fixes.push(entry),
+        match section_rules.iter().find(|r| r.pattern.is_match(&commit.message)) {
+            Some(rule) => section_entries.entry(rule.title.clone()).or_default().push(entry),
             None => other.push(entry),
         }
     }
 
+    // Collect in rule-defined order, skipping empty sections.
+    let mut sections: Vec<(String, Vec<ChangelogEntry>)> = section_order
+        .into_iter()
+        .filter_map(|title| {
+            section_entries.remove(&title).filter(|e| !e.is_empty()).map(|e| (title, e))
+        })
+        .collect();
+    if !other.is_empty() {
+        sections.push(("Other Changes".to_string(), other));
+    }
+
     let content = match args.format {
-        OutputFormat::Json => format_changelog_json(&from_tag, &breaking, &features, &fixes, &other),
-        OutputFormat::Text => format_changelog_text(&from_tag, &breaking, &features, &fixes, &other),
+        OutputFormat::Json => format_changelog_json(&from_tag, &sections),
+        OutputFormat::Text => format_changelog_text(&from_tag, &sections),
     };
 
     if let Some(ref output_path) = args.output {
@@ -268,71 +283,83 @@ struct ChangelogEntry {
     hash: String,
 }
 
-fn format_changelog_text(
-    from: &str,
-    breaking: &[ChangelogEntry],
-    features: &[ChangelogEntry],
-    fixes: &[ChangelogEntry],
-    other: &[ChangelogEntry],
-) -> String {
+struct SectionRule {
+    title: String,
+    pattern: regex::Regex,
+}
+
+impl SectionRule {
+    fn new(title: &str, pattern: &str) -> Result<Self, regex::Error> {
+        Ok(Self {
+            title: title.to_string(),
+            pattern: regex::Regex::new(pattern)?,
+        })
+    }
+}
+
+fn default_changelog_sections() -> Vec<SectionRule> {
+    vec![
+        SectionRule::new("Breaking Changes", r"BREAKING[- ]CHANGE|(?m)^[a-z]+(\([^)]+\))?!:").unwrap(),
+        SectionRule::new("Features", r"(?m)^feat(\([^)]+\))?:").unwrap(),
+        SectionRule::new("Bug Fixes", r"(?m)^fix(\([^)]+\))?:").unwrap(),
+    ]
+}
+
+fn build_section_rules(raw: &[String]) -> Result<Vec<SectionRule>, FlophaError> {
+    if raw.is_empty() {
+        return Ok(default_changelog_sections());
+    }
+    raw.iter().map(|s| parse_section_rule(s)).collect()
+}
+
+fn parse_section_rule(s: &str) -> Result<SectionRule, FlophaError> {
+    let (title, pattern) = s.split_once(':').ok_or_else(|| FlophaError::InvalidRule {
+        input: s.to_string(),
+        reason: "expected format 'TITLE:PATTERN'".to_string(),
+    })?;
+    SectionRule::new(title, pattern).map_err(|e| FlophaError::InvalidRule {
+        input: s.to_string(),
+        reason: format!("invalid regex: {}", e),
+    })
+}
+
+fn format_changelog_text(from: &str, sections: &[(String, Vec<ChangelogEntry>)]) -> String {
     let mut out = format!("## Changelog since {}\n", from);
-
-    if !breaking.is_empty() {
-        out.push_str("\n### Breaking Changes\n");
-        for e in breaking {
+    for (title, entries) in sections {
+        out.push_str(&format!("\n### {}\n", title));
+        for e in entries {
             out.push_str(&format!("- {} ({})\n", e.subject, e.hash));
         }
     }
-    if !features.is_empty() {
-        out.push_str("\n### Features\n");
-        for e in features {
-            out.push_str(&format!("- {} ({})\n", e.subject, e.hash));
-        }
-    }
-    if !fixes.is_empty() {
-        out.push_str("\n### Bug Fixes\n");
-        for e in fixes {
-            out.push_str(&format!("- {} ({})\n", e.subject, e.hash));
-        }
-    }
-    if !other.is_empty() {
-        out.push_str("\n### Other Changes\n");
-        for e in other {
-            out.push_str(&format!("- {} ({})\n", e.subject, e.hash));
-        }
-    }
-
     out
 }
 
-fn format_changelog_json(
-    from: &str,
-    breaking: &[ChangelogEntry],
-    features: &[ChangelogEntry],
-    fixes: &[ChangelogEntry],
-    other: &[ChangelogEntry],
-) -> String {
-    fn entries_to_json(entries: &[ChangelogEntry]) -> String {
+fn format_changelog_json(from: &str, sections: &[(String, Vec<ChangelogEntry>)]) -> String {
+    fn entries_json(entries: &[ChangelogEntry]) -> String {
         let items: Vec<String> = entries
             .iter()
-            .map(|e| {
-                format!(
-                    "{{\"subject\":{},\"hash\":\"{}\"}}",
-                    serde_json::Value::String(e.subject.clone()),
-                    e.hash
-                )
-            })
+            .map(|e| format!(
+                "{{\"subject\":{},\"hash\":\"{}\"}}",
+                serde_json::Value::String(e.subject.clone()),
+                e.hash
+            ))
             .collect();
         format!("[{}]", items.join(","))
     }
 
+    let sections_json: Vec<String> = sections
+        .iter()
+        .map(|(title, entries)| format!(
+            "{{\"title\":{},\"entries\":{}}}",
+            serde_json::Value::String(title.clone()),
+            entries_json(entries)
+        ))
+        .collect();
+
     format!(
-        "{{\"from\":\"{}\",\"breaking_changes\":{},\"features\":{},\"fixes\":{},\"other\":{}}}",
+        "{{\"from\":\"{}\",\"sections\":[{}]}}",
         from,
-        entries_to_json(breaking),
-        entries_to_json(features),
-        entries_to_json(fixes),
-        entries_to_json(other),
+        sections_json.join(",")
     )
 }
 
@@ -388,13 +415,6 @@ fn is_leap(year: u32) -> bool {
 fn build_rules(raw_rules: &[String]) -> Result<Vec<BumpRule>, FlophaError> {
     if raw_rules.is_empty() {
         return Ok(versioning::conventional_bump_rules());
-    }
-    raw_rules.iter().map(|s| parse_bump_rule(s)).collect()
-}
-
-fn build_changelog_rules(raw_rules: &[String]) -> Result<Vec<BumpRule>, FlophaError> {
-    if raw_rules.is_empty() {
-        return Ok(versioning::conventional_changelog_rules());
     }
     raw_rules.iter().map(|s| parse_bump_rule(s)).collect()
 }
@@ -932,7 +952,7 @@ mod tests {
             from: Some("v1.0.0".to_string()),
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
-            rule: vec![],
+            section: vec![],
             output: None,
             format: OutputFormat::Text,
         };
@@ -955,7 +975,7 @@ mod tests {
             from: Some("v1.0.0".to_string()),
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
-            rule: vec!["major:BUMP_MAJOR:".to_string(), "minor:^ADD:".to_string()],
+            section: vec!["Breaking:BUMP_MAJOR:".to_string(), "Additions:^ADD:".to_string()],
             output: None,
             format: OutputFormat::Text,
         };

@@ -201,16 +201,16 @@ pub struct ChangelogArgs {
     )]
     pub source: VersionSourceName,
     #[clap(
-        help = "Custom categorization rule as '<level>:<regex>' matched against commit messages. \
-                Repeatable; when any --rule flags are provided they replace the built-in \
-                conventional-commit defaults entirely. \
-                Levels: major (Breaking Changes) | minor (Features) | patch (Bug Fixes). \
-                Commits matching no rule appear under Other Changes. \
-                Example: --rule 'major:BREAKING' --rule 'minor:^feat' --rule 'patch:^fix'",
+        help = "Custom section definition as 'TITLE:REGEX'. Repeatable; sections appear \
+                in the order given. When any --section flags are provided they replace the \
+                built-in defaults entirely. Commits not matched by any section are collected \
+                under 'Other Changes'. The title may contain spaces; the regex starts after \
+                the first colon and may itself contain colons. \
+                Example: --section 'New Features:^feat' --section 'Fixes:^fix'",
         long,
-        value_name = "LEVEL:PATTERN"
+        value_name = "TITLE:PATTERN"
     )]
-    pub rule: Vec<String>,
+    pub section: Vec<String>,
     #[clap(
         help = "Write the changelog to a file instead of stdout",
         long,
