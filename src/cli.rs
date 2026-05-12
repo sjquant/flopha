@@ -219,6 +219,20 @@ pub struct ChangelogArgs {
     )]
     pub other: Option<String>,
     #[clap(
+        help = "Title template for the changelog heading. Use {from} as a placeholder for \
+                the starting version tag (default: \"Changelog since {from}\")",
+        long,
+        default_value = "Changelog since {from}"
+    )]
+    pub title: String,
+    #[clap(
+        help = "When writing to a file, prepend the new changelog above existing content \
+                instead of overwriting it",
+        long,
+        action
+    )]
+    pub prepend: bool,
+    #[clap(
         help = "Write the changelog to a file instead of stdout",
         long,
         short = 'o'

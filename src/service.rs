@@ -265,13 +265,20 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
         }
     }
 
+    let title = args.title.replace("{from}", &from_tag);
+
     let content = match args.format {
-        OutputFormat::Json => format_changelog_json(&from_tag, &groups),
-        OutputFormat::Text => format_changelog_text(&from_tag, &groups),
+        OutputFormat::Json => format_changelog_json(&title, &from_tag, &groups),
+        OutputFormat::Text => format_changelog_text(&title, &groups),
     };
 
     if let Some(ref output_path) = args.output {
-        std::fs::write(output_path, &content)?;
+        if args.prepend && std::path::Path::new(output_path).exists() {
+            let existing = std::fs::read_to_string(output_path)?;
+            std::fs::write(output_path, format!("{}\n{}", content, existing))?;
+        } else {
+            std::fs::write(output_path, &content)?;
+        }
     } else {
         print!("{}", content);
     }
@@ -324,8 +331,8 @@ fn parse_group_rule(s: &str) -> Result<GroupRule, FlophaError> {
     })
 }
 
-fn format_changelog_text(from: &str, groups: &[(String, Vec<ChangelogEntry>)]) -> String {
-    let mut out = format!("## Changelog since {}\n", from);
+fn format_changelog_text(title: &str, groups: &[(String, Vec<ChangelogEntry>)]) -> String {
+    let mut out = format!("## {}\n", title);
     for (title, entries) in groups {
         out.push_str(&format!("\n### {}\n", title));
         for e in entries {
@@ -335,18 +342,18 @@ fn format_changelog_text(from: &str, groups: &[(String, Vec<ChangelogEntry>)]) -
     out
 }
 
-fn format_changelog_json(from: &str, groups: &[(String, Vec<ChangelogEntry>)]) -> String {
+fn format_changelog_json(title: &str, from: &str, groups: &[(String, Vec<ChangelogEntry>)]) -> String {
     let groups_val: Vec<serde_json::Value> = groups
         .iter()
-        .map(|(title, entries)| {
+        .map(|(group_title, entries)| {
             let entries_val: Vec<serde_json::Value> = entries
                 .iter()
                 .map(|e| serde_json::json!({"subject": e.subject, "hash": e.hash}))
                 .collect();
-            serde_json::json!({"title": title, "entries": entries_val})
+            serde_json::json!({"title": group_title, "entries": entries_val})
         })
         .collect();
-    serde_json::json!({"from": from, "groups": groups_val}).to_string()
+    serde_json::json!({"title": title, "from": from, "groups": groups_val}).to_string()
 }
 
 fn try_fetch_from_origin(repo: &git2::Repository) {
@@ -940,6 +947,8 @@ mod tests {
             source: VersionSourceName::Tag,
             group: vec![],
             other: None,
+            title: "Changelog since {from}".to_string(),
+            prepend: false,
             output: None,
             format: OutputFormat::Text,
         };
@@ -964,6 +973,8 @@ mod tests {
             source: VersionSourceName::Tag,
             group: vec!["Breaking:BUMP_MAJOR:".to_string(), "Additions:^ADD:".to_string()],
             other: None,
+            title: "Changelog since {from}".to_string(),
+            prepend: false,
             output: None,
             format: OutputFormat::Text,
         };
@@ -1006,9 +1017,10 @@ mod tests {
                 ChangelogEntry { subject: "fix crash".to_string(), hash: "def5678".to_string() },
             ]),
         ];
-        let json = format_changelog_json("v1.0.0", &groups);
+        let json = format_changelog_json("Changelog since v1.0.0", "v1.0.0", &groups);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
 
+        assert_eq!(v["title"], "Changelog since v1.0.0");
         assert_eq!(v["from"], "v1.0.0");
         assert_eq!(v["groups"].as_array().unwrap().len(), 2);
         assert_eq!(v["groups"][0]["title"], "Features");
@@ -1027,10 +1039,11 @@ mod tests {
                 },
             ]),
         ];
-        let json = format_changelog_json(r#"v1.0.0"edge"#, &groups);
+        let json = format_changelog_json(r#"Release v1.0.0"edge""#, r#"v1.0.0"edge"#, &groups);
 
         // Must parse without error despite embedded quotes and backslashes.
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON with special chars");
+        assert_eq!(v["title"], r#"Release v1.0.0"edge""#);
         assert_eq!(v["from"], r#"v1.0.0"edge"#);
         assert_eq!(v["groups"][0]["title"], r#"Group "A""#);
         assert_eq!(v["groups"][0]["entries"][0]["subject"], r#"feat: support "quoted" args and backslash \"#);
@@ -1038,7 +1051,7 @@ mod tests {
 
     #[test]
     fn test_changelog_json_empty_groups() {
-        let json = format_changelog_json("v1.0.0", &[]);
+        let json = format_changelog_json("Changelog since v1.0.0", "v1.0.0", &[]);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(v["from"], "v1.0.0");
         assert!(v["groups"].as_array().unwrap().is_empty());
