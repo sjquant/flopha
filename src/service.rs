@@ -231,7 +231,7 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
         }
     };
 
-    let section_rules = build_section_rules(&args.section)?;
+    let section_rules = build_section_rules(&args.group)?;
     let commits = gitutils::commits_since_tag_with_info(&repo, &from_tag).unwrap_or_default();
 
     // Pre-build ordered section labels from the rules (deduplicated).
@@ -952,7 +952,7 @@ mod tests {
             from: Some("v1.0.0".to_string()),
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
-            section: vec![],
+            group: vec![],
             output: None,
             format: OutputFormat::Text,
         };
@@ -975,7 +975,7 @@ mod tests {
             from: Some("v1.0.0".to_string()),
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
-            section: vec!["Breaking:BUMP_MAJOR:".to_string(), "Additions:^ADD:".to_string()],
+            group: vec!["Breaking:BUMP_MAJOR:".to_string(), "Additions:^ADD:".to_string()],
             output: None,
             format: OutputFormat::Text,
         };

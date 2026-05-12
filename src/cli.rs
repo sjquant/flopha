@@ -201,16 +201,16 @@ pub struct ChangelogArgs {
     )]
     pub source: VersionSourceName,
     #[clap(
-        help = "Custom section definition as 'TITLE:REGEX'. Repeatable; sections appear \
-                in the order given. When any --section flags are provided they replace the \
-                built-in defaults entirely. Commits not matched by any section are collected \
-                under 'Other Changes'. The title may contain spaces; the regex starts after \
-                the first colon and may itself contain colons. \
-                Example: --section 'New Features:^feat' --section 'Fixes:^fix'",
+        help = "Group definition as 'TITLE:REGEX'. Repeatable; groups appear in the order \
+                given. When any --group flags are provided they replace the built-in defaults \
+                entirely. Commits not matched by any group are collected under 'Other Changes'. \
+                The title may contain spaces; the regex starts after the first colon and may \
+                itself contain colons. \
+                Example: --group 'New Features:^feat' --group 'Fixes:^fix'",
         long,
         value_name = "TITLE:PATTERN"
     )]
-    pub section: Vec<String>,
+    pub group: Vec<String>,
     #[clap(
         help = "Write the changelog to a file instead of stdout",
         long,
