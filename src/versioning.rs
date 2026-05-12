@@ -34,6 +34,40 @@ pub fn conventional_bump_rules() -> Vec<BumpRule> {
     ]
 }
 
+/// Default changelog rules — extends [`conventional_bump_rules`] with `fix:` → Patch
+/// so that bug-fix commits land in "Bug Fixes" rather than "Other Changes".
+pub fn conventional_changelog_rules() -> Vec<BumpRule> {
+    vec![
+        BumpRule::new(r"BREAKING[- ]CHANGE", Increment::Major).unwrap(),
+        BumpRule::new(r"(?m)^[a-z]+(\([^)]+\))?!:", Increment::Major).unwrap(),
+        BumpRule::new(r"(?m)^feat(\([^)]+\))?:", Increment::Minor).unwrap(),
+        BumpRule::new(r"(?m)^fix(\([^)]+\))?:", Increment::Patch).unwrap(),
+    ]
+}
+
+/// Classifies a single commit message against `rules`.
+///
+/// Returns `Some(Major)` on the first major match, `Some(Minor)` for the highest
+/// minor, `Some(Patch)` if only patch rules fire, and `None` when nothing matches
+/// (the commit falls into "Other Changes" in a changelog).
+pub fn classify_commit(message: &str, rules: &[BumpRule]) -> Option<Increment> {
+    let mut best: Option<Increment> = None;
+    for rule in rules {
+        if rule.pattern.is_match(message) {
+            match rule.increment {
+                Increment::Major => return Some(Increment::Major),
+                Increment::Minor => best = Some(Increment::Minor),
+                Increment::Patch => {
+                    if best.is_none() {
+                        best = Some(Increment::Patch);
+                    }
+                }
+            }
+        }
+    }
+    best
+}
+
 /// Infers the highest-priority [`Increment`] from `messages` using `rules`.
 ///
 /// Every rule is tested against every message independently; the highest-priority

@@ -5,6 +5,7 @@ use crate::error::FlophaError;
 use crate::gitutils;
 use crate::version_source::{BranchVersionSource, TagVersionSource, VersionSource};
 use crate::versioning::{self, BumpRule, Increment, Versioner};
+use crate::versioning::classify_commit;
 
 pub fn last_version(path: &Path, args: &LastVersionArgs) -> Result<Option<String>, FlophaError> {
     let repo = gitutils::get_repo(path)?;
@@ -229,6 +230,7 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
         }
     };
 
+    let rules = build_changelog_rules(&args.rule)?;
     let commits = gitutils::commits_since_tag_with_info(&repo, &from_tag).unwrap_or_default();
 
     let mut breaking: Vec<ChangelogEntry> = Vec::new();
@@ -237,19 +239,13 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
     let mut other: Vec<ChangelogEntry> = Vec::new();
 
     for commit in &commits {
-        let cc = parse_conventional_commit(&commit.message);
-        let entry = ChangelogEntry {
-            subject: cc.subject.clone(),
-            hash: commit.short_id.clone(),
-        };
-        if cc.breaking {
-            breaking.push(entry);
-        } else if cc.type_ == "feat" {
-            features.push(entry);
-        } else if cc.type_ == "fix" {
-            fixes.push(entry);
-        } else {
-            other.push(entry);
+        let subject = commit.message.lines().next().unwrap_or("").trim().to_string();
+        let entry = ChangelogEntry { subject, hash: commit.short_id.clone() };
+        match classify_commit(&commit.message, &rules) {
+            Some(Increment::Major) => breaking.push(entry),
+            Some(Increment::Minor) => features.push(entry),
+            Some(Increment::Patch) => fixes.push(entry),
+            None => other.push(entry),
         }
     }
 
@@ -270,41 +266,6 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
 struct ChangelogEntry {
     subject: String,
     hash: String,
-}
-
-struct ParsedCommit {
-    type_: String,
-    subject: String,
-    breaking: bool,
-}
-
-fn parse_conventional_commit(message: &str) -> ParsedCommit {
-    use std::sync::OnceLock;
-    static RE: OnceLock<regex::Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| {
-        regex::Regex::new(r"(?m)^([a-z]+)(\([^)]+\))?(!)?\s*:\s*(.+)$").unwrap()
-    });
-
-    let first_line = message.lines().next().unwrap_or("").trim();
-    let has_breaking_footer =
-        message.contains("BREAKING CHANGE:") || message.contains("BREAKING-CHANGE:");
-
-    if let Some(caps) = re.captures(first_line) {
-        let type_ = caps.get(1).map_or("", |m| m.as_str()).to_string();
-        let breaking_bang = caps.get(3).is_some();
-        let subject = caps.get(4).map_or("", |m| m.as_str()).to_string();
-        ParsedCommit {
-            type_,
-            subject,
-            breaking: breaking_bang || has_breaking_footer,
-        }
-    } else {
-        ParsedCommit {
-            type_: String::new(),
-            subject: first_line.to_string(),
-            breaking: has_breaking_footer,
-        }
-    }
 }
 
 fn format_changelog_text(
@@ -427,6 +388,13 @@ fn is_leap(year: u32) -> bool {
 fn build_rules(raw_rules: &[String]) -> Result<Vec<BumpRule>, FlophaError> {
     if raw_rules.is_empty() {
         return Ok(versioning::conventional_bump_rules());
+    }
+    raw_rules.iter().map(|s| parse_bump_rule(s)).collect()
+}
+
+fn build_changelog_rules(raw_rules: &[String]) -> Result<Vec<BumpRule>, FlophaError> {
+    if raw_rules.is_empty() {
+        return Ok(versioning::conventional_changelog_rules());
     }
     raw_rules.iter().map(|s| parse_bump_rule(s)).collect()
 }
@@ -964,11 +932,35 @@ mod tests {
             from: Some("v1.0.0".to_string()),
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
+            rule: vec![],
             output: None,
             format: OutputFormat::Text,
         };
 
         // Should not error and should produce non-empty output.
+        changelog(td.path(), &args).unwrap();
+    }
+
+    #[test]
+    fn test_changelog_custom_rules() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        create_new_remote_tag(&repo, &mut remote, "v1.0.0", false);
+        gitutils::checkout_tag(&repo, "v1.0.0").unwrap();
+        gitutils::commit(&repo, "BUMP_MAJOR: api overhaul").unwrap();
+        gitutils::commit(&repo, "ADD: new endpoint").unwrap();
+
+        let args = ChangelogArgs {
+            from: Some("v1.0.0".to_string()),
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            source: VersionSourceName::Tag,
+            rule: vec!["major:BUMP_MAJOR:".to_string(), "minor:^ADD:".to_string()],
+            output: None,
+            format: OutputFormat::Text,
+        };
+
+        // Custom rules should categorize without error.
         changelog(td.path(), &args).unwrap();
     }
 
