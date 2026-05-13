@@ -287,7 +287,11 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
     if let Some(ref output_path) = args.output {
         if !args.overwrite && std::path::Path::new(output_path).exists() {
             let existing = std::fs::read_to_string(output_path)?;
-            std::fs::write(output_path, format!("{}\n{}", content, existing))?;
+            // Write to a sibling temp file then rename so the original is never
+            // left empty if the process is interrupted between the two operations.
+            let tmp_path = format!("{}.flopha.tmp", output_path);
+            std::fs::write(&tmp_path, format!("{}\n{}", content, existing))?;
+            std::fs::rename(&tmp_path, output_path)?;
         } else {
             std::fs::write(output_path, &content)?;
         }

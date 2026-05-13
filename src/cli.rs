@@ -182,7 +182,9 @@ pub struct LogArgs {
 #[derive(Args, Debug)]
 pub struct ChangelogArgs {
     #[clap(
-        help = "Version tag to start the changelog from (default: latest version matching pattern)",
+        help = "Tag to start the changelog from (default: latest version matching pattern). \
+                Defines which commits are included — commits reachable from HEAD that are \
+                not ancestors of this tag.",
         long
     )]
     pub from: Option<String>,
@@ -228,8 +230,8 @@ pub struct ChangelogArgs {
     pub title: Option<String>,
     #[clap(
         help = "Target version label for this changelog entry (e.g. v1.2.3). \
-                The tag does not need to exist yet — this is purely for display. \
-                Exposed as {to} in the --title template.",
+                Display-only: does not affect which commits are included (use --from for that). \
+                The tag does not need to exist yet. Exposed as {to} in the --title template.",
         long
     )]
     pub to: Option<String>,

@@ -239,7 +239,10 @@ pub fn commits_since_tag_with_info(
     repo: &Repository,
     tag_name: &str,
 ) -> Result<Vec<CommitInfo>, git2::Error> {
-    let tag_obj = repo.revparse_single(&format!("refs/tags/{}", tag_name))?;
+    let tag_obj = repo
+        .revparse_single(&format!("refs/tags/{}", tag_name))
+        .or_else(|_| repo.revparse_single(tag_name))
+        .map_err(|_| git2::Error::from_str(&format!("tag '{}' not found", tag_name)))?;
     let tag_commit_oid = tag_obj.peel_to_commit()?.id();
 
     let mut revwalk = repo.revwalk()?;
@@ -265,7 +268,10 @@ pub fn commits_since_tag_with_info(
 /// Returns commit messages for every commit reachable from HEAD that was made
 /// *after* the given tag (i.e., not included in the tagged commit or its ancestors).
 pub fn commits_since_tag(repo: &Repository, tag_name: &str) -> Result<Vec<String>, git2::Error> {
-    let tag_obj = repo.revparse_single(&format!("refs/tags/{}", tag_name))?;
+    let tag_obj = repo
+        .revparse_single(&format!("refs/tags/{}", tag_name))
+        .or_else(|_| repo.revparse_single(tag_name))
+        .map_err(|_| git2::Error::from_str(&format!("tag '{}' not found", tag_name)))?;
     let tag_commit_oid = tag_obj.peel_to_commit()?.id();
 
     let mut revwalk = repo.revwalk()?;
