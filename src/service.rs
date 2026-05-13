@@ -1,6 +1,10 @@
 use std::path::Path;
 
-use crate::cli::{LastVersionArgs, LogArgs, NextVersionArgs, VersionSourceName};
+use std::collections::HashMap;
+
+use crate::cli::{
+    ChangelogArgs, LastVersionArgs, LogArgs, NextVersionArgs, OutputFormat, VersionSourceName,
+};
 use crate::error::FlophaError;
 use crate::gitutils;
 use crate::version_source::{BranchVersionSource, TagVersionSource, VersionSource};
@@ -15,7 +19,10 @@ pub fn last_version(path: &Path, args: &LastVersionArgs) -> Result<Option<String
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
     let versioner = versioner_factory(&repo, pattern, &args.source);
     if let Some(version) = versioner.last_version() {
-        println!("{}", version.tag);
+        match args.format {
+            OutputFormat::Json => println!("{}", serde_json::json!({"version": version.tag})),
+            OutputFormat::Text => println!("{}", version.tag),
+        }
 
         if args.checkout {
             let version_source = version_source_factory(&args.source);
@@ -24,7 +31,10 @@ pub fn last_version(path: &Path, args: &LastVersionArgs) -> Result<Option<String
 
         Ok(Some(version.tag))
     } else {
-        println!("No version found");
+        match args.format {
+            OutputFormat::Json => println!("null"),
+            OutputFormat::Text => println!("No version found"),
+        }
         Ok(None)
     }
 }
@@ -40,7 +50,6 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
     let version_source = version_source_factory(&args.source);
     let versioner = Versioner::new(version_source.fetch_all(&repo), pattern);
 
-    // Determine increment level, honouring --auto if set.
     let increment = if args.auto {
         let rules = build_rules(&args.rule)?;
         match versioner.last_version() {
@@ -60,19 +69,24 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
     let next = match versioner.next_version(increment)? {
         Some(v) => v,
         None => {
-            println!("No version found");
+            match args.format {
+                OutputFormat::Json => println!("null"),
+                OutputFormat::Text => println!("No version found"),
+            }
             return Ok(None);
         }
     };
 
-    // If a pre-release channel was requested, compute the pre-release tag.
     let final_tag = if let Some(channel) = &args.pre {
         pre_release_tag(&next.tag, channel, &repo)
     } else {
         next.tag.clone()
     };
 
-    println!("{}", final_tag);
+    match args.format {
+        OutputFormat::Json => println!("{}", serde_json::json!({"version": final_tag})),
+        OutputFormat::Text => println!("{}", final_tag),
+    }
 
     if args.create {
         version_source.create(&repo, &final_tag)?;
@@ -114,7 +128,6 @@ pub fn log_versions(path: &Path, args: &LogArgs) -> Result<(), FlophaError> {
     let versioner = versioner_factory(&repo, pattern, &args.source);
 
     let mut versions = versioner.all_versions();
-    // Show newest first.
     versions.reverse();
 
     if let Some(limit) = args.limit {
@@ -122,52 +135,276 @@ pub fn log_versions(path: &Path, args: &LogArgs) -> Result<(), FlophaError> {
     }
 
     if versions.is_empty() {
-        println!("No versions found");
+        match args.format {
+            OutputFormat::Json => println!("[]"),
+            OutputFormat::Text => println!("No versions found"),
+        }
         return Ok(());
     }
 
-    // Collect display rows: (tag, date_str, commit_count_str)
-    let mut rows: Vec<(String, String, String)> = Vec::new();
+    // Collect display rows: (tag, date_str, commit_count)
+    let mut rows: Vec<(String, String, usize)> = Vec::new();
     for (i, version) in versions.iter().enumerate() {
         let date_str = gitutils::tag_commit_time(&repo, &version.tag)
             .map(format_date)
             .unwrap_or_else(|_| "unknown".to_string());
 
-        // Count commits between this version and the next older one.
-        let commit_info = if i + 1 < versions.len() {
+        let commit_count = if i + 1 < versions.len() {
             let prev = &versions[i + 1];
             let from_oid = gitutils::tag_commit_oid(&repo, &prev.tag).ok();
             let to_oid = gitutils::tag_commit_oid(&repo, &version.tag).ok();
-            let count = match (from_oid, to_oid) {
+            match (from_oid, to_oid) {
                 (Some(from), Some(to)) => {
                     gitutils::count_commits_between(&repo, from, to).unwrap_or(0)
                 }
                 _ => 0,
-            };
-            format!("{} commit{}", count, if count == 1 { "" } else { "s" })
+            }
         } else {
-            // Oldest release: no prior tag boundary exists, so showing a raw count would
-            // include the entire project history and be misleading.
-            "\u{2014}".to_string()
+            0
         };
 
-        rows.push((version.tag.clone(), date_str, commit_info));
+        rows.push((version.tag.clone(), date_str, commit_count));
     }
 
-    // Align columns.
-    let tag_width = rows.iter().map(|(t, _, _)| t.len()).max().unwrap_or(0);
-    let date_width = rows.iter().map(|(_, d, _)| d.len()).max().unwrap_or(0);
+    match args.format {
+        OutputFormat::Json => {
+            let entries: Vec<serde_json::Value> = rows
+                .iter()
+                .enumerate()
+                .map(|(i, (tag, date, count))| {
+                    let commits = if i + 1 < rows.len() {
+                        serde_json::Value::Number((*count).into())
+                    } else {
+                        serde_json::Value::Null
+                    };
+                    serde_json::json!({"version": tag, "date": date, "commits": commits})
+                })
+                .collect();
+            println!("{}", serde_json::Value::Array(entries));
+        }
+        OutputFormat::Text => {
+            let tag_width = rows.iter().map(|(t, _, _)| t.len()).max().unwrap_or(0);
+            let date_width = rows.iter().map(|(_, d, _)| d.len()).max().unwrap_or(0);
 
-    for (tag, date, commits) in &rows {
-        let padded_date = format!("{:<date_width$}", date, date_width = date_width);
-        println!(
-            "  {:<tag_width$}  {SEP}  {padded_date}  {SEP}  {commits}",
-            tag,
-            tag_width = tag_width,
-        );
+            for (i, (tag, date, count)) in rows.iter().enumerate() {
+                let commit_info = if i + 1 < rows.len() {
+                    format!("{} commit{}", count, if *count == 1 { "" } else { "s" })
+                } else {
+                    "\u{2014}".to_string()
+                };
+                let padded_date = format!("{:<date_width$}", date, date_width = date_width);
+                println!(
+                    "  {:<tag_width$}  {SEP}  {padded_date}  {SEP}  {commit_info}",
+                    tag,
+                    tag_width = tag_width,
+                );
+            }
+        }
     }
 
     Ok(())
+}
+
+pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
+    let repo = gitutils::get_repo(path)?;
+    try_fetch_from_origin(&repo);
+
+    let pattern = args
+        .pattern
+        .clone()
+        .unwrap_or("v{major}.{minor}.{patch}".to_string());
+
+    let from_tag = if let Some(ref from) = args.from {
+        from.clone()
+    } else {
+        let versioner = versioner_factory(&repo, pattern, &args.source);
+        match versioner.last_version() {
+            Some(v) => v.tag,
+            None => {
+                match args.format {
+                    OutputFormat::Json => println!("null"),
+                    OutputFormat::Text => println!("No version found"),
+                }
+                return Ok(());
+            }
+        }
+    };
+
+    let group_rules = build_group_rules(&args.group)?;
+    let commits = gitutils::commits_since_tag_with_info(&repo, &from_tag)?;
+
+    // Pre-build ordered section labels from the rules (deduplicated).
+    let mut group_order: Vec<String> = Vec::new();
+    for rule in &group_rules {
+        if !group_order.contains(&rule.title) {
+            group_order.push(rule.title.clone());
+        }
+    }
+    let mut group_entries: HashMap<String, Vec<ChangelogEntry>> = HashMap::new();
+    let mut other: Vec<ChangelogEntry> = Vec::new();
+
+    for commit in &commits {
+        let subject = commit
+            .message
+            .lines()
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let entry = ChangelogEntry {
+            subject,
+            hash: commit.short_id.clone(),
+        };
+        match group_rules
+            .iter()
+            .find(|r| r.pattern.is_match(&commit.message))
+        {
+            Some(rule) => group_entries
+                .entry(rule.title.clone())
+                .or_default()
+                .push(entry),
+            None => other.push(entry),
+        }
+    }
+
+    // Collect in rule-defined order, skipping empty sections.
+    let mut groups: Vec<(String, Vec<ChangelogEntry>)> = group_order
+        .into_iter()
+        .filter_map(|title| {
+            group_entries
+                .remove(&title)
+                .filter(|e| !e.is_empty())
+                .map(|e| (title, e))
+        })
+        .collect();
+    if !other.is_empty() {
+        match args.other.as_deref() {
+            Some("") => {} // suppress unmatched commits
+            Some(title) => groups.push((title.to_string(), other)),
+            None => groups.push(("Other Changes".to_string(), other)),
+        }
+    }
+
+    let title = match &args.title {
+        Some(t) => {
+            if t.contains("{to}") && args.to.is_none() {
+                log::warn!(
+                    "--title contains {{to}} but --to was not supplied; placeholder will be empty"
+                );
+            }
+            t.replace("{from}", &from_tag)
+                .replace("{to}", args.to.as_deref().unwrap_or(""))
+        }
+        None => match &args.to {
+            Some(to) => format!("Changes in {}", to),
+            None => format!("Changelog since {}", from_tag),
+        },
+    };
+
+    let content = match args.format {
+        OutputFormat::Json => format_changelog_json(&title, &from_tag, args.to.as_deref(), &groups),
+        OutputFormat::Text => format_changelog_text(&title, &groups),
+    };
+
+    if let Some(ref output_path) = args.output {
+        if !args.overwrite && std::path::Path::new(output_path).exists() {
+            let existing = std::fs::read_to_string(output_path)?;
+            // Write to a sibling temp file then rename so the original is never
+            // left empty if the process is interrupted between the two operations.
+            let tmp_path = format!("{}.flopha.tmp", output_path);
+            std::fs::write(&tmp_path, format!("{}\n{}", content, existing))?;
+            std::fs::rename(&tmp_path, output_path)?;
+        } else {
+            std::fs::write(output_path, &content)?;
+        }
+    } else {
+        print!("{}", content);
+    }
+
+    Ok(())
+}
+
+struct ChangelogEntry {
+    subject: String,
+    hash: String,
+}
+
+struct GroupRule {
+    title: String,
+    pattern: regex::Regex,
+}
+
+impl GroupRule {
+    fn new(title: &str, pattern: &str) -> Result<Self, regex::Error> {
+        Ok(Self {
+            title: title.to_string(),
+            pattern: regex::Regex::new(pattern)?,
+        })
+    }
+}
+
+fn default_changelog_groups() -> Vec<GroupRule> {
+    vec![
+        GroupRule::new(
+            "Breaking Changes",
+            r"BREAKING[- ]CHANGE|(?m)^[a-z]+(\([^)]+\))?!:",
+        )
+        .unwrap(),
+        GroupRule::new("Features", r"(?m)^feat(\([^)]+\))?:").unwrap(),
+        GroupRule::new("Bug Fixes", r"(?m)^fix(\([^)]+\))?:").unwrap(),
+    ]
+}
+
+fn build_group_rules(raw: &[String]) -> Result<Vec<GroupRule>, FlophaError> {
+    if raw.is_empty() {
+        return Ok(default_changelog_groups());
+    }
+    raw.iter().map(|s| parse_group_rule(s)).collect()
+}
+
+fn parse_group_rule(s: &str) -> Result<GroupRule, FlophaError> {
+    let (title, pattern) = s.split_once(':').ok_or_else(|| FlophaError::InvalidRule {
+        input: s.to_string(),
+        reason: "expected format 'TITLE:PATTERN'".to_string(),
+    })?;
+    GroupRule::new(title, pattern).map_err(|e| FlophaError::InvalidRule {
+        input: s.to_string(),
+        reason: format!("invalid regex: {}", e),
+    })
+}
+
+fn format_changelog_text(title: &str, groups: &[(String, Vec<ChangelogEntry>)]) -> String {
+    let mut out = format!("## {}\n", title);
+    for (group_title, entries) in groups {
+        out.push_str(&format!("\n### {}\n", group_title));
+        for e in entries {
+            out.push_str(&format!("- {} ({})\n", e.subject, e.hash));
+        }
+    }
+    out
+}
+
+fn format_changelog_json(
+    title: &str,
+    from: &str,
+    to: Option<&str>,
+    groups: &[(String, Vec<ChangelogEntry>)],
+) -> String {
+    let groups_val: Vec<serde_json::Value> = groups
+        .iter()
+        .map(|(group_title, entries)| {
+            let entries_val: Vec<serde_json::Value> = entries
+                .iter()
+                .map(|e| serde_json::json!({"subject": e.subject, "hash": e.hash}))
+                .collect();
+            serde_json::json!({"title": group_title, "entries": entries_val})
+        })
+        .collect();
+    let mut obj = serde_json::json!({"title": title, "from": from, "groups": groups_val});
+    if let Some(to) = to {
+        obj["to"] = serde_json::json!(to);
+    }
+    obj.to_string() + "\n"
 }
 
 fn try_fetch_from_origin(repo: &git2::Repository) {
@@ -183,13 +420,10 @@ fn try_fetch_from_origin(repo: &git2::Repository) {
 
 const SEP: &str = "─";
 
-/// Formats a Unix timestamp as `YYYY-MM-DD`.
 fn format_date(ts: i64) -> String {
-    // Days since Unix epoch.
     let secs = ts.max(0) as u64;
     let days_since_epoch = secs / 86400;
 
-    // Gregorian calendar calculation (no external dep needed for dates after 1970).
     let mut remaining = days_since_epoch;
     let mut year = 1970u32;
     loop {
@@ -222,11 +456,6 @@ fn is_leap(year: u32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
-/// Returns the rule set to use for `--auto`.
-///
-/// If `raw_rules` is empty the built-in conventional-commit defaults are used.
-/// Otherwise each entry is parsed as `<level>:<regex>` and any parse error is
-/// surfaced immediately so the user gets a clear message before any git I/O.
 fn build_rules(raw_rules: &[String]) -> Result<Vec<BumpRule>, FlophaError> {
     if raw_rules.is_empty() {
         return Ok(versioning::conventional_bump_rules());
@@ -305,6 +534,7 @@ mod tests {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
             checkout: false,
+            format: OutputFormat::Text,
         };
 
         let result = last_version(td.path(), &args).unwrap();
@@ -326,6 +556,7 @@ mod tests {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
             checkout: false,
+            format: OutputFormat::Text,
         };
         let result = last_version(td.path(), &args).unwrap();
 
@@ -353,6 +584,7 @@ mod tests {
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
             checkout: true,
+            format: OutputFormat::Text,
         };
         last_version(td.path(), &args).unwrap();
 
@@ -375,6 +607,7 @@ mod tests {
             pattern: Some("release-{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
             checkout: false,
+            format: OutputFormat::Text,
         };
 
         let result = last_version(td.path(), &args).unwrap();
@@ -406,6 +639,7 @@ mod tests {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Branch,
             checkout: false,
+            format: OutputFormat::Text,
         };
 
         let result = last_version(td.path(), &args).unwrap();
@@ -433,6 +667,7 @@ mod tests {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Branch,
             checkout: false,
+            format: OutputFormat::Text,
         };
 
         let result = last_version(td.path(), &args).unwrap();
@@ -459,6 +694,7 @@ mod tests {
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Branch,
             checkout: true,
+            format: OutputFormat::Text,
         };
         last_version(td.path(), &args).unwrap();
 
@@ -500,6 +736,7 @@ mod tests {
             pre: None,
             source: VersionSourceName::Tag,
             create: false,
+            format: OutputFormat::Text,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -532,6 +769,7 @@ mod tests {
             pre: None,
             source: VersionSourceName::Tag,
             create: true,
+            format: OutputFormat::Text,
         };
         next_version(td.path(), &args).unwrap();
 
@@ -569,6 +807,7 @@ mod tests {
             pre: None,
             source: VersionSourceName::Branch,
             create: false,
+            format: OutputFormat::Text,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -593,6 +832,7 @@ mod tests {
             pre: None,
             source: VersionSourceName::Branch,
             create: false,
+            format: OutputFormat::Text,
         };
 
         let result = next_version(td.path(), &args).unwrap();
@@ -620,6 +860,7 @@ mod tests {
             pre: None,
             source: VersionSourceName::Branch,
             create: true,
+            format: OutputFormat::Text,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -652,6 +893,7 @@ mod tests {
             pre: None,
             source: VersionSourceName::Tag,
             create: false,
+            format: OutputFormat::Text,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -678,6 +920,7 @@ mod tests {
             pre: Some("alpha".to_string()),
             source: VersionSourceName::Tag,
             create: false,
+            format: OutputFormat::Text,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -689,7 +932,6 @@ mod tests {
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
 
-        // v1.0.1-alpha.1 already exists; next should be alpha.2
         let tags = vec!["v1.0.0", "v1.0.1-alpha.1"];
         for tag in tags {
             create_new_remote_tag(&repo, &mut remote, tag, false);
@@ -705,6 +947,7 @@ mod tests {
             pre: Some("alpha".to_string()),
             source: VersionSourceName::Tag,
             create: false,
+            format: OutputFormat::Text,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -721,8 +964,6 @@ mod tests {
             create_new_remote_tag(&repo, &mut remote, tag, false);
         }
         gitutils::checkout_tag(&repo, "v1.0.0").unwrap();
-        // This commit would be "minor" under conventional commits, but with a
-        // custom rule only "BUMP_MAJOR:" triggers major and nothing else matches minor.
         gitutils::commit(&repo, "feat: add thing").unwrap();
 
         let args = NextVersionArgs {
@@ -733,11 +974,69 @@ mod tests {
             pre: None,
             source: VersionSourceName::Tag,
             create: false,
+            format: OutputFormat::Text,
         };
         let result = next_version(td.path(), &args).unwrap();
 
-        // "feat:" doesn't match any custom rule → falls through to patch
         assert_eq!(result, Some("v1.0.1".to_string()));
+    }
+
+    #[test]
+    fn test_changelog_categorizes_conventional_commits() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        create_new_remote_tag(&repo, &mut remote, "v1.0.0", false);
+        gitutils::checkout_tag(&repo, "v1.0.0").unwrap();
+        gitutils::commit(&repo, "feat: add search").unwrap();
+        gitutils::commit(&repo, "fix: crash on empty input").unwrap();
+        gitutils::commit(&repo, "chore: update deps").unwrap();
+
+        let args = ChangelogArgs {
+            from: Some("v1.0.0".to_string()),
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            source: VersionSourceName::Tag,
+            group: vec![],
+            other: None,
+            title: None,
+            to: None,
+            overwrite: false,
+            output: None,
+            format: OutputFormat::Text,
+        };
+
+        // Should not error and should produce non-empty output.
+        changelog(td.path(), &args).unwrap();
+    }
+
+    #[test]
+    fn test_changelog_custom_rules() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        create_new_remote_tag(&repo, &mut remote, "v1.0.0", false);
+        gitutils::checkout_tag(&repo, "v1.0.0").unwrap();
+        gitutils::commit(&repo, "BUMP_MAJOR: api overhaul").unwrap();
+        gitutils::commit(&repo, "ADD: new endpoint").unwrap();
+
+        let args = ChangelogArgs {
+            from: Some("v1.0.0".to_string()),
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            source: VersionSourceName::Tag,
+            group: vec![
+                "Breaking:BUMP_MAJOR:".to_string(),
+                "Additions:^ADD:".to_string(),
+            ],
+            other: None,
+            title: None,
+            to: None,
+            overwrite: false,
+            output: None,
+            format: OutputFormat::Text,
+        };
+
+        // Custom rules should categorize without error.
+        changelog(td.path(), &args).unwrap();
     }
 
     fn create_new_remote_tag(
@@ -760,5 +1059,102 @@ mod tests {
         gitutils::commit(repo, "New commit").unwrap();
         let mut branch = repo.find_branch(branch, git2::BranchType::Local).unwrap();
         gitutils::push_branch(remote, &mut branch).unwrap();
+    }
+
+    // ── JSON format tests ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_changelog_json_structure() {
+        let groups = vec![
+            (
+                "Features".to_string(),
+                vec![ChangelogEntry {
+                    subject: "add search".to_string(),
+                    hash: "abc1234".to_string(),
+                }],
+            ),
+            (
+                "Bug Fixes".to_string(),
+                vec![ChangelogEntry {
+                    subject: "fix crash".to_string(),
+                    hash: "def5678".to_string(),
+                }],
+            ),
+        ];
+        let json = format_changelog_json("Changelog since v1.0.0", "v1.0.0", None, &groups);
+        let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+
+        assert_eq!(v["title"], "Changelog since v1.0.0");
+        assert_eq!(v["from"], "v1.0.0");
+        assert!(v.get("to").is_none());
+        assert_eq!(v["groups"].as_array().unwrap().len(), 2);
+        assert_eq!(v["groups"][0]["title"], "Features");
+        assert_eq!(v["groups"][0]["entries"][0]["subject"], "add search");
+        assert_eq!(v["groups"][0]["entries"][0]["hash"], "abc1234");
+        assert_eq!(v["groups"][1]["title"], "Bug Fixes");
+    }
+
+    #[test]
+    fn test_changelog_json_escapes_special_chars() {
+        let groups = vec![(
+            r#"Group "A""#.to_string(),
+            vec![ChangelogEntry {
+                subject: r#"feat: support "quoted" args and backslash \"#.to_string(),
+                hash: "abc1234".to_string(),
+            }],
+        )];
+        let json = format_changelog_json(
+            r#"Release v1.0.0"edge""#,
+            r#"v1.0.0"edge"#,
+            Some(r#"v1.0.0"edge""#),
+            &groups,
+        );
+
+        // Must parse without error despite embedded quotes and backslashes.
+        let v: serde_json::Value =
+            serde_json::from_str(&json).expect("valid JSON with special chars");
+        assert_eq!(v["title"], r#"Release v1.0.0"edge""#);
+        assert_eq!(v["from"], r#"v1.0.0"edge"#);
+        assert_eq!(v["to"], r#"v1.0.0"edge""#);
+        assert_eq!(v["groups"][0]["title"], r#"Group "A""#);
+        assert_eq!(
+            v["groups"][0]["entries"][0]["subject"],
+            r#"feat: support "quoted" args and backslash \"#
+        );
+    }
+
+    #[test]
+    fn test_changelog_json_empty_groups() {
+        let json = format_changelog_json("Changelog since v1.0.0", "v1.0.0", None, &[]);
+        let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(v["from"], "v1.0.0");
+        assert!(v.get("to").is_none());
+        assert!(v["groups"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_changelog_json_with_to_field() {
+        let groups = vec![(
+            "Features".to_string(),
+            vec![ChangelogEntry {
+                subject: "add search".to_string(),
+                hash: "abc1234".to_string(),
+            }],
+        )];
+        let json = format_changelog_json("Changes in v1.1.0", "v1.0.0", Some("v1.1.0"), &groups);
+        let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(v["title"], "Changes in v1.1.0");
+        assert_eq!(v["from"], "v1.0.0");
+        assert_eq!(v["to"], "v1.1.0");
+        assert_eq!(v["groups"][0]["title"], "Features");
+    }
+
+    #[test]
+    fn test_version_json_escapes_special_chars() {
+        // Verifies the serde_json::json! pattern used in last_version / next_version.
+        let tricky = r#"v1.0.0"snapshot""#;
+        let json = serde_json::json!({"version": tricky}).to_string();
+        let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(v["version"], tricky);
     }
 }

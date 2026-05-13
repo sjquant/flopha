@@ -51,3 +51,143 @@ flopha log --pattern "desktop@{major}.{minor}.{patch}" --limit 20
 ```
 
 The log output includes the version, the release date, and the number of commits since the previous matching version.
+
+---
+
+## Using flopha in CI
+
+All flopha commands output plain text by default and `--format json` for machine consumption, making them easy to integrate into any CI pipeline.
+
+### Minimal release pipeline (shell)
+
+```bash
+# 1. Compute the next version without creating it yet
+NEXT=$(flopha next-version --auto --format json | jq -r '.version')
+
+# 2. Generate changelog headed with the upcoming version
+flopha changelog --to "$NEXT" --output CHANGELOG.md
+
+# 3. Commit the updated changelog
+git add CHANGELOG.md
+git commit -m "chore: release $NEXT"
+
+# 4. Tag and push
+flopha next-version --auto --create
+git push origin "$NEXT"
+```
+
+`--to` stamps the target version into the changelog heading **before** the tag exists, so the commit and the tag refer to the same version string.
+
+### GitHub Actions — using the action
+
+The `sjquant/flopha` action wraps the common tag-and-release flow with a single step.
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history so flopha can walk commits
+
+      - name: Tag and release
+        uses: sjquant/flopha@v1
+        with:
+          auto: true
+          create-release: true
+          changelog: true       # generate changelog and use it as the release body
+```
+
+### GitHub Actions — full changelog pipeline
+
+For full control over the changelog before tagging:
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install flopha
+        run: |
+          curl -fsSL https://github.com/sjquant/flopha/releases/latest/download/install.sh | bash
+          echo "$HOME/.flopha/bin" >> $GITHUB_PATH
+
+      - name: Compute next version
+        id: version
+        run: echo "tag=$(flopha next-version --auto --format json | jq -r '.version')" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        run: flopha changelog --to "${{ steps.version.outputs.tag }}" --output CHANGELOG.md
+
+      - name: Commit changelog
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git diff --staged --quiet || git commit -m "chore: release ${{ steps.version.outputs.tag }}"
+          git push
+
+      - name: Create tag and release
+        uses: sjquant/flopha@v1
+        with:
+          auto: true
+          create-release: true
+```
+
+### Scripting with JSON output
+
+Every command supports `--format json` for safe, jq-parseable output:
+
+```bash
+# Extract version string
+flopha next-version --auto --format json | jq -r '.version'
+
+# List recent releases as JSON array
+flopha log --limit 5 --format json
+
+# Generate changelog as structured data
+flopha changelog --to "v2.0.0" --format json | jq '.groups[].title'
+```
+
+### Reusable release script
+
+A self-contained script suitable for any CI:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+NEXT=$(flopha next-version --auto --format json | jq -r '.version')
+echo "Releasing $NEXT"
+
+flopha changelog --to "$NEXT" --output CHANGELOG.md
+git add CHANGELOG.md
+git diff --staged --quiet || git commit -m "chore: release $NEXT"
+git push
+
+flopha next-version --auto --create
+git push origin "$NEXT"
+```

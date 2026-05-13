@@ -229,10 +229,49 @@ pub fn create_branch(repo: &Repository, name: &str, force: bool) -> Result<(), g
     Ok(())
 }
 
+pub struct CommitInfo {
+    pub short_id: String,
+    pub message: String,
+}
+
+/// Like [`commits_since_tag`] but also returns the short commit hash.
+pub fn commits_since_tag_with_info(
+    repo: &Repository,
+    tag_name: &str,
+) -> Result<Vec<CommitInfo>, git2::Error> {
+    let tag_obj = repo
+        .revparse_single(&format!("refs/tags/{}", tag_name))
+        .or_else(|_| repo.revparse_single(tag_name))
+        .map_err(|_| git2::Error::from_str(&format!("tag '{}' not found", tag_name)))?;
+    let tag_commit_oid = tag_obj.peel_to_commit()?.id();
+
+    let mut revwalk = repo.revwalk()?;
+    revwalk.push_head()?;
+    revwalk.hide(tag_commit_oid)?;
+    revwalk.set_sorting(git2::Sort::TOPOLOGICAL)?;
+
+    let mut commits = Vec::new();
+    for oid in revwalk {
+        let oid = oid?;
+        let commit = repo.find_commit(oid)?;
+        if let Some(msg) = commit.message() {
+            let id_str = oid.to_string();
+            commits.push(CommitInfo {
+                short_id: id_str[..7.min(id_str.len())].to_string(),
+                message: msg.to_string(),
+            });
+        }
+    }
+    Ok(commits)
+}
+
 /// Returns commit messages for every commit reachable from HEAD that was made
 /// *after* the given tag (i.e., not included in the tagged commit or its ancestors).
 pub fn commits_since_tag(repo: &Repository, tag_name: &str) -> Result<Vec<String>, git2::Error> {
-    let tag_obj = repo.revparse_single(&format!("refs/tags/{}", tag_name))?;
+    let tag_obj = repo
+        .revparse_single(&format!("refs/tags/{}", tag_name))
+        .or_else(|_| repo.revparse_single(tag_name))
+        .map_err(|_| git2::Error::from_str(&format!("tag '{}' not found", tag_name)))?;
     let tag_commit_oid = tag_obj.peel_to_commit()?.id();
 
     let mut revwalk = repo.revwalk()?;
