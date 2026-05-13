@@ -38,6 +38,28 @@ inputs:
     required: false
     default: ''
 
+  # -- changelog --------------------------------------------------------------
+  changelog:
+    description: >
+      Generate a changelog from commits since the previous tag and use it as
+      the GitHub Release body. Ignored unless create-release is true.
+      When both changelog and release-body are set, release-body wins.
+    required: false
+    default: 'false'
+  changelog-groups:
+    description: >
+      Custom changelog group rules, one per line, as 'TITLE:REGEX'.
+      When provided, replaces the built-in conventional-commit defaults entirely.
+      Example: "Breaking Changes:BREAKING CHANGE\nFeatures:^feat"
+    required: false
+    default: ''
+  changelog-other:
+    description: >
+      Title for commits that match no group (default: "Other Changes").
+      Pass an empty string to suppress unmatched commits entirely.
+    required: false
+    default: ''
+
   # -- release ----------------------------------------------------------------
   create-release:
     description: 'Create a GitHub Release for the new tag.'
@@ -88,6 +110,9 @@ outputs:
   release-url:
     description: 'URL of the GitHub Release. Empty when create-release is false or dry-run is true.'
     value: ${{ steps.run.outputs.release-url }}
+  changelog:
+    description: 'Generated changelog in Markdown. Empty when changelog input is false.'
+    value: ${{ steps.run.outputs.changelog }}
 
 # ── steps ────────────────────────────────────────────────────────────────────
 
@@ -119,6 +144,9 @@ runs:
         INPUT_PRE: ${{ inputs.pre }}
         INPUT_RULE: ${{ inputs.rule }}
         INPUT_DRY_RUN: ${{ inputs.dry-run }}
+        INPUT_CHANGELOG: ${{ inputs.changelog }}
+        INPUT_CHANGELOG_GROUPS: ${{ inputs.changelog-groups }}
+        INPUT_CHANGELOG_OTHER: ${{ inputs.changelog-other }}
         INPUT_CREATE_RELEASE: ${{ inputs.create-release }}
         INPUT_DRAFT: ${{ inputs.draft }}
         INPUT_RELEASE_TITLE: ${{ inputs.release-title }}

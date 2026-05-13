@@ -34,9 +34,13 @@ if [ "$INPUT_DRY_RUN" = "true" ]; then
   NEW_TAG=$(flopha next-version "${ARGS[@]}")
   echo "tag=$NEW_TAG"         >> "$GITHUB_OUTPUT"
   echo "release-url="         >> "$GITHUB_OUTPUT"
+  echo "changelog="           >> "$GITHUB_OUTPUT"
   echo "Dry run — next tag would be: $NEW_TAG"
   exit 0
 fi
+
+# ── capture previous tag before creating the new one ─────────────────────────
+PREV_TAG=$(flopha last-version --pattern "$INPUT_PATTERN" --format json | jq -r '.version // empty')
 
 # ── create and push the version tag ─────────────────────────────────────────
 NEW_TAG=$(flopha next-version "${ARGS[@]}" --create)
@@ -51,6 +55,25 @@ fi
 echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
 echo "Created and pushed tag: $NEW_TAG"
 
+# ── optionally generate changelog ────────────────────────────────────────────
+GENERATED_CHANGELOG=""
+if [ "$INPUT_CHANGELOG" = "true" ] && [ -n "$PREV_TAG" ]; then
+  CL_ARGS=(--from "$PREV_TAG" --to "$NEW_TAG")
+  if [ -n "$INPUT_CHANGELOG_GROUPS" ]; then
+    while IFS= read -r grp; do
+      [ -n "$grp" ] && CL_ARGS+=(--group "$grp")
+    done <<< "$INPUT_CHANGELOG_GROUPS"
+  fi
+  [ -n "$INPUT_CHANGELOG_OTHER" ] && CL_ARGS+=(--other "$INPUT_CHANGELOG_OTHER")
+  GENERATED_CHANGELOG=$(flopha changelog "${CL_ARGS[@]}")
+fi
+# Emit changelog output (may be empty)
+{
+  echo "changelog<<__FLOPHA_EOF__"
+  printf '%s' "$GENERATED_CHANGELOG"
+  echo "__FLOPHA_EOF__"
+} >> "$GITHUB_OUTPUT"
+
 # ── optionally create a GitHub Release ──────────────────────────────────────
 if [ "$INPUT_CREATE_RELEASE" != "true" ]; then
   echo "release-url=" >> "$GITHUB_OUTPUT"
@@ -64,8 +87,11 @@ RELEASE_ARGS+=(--title "${INPUT_RELEASE_TITLE:-$NEW_TAG}")
 [ -n "$INPUT_PRE" ]         && RELEASE_ARGS+=(--prerelease)
 
 # --notes and --generate-notes are mutually exclusive in gh CLI
+# Priority: release-body > generated changelog > generate-notes
 if [ -n "$INPUT_RELEASE_BODY" ]; then
   RELEASE_ARGS+=(--notes "$INPUT_RELEASE_BODY")
+elif [ -n "$GENERATED_CHANGELOG" ]; then
+  RELEASE_ARGS+=(--notes "$GENERATED_CHANGELOG")
 elif [ "$INPUT_GENERATE_RELEASE_NOTES" = "true" ]; then
   RELEASE_ARGS+=(--generate-notes)
 fi

@@ -10,7 +10,7 @@ title: Command Reference
 Print the latest matching version.
 
 ```bash
-flopha last-version [--pattern <pattern>] [--source <tag|branch>] [--checkout]
+flopha last-version [--pattern <pattern>] [--source <tag|branch>] [--checkout] [--format <text|json>]
 ```
 
 Options:
@@ -18,6 +18,7 @@ Options:
 - `--pattern`, `-p`: Match a custom version format.
 - `--source`, `-s`: Read versions from tags or branches. Default is `tag`.
 - `--checkout`: Check out the resolved version after printing it.
+- `--format`, `-f`: Output format — `text` (default) or `json`.
 
 ## `flopha next-version`
 
@@ -31,7 +32,8 @@ flopha next-version \
   [--pre <channel>] \
   [--pattern <pattern>] \
   [--source <tag|branch>] \
-  [--create]
+  [--create] \
+  [--format <text|json>]
 ```
 
 Options:
@@ -43,13 +45,14 @@ Options:
 - `--pattern`, `-p`: Match and generate a custom version format.
 - `--source`, `-s`: Read versions from tags or branches. Default is `tag`.
 - `--create`: Create the new tag or branch after printing it.
+- `--format`, `-f`: Output format — `text` (default) or `json`.
 
 ## `flopha log`
 
 Show matching versions newest first.
 
 ```bash
-flopha log [--pattern <pattern>] [--source <tag|branch>] [--limit <number>]
+flopha log [--pattern <pattern>] [--source <tag|branch>] [--limit <number>] [--format <text|json>]
 ```
 
 Options:
@@ -57,6 +60,69 @@ Options:
 - `--pattern`, `-p`: Match a custom version format.
 - `--source`, `-s`: Read versions from tags or branches. Default is `tag`.
 - `--limit`, `-n`: Limit the number of rows.
+- `--format`, `-f`: Output format — `text` (default) or `json`.
+
+## `flopha changelog`
+
+Generate a changelog from commits since the last (or a given) version.
+
+```bash
+flopha changelog \
+  [--from <tag>] \
+  [--to <version>] \
+  [--pattern <pattern>] \
+  [--source <tag|branch>] \
+  [--group <TITLE:REGEX>] \
+  [--other <title>] \
+  [--title <template>] \
+  [--output <file>] \
+  [--overwrite] \
+  [--format <text|json>]
+```
+
+Options:
+
+- `--from`: Tag to start from. Defaults to the latest matching tag.
+- `--to`: Target version label (does not need to exist as a tag yet). Exposed as `{to}` in `--title`. Useful for stamping the upcoming version before creating the tag.
+- `--pattern`, `-p`: Match a custom version format.
+- `--source`, `-s`: Read versions from tags or branches. Default is `tag`.
+- `--group`: Custom group rule as `TITLE:REGEX`. Repeatable. When any `--group` flags are given they replace the built-in defaults entirely. Commits not matching any group are collected under the fallback group.
+- `--other`: Title for commits that match no group. Pass an empty string to suppress them entirely. Default: `"Other Changes"`.
+- `--title`: Heading template. Use `{from}` for the starting tag and `{to}` for the target version. Defaults to `"Changes in {to}"` when `--to` is given, otherwise `"Changelog since {from}"`.
+- `--output`, `-o`: Write to a file instead of stdout. By default the new content is **prepended** to any existing file content.
+- `--overwrite`: Replace the output file instead of prepending.
+- `--format`, `-f`: Output format — `text` (default, Markdown) or `json`.
+
+### Default groups
+
+When no `--group` flags are provided, commits are classified as:
+
+| Section | Matched commits |
+|---------|----------------|
+| Breaking Changes | `BREAKING CHANGE`, `BREAKING-CHANGE`, or `type!:` |
+| Features | `feat:` or `feat(scope):` |
+| Bug Fixes | `fix:` or `fix(scope):` |
+| Other Changes | Everything else |
+
+### JSON output schema
+
+```json
+{
+  "title": "Changes in v1.2.0",
+  "from": "v1.1.0",
+  "to": "v1.2.0",
+  "groups": [
+    {
+      "title": "Features",
+      "entries": [
+        { "subject": "add search command", "hash": "abc1234" }
+      ]
+    }
+  ]
+}
+```
+
+`to` is only present when `--to` was supplied. Groups with no matching commits are omitted.
 
 ## Global behavior
 
