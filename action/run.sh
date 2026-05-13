@@ -64,14 +64,20 @@ if [ "$INPUT_CHANGELOG" = "true" ] && [ -n "$PREV_TAG" ]; then
       [ -n "$grp" ] && CL_ARGS+=(--group "$grp")
     done <<< "$INPUT_CHANGELOG_GROUPS"
   fi
-  [ -n "$INPUT_CHANGELOG_OTHER" ] && CL_ARGS+=(--other "$INPUT_CHANGELOG_OTHER")
+  if [ "$INPUT_CHANGELOG_SUPPRESS_OTHER" = "true" ]; then
+    CL_ARGS+=(--other "")
+  elif [ -n "$INPUT_CHANGELOG_OTHER" ]; then
+    CL_ARGS+=(--other "$INPUT_CHANGELOG_OTHER")
+  fi
   GENERATED_CHANGELOG=$(flopha changelog "${CL_ARGS[@]}")
 fi
-# Emit changelog output (may be empty)
+# Emit changelog output using a randomised delimiter so commit message content
+# cannot prematurely close the multiline GitHub Actions output block.
+CL_EOF="__FLOPHA_CL_${RANDOM}${RANDOM}__"
 {
-  echo "changelog<<__FLOPHA_EOF__"
-  printf '%s' "$GENERATED_CHANGELOG"
-  echo "__FLOPHA_EOF__"
+  echo "changelog<<${CL_EOF}"
+  printf '%s\n' "$GENERATED_CHANGELOG"
+  echo "${CL_EOF}"
 } >> "$GITHUB_OUTPUT"
 
 # ── optionally create a GitHub Release ──────────────────────────────────────

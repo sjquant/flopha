@@ -266,9 +266,13 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
     }
 
     let title = match &args.title {
-        Some(t) => t
-            .replace("{from}", &from_tag)
-            .replace("{to}", args.to.as_deref().unwrap_or("")),
+        Some(t) => {
+            if t.contains("{to}") && args.to.is_none() {
+                log::warn!("--title contains {{to}} but --to was not supplied; placeholder will be empty");
+            }
+            t.replace("{from}", &from_tag)
+             .replace("{to}", args.to.as_deref().unwrap_or(""))
+        }
         None => match &args.to {
             Some(to) => format!("Changes in {}", to),
             None => format!("Changelog since {}", from_tag),
@@ -1036,7 +1040,7 @@ mod tests {
 
         assert_eq!(v["title"], "Changelog since v1.0.0");
         assert_eq!(v["from"], "v1.0.0");
-        assert!(v.get("to").is_none() || v["to"].is_null());
+        assert!(v.get("to").is_none());
         assert_eq!(v["groups"].as_array().unwrap().len(), 2);
         assert_eq!(v["groups"][0]["title"], "Features");
         assert_eq!(v["groups"][0]["entries"][0]["subject"], "add search");
@@ -1070,7 +1074,7 @@ mod tests {
         let json = format_changelog_json("Changelog since v1.0.0", "v1.0.0", None, &[]);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(v["from"], "v1.0.0");
-        assert!(v.get("to").is_none() || v["to"].is_null());
+        assert!(v.get("to").is_none());
         assert!(v["groups"].as_array().unwrap().is_empty());
     }
 

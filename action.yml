@@ -41,9 +41,10 @@ inputs:
   # -- changelog --------------------------------------------------------------
   changelog:
     description: >
-      Generate a changelog from commits since the previous tag and use it as
-      the GitHub Release body. Ignored unless create-release is true.
-      When both changelog and release-body are set, release-body wins.
+      Generate a changelog from commits since the previous tag.
+      The result is always available as the `changelog` output regardless of
+      other settings. When `create-release` is true and `release-body` is not
+      set, the changelog is also used as the GitHub Release body.
     required: false
     default: 'false'
   changelog-groups:
@@ -54,11 +55,13 @@ inputs:
     required: false
     default: ''
   changelog-other:
-    description: >
-      Title for commits that match no group (default: "Other Changes").
-      Pass an empty string to suppress unmatched commits entirely.
+    description: 'Title for commits that match no group. Default: "Other Changes".'
     required: false
     default: ''
+  changelog-suppress-other:
+    description: 'Set to true to omit commits that match no group entirely.'
+    required: false
+    default: 'false'
 
   # -- release ----------------------------------------------------------------
   create-release:
@@ -111,7 +114,7 @@ outputs:
     description: 'URL of the GitHub Release. Empty when create-release is false or dry-run is true.'
     value: ${{ steps.run.outputs.release-url }}
   changelog:
-    description: 'Generated changelog in Markdown. Empty when changelog input is false.'
+    description: 'Generated changelog text (Markdown by default). Empty when changelog input is false.'
     value: ${{ steps.run.outputs.changelog }}
 
 # ── steps ────────────────────────────────────────────────────────────────────
@@ -147,6 +150,7 @@ runs:
         INPUT_CHANGELOG: ${{ inputs.changelog }}
         INPUT_CHANGELOG_GROUPS: ${{ inputs.changelog-groups }}
         INPUT_CHANGELOG_OTHER: ${{ inputs.changelog-other }}
+        INPUT_CHANGELOG_SUPPRESS_OTHER: ${{ inputs.changelog-suppress-other }}
         INPUT_CREATE_RELEASE: ${{ inputs.create-release }}
         INPUT_DRAFT: ${{ inputs.draft }}
         INPUT_RELEASE_TITLE: ${{ inputs.release-title }}
