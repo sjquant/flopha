@@ -89,7 +89,19 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
     }
 
     if args.create {
-        version_source.create(&repo, &final_tag)?;
+        version_source.create(&repo, &final_tag, args.tag_message.as_deref())?;
+
+        if args.push {
+            let mut remote = gitutils::get_remote(&repo, "origin")?;
+            match args.source {
+                VersionSourceName::Tag => gitutils::push_tag(&mut remote, &final_tag)?,
+                VersionSourceName::Branch => {
+                    let mut branch =
+                        repo.find_branch(&final_tag, git2::BranchType::Local)?;
+                    gitutils::push_branch(&mut remote, &mut branch)?;
+                }
+            }
+        }
     }
 
     Ok(Some(final_tag))
@@ -737,6 +749,8 @@ mod tests {
             source: VersionSourceName::Tag,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -770,6 +784,8 @@ mod tests {
             source: VersionSourceName::Tag,
             create: true,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         next_version(td.path(), &args).unwrap();
 
@@ -808,6 +824,8 @@ mod tests {
             source: VersionSourceName::Branch,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -833,6 +851,8 @@ mod tests {
             source: VersionSourceName::Branch,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
 
         let result = next_version(td.path(), &args).unwrap();
@@ -861,6 +881,8 @@ mod tests {
             source: VersionSourceName::Branch,
             create: true,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -894,6 +916,8 @@ mod tests {
             source: VersionSourceName::Tag,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -921,6 +945,8 @@ mod tests {
             source: VersionSourceName::Tag,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -948,6 +974,8 @@ mod tests {
             source: VersionSourceName::Tag,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -975,6 +1003,8 @@ mod tests {
             source: VersionSourceName::Tag,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 

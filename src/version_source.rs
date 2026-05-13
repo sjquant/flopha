@@ -4,7 +4,12 @@ use git2::Repository;
 pub trait VersionSource {
     fn fetch_all(&self, repo: &Repository) -> Vec<String>;
     fn checkout(&self, repo: &Repository, version: &str) -> Result<(), git2::Error>;
-    fn create(&self, repo: &Repository, version: &str) -> Result<(), git2::Error>;
+    fn create(
+        &self,
+        repo: &Repository,
+        version: &str,
+        tag_message: Option<&str>,
+    ) -> Result<(), git2::Error>;
 }
 
 pub struct TagVersionSource;
@@ -28,9 +33,18 @@ impl VersionSource for TagVersionSource {
         gitutils::checkout_tag(repo, version)
     }
 
-    fn create(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {
+    fn create(
+        &self,
+        repo: &Repository,
+        version: &str,
+        tag_message: Option<&str>,
+    ) -> Result<(), git2::Error> {
         let commit = repo.head()?.peel_to_commit()?;
-        gitutils::tag_oid(repo, commit.id(), version)?;
+        if let Some(msg) = tag_message {
+            gitutils::annotated_tag_oid(repo, commit.id(), version, msg)?;
+        } else {
+            gitutils::tag_oid(repo, commit.id(), version)?;
+        }
         Ok(())
     }
 }
@@ -53,7 +67,12 @@ impl VersionSource for BranchVersionSource {
         gitutils::checkout_branch(repo, version, false)
     }
 
-    fn create(&self, repo: &Repository, version: &str) -> Result<(), git2::Error> {
+    fn create(
+        &self,
+        repo: &Repository,
+        version: &str,
+        _tag_message: Option<&str>,
+    ) -> Result<(), git2::Error> {
         gitutils::checkout_branch(repo, version, true)
     }
 }
