@@ -2,7 +2,9 @@ use std::path::Path;
 
 use std::collections::HashMap;
 
-use crate::cli::{ChangelogArgs, LastVersionArgs, LogArgs, NextVersionArgs, OutputFormat, VersionSourceName};
+use crate::cli::{
+    ChangelogArgs, LastVersionArgs, LogArgs, NextVersionArgs, OutputFormat, VersionSourceName,
+};
 use crate::error::FlophaError;
 use crate::gitutils;
 use crate::version_source::{BranchVersionSource, TagVersionSource, VersionSource};
@@ -242,10 +244,25 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
     let mut other: Vec<ChangelogEntry> = Vec::new();
 
     for commit in &commits {
-        let subject = commit.message.lines().next().unwrap_or("").trim().to_string();
-        let entry = ChangelogEntry { subject, hash: commit.short_id.clone() };
-        match group_rules.iter().find(|r| r.pattern.is_match(&commit.message)) {
-            Some(rule) => group_entries.entry(rule.title.clone()).or_default().push(entry),
+        let subject = commit
+            .message
+            .lines()
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let entry = ChangelogEntry {
+            subject,
+            hash: commit.short_id.clone(),
+        };
+        match group_rules
+            .iter()
+            .find(|r| r.pattern.is_match(&commit.message))
+        {
+            Some(rule) => group_entries
+                .entry(rule.title.clone())
+                .or_default()
+                .push(entry),
             None => other.push(entry),
         }
     }
@@ -254,12 +271,15 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
     let mut groups: Vec<(String, Vec<ChangelogEntry>)> = group_order
         .into_iter()
         .filter_map(|title| {
-            group_entries.remove(&title).filter(|e| !e.is_empty()).map(|e| (title, e))
+            group_entries
+                .remove(&title)
+                .filter(|e| !e.is_empty())
+                .map(|e| (title, e))
         })
         .collect();
     if !other.is_empty() {
         match args.other.as_deref() {
-            Some("") => {}  // suppress unmatched commits
+            Some("") => {} // suppress unmatched commits
             Some(title) => groups.push((title.to_string(), other)),
             None => groups.push(("Other Changes".to_string(), other)),
         }
@@ -268,10 +288,12 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
     let title = match &args.title {
         Some(t) => {
             if t.contains("{to}") && args.to.is_none() {
-                log::warn!("--title contains {{to}} but --to was not supplied; placeholder will be empty");
+                log::warn!(
+                    "--title contains {{to}} but --to was not supplied; placeholder will be empty"
+                );
             }
             t.replace("{from}", &from_tag)
-             .replace("{to}", args.to.as_deref().unwrap_or(""))
+                .replace("{to}", args.to.as_deref().unwrap_or(""))
         }
         None => match &args.to {
             Some(to) => format!("Changes in {}", to),
@@ -323,7 +345,11 @@ impl GroupRule {
 
 fn default_changelog_groups() -> Vec<GroupRule> {
     vec![
-        GroupRule::new("Breaking Changes", r"BREAKING[- ]CHANGE|(?m)^[a-z]+(\([^)]+\))?!:").unwrap(),
+        GroupRule::new(
+            "Breaking Changes",
+            r"BREAKING[- ]CHANGE|(?m)^[a-z]+(\([^)]+\))?!:",
+        )
+        .unwrap(),
         GroupRule::new("Features", r"(?m)^feat(\([^)]+\))?:").unwrap(),
         GroupRule::new("Bug Fixes", r"(?m)^fix(\([^)]+\))?:").unwrap(),
     ]
@@ -358,7 +384,12 @@ fn format_changelog_text(title: &str, groups: &[(String, Vec<ChangelogEntry>)]) 
     out
 }
 
-fn format_changelog_json(title: &str, from: &str, to: Option<&str>, groups: &[(String, Vec<ChangelogEntry>)]) -> String {
+fn format_changelog_json(
+    title: &str,
+    from: &str,
+    to: Option<&str>,
+    groups: &[(String, Vec<ChangelogEntry>)],
+) -> String {
     let groups_val: Vec<serde_json::Value> = groups
         .iter()
         .map(|(group_title, entries)| {
@@ -992,7 +1023,10 @@ mod tests {
             from: Some("v1.0.0".to_string()),
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
-            group: vec!["Breaking:BUMP_MAJOR:".to_string(), "Additions:^ADD:".to_string()],
+            group: vec![
+                "Breaking:BUMP_MAJOR:".to_string(),
+                "Additions:^ADD:".to_string(),
+            ],
             other: None,
             title: None,
             to: None,
@@ -1032,12 +1066,20 @@ mod tests {
     #[test]
     fn test_changelog_json_structure() {
         let groups = vec![
-            ("Features".to_string(), vec![
-                ChangelogEntry { subject: "add search".to_string(), hash: "abc1234".to_string() },
-            ]),
-            ("Bug Fixes".to_string(), vec![
-                ChangelogEntry { subject: "fix crash".to_string(), hash: "def5678".to_string() },
-            ]),
+            (
+                "Features".to_string(),
+                vec![ChangelogEntry {
+                    subject: "add search".to_string(),
+                    hash: "abc1234".to_string(),
+                }],
+            ),
+            (
+                "Bug Fixes".to_string(),
+                vec![ChangelogEntry {
+                    subject: "fix crash".to_string(),
+                    hash: "def5678".to_string(),
+                }],
+            ),
         ];
         let json = format_changelog_json("Changelog since v1.0.0", "v1.0.0", None, &groups);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
@@ -1054,23 +1096,31 @@ mod tests {
 
     #[test]
     fn test_changelog_json_escapes_special_chars() {
-        let groups = vec![
-            (r#"Group "A""#.to_string(), vec![
-                ChangelogEntry {
-                    subject: r#"feat: support "quoted" args and backslash \"#.to_string(),
-                    hash: "abc1234".to_string(),
-                },
-            ]),
-        ];
-        let json = format_changelog_json(r#"Release v1.0.0"edge""#, r#"v1.0.0"edge"#, Some(r#"v1.0.0"edge""#), &groups);
+        let groups = vec![(
+            r#"Group "A""#.to_string(),
+            vec![ChangelogEntry {
+                subject: r#"feat: support "quoted" args and backslash \"#.to_string(),
+                hash: "abc1234".to_string(),
+            }],
+        )];
+        let json = format_changelog_json(
+            r#"Release v1.0.0"edge""#,
+            r#"v1.0.0"edge"#,
+            Some(r#"v1.0.0"edge""#),
+            &groups,
+        );
 
         // Must parse without error despite embedded quotes and backslashes.
-        let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON with special chars");
+        let v: serde_json::Value =
+            serde_json::from_str(&json).expect("valid JSON with special chars");
         assert_eq!(v["title"], r#"Release v1.0.0"edge""#);
         assert_eq!(v["from"], r#"v1.0.0"edge"#);
         assert_eq!(v["to"], r#"v1.0.0"edge""#);
         assert_eq!(v["groups"][0]["title"], r#"Group "A""#);
-        assert_eq!(v["groups"][0]["entries"][0]["subject"], r#"feat: support "quoted" args and backslash \"#);
+        assert_eq!(
+            v["groups"][0]["entries"][0]["subject"],
+            r#"feat: support "quoted" args and backslash \"#
+        );
     }
 
     #[test]
@@ -1084,11 +1134,13 @@ mod tests {
 
     #[test]
     fn test_changelog_json_with_to_field() {
-        let groups = vec![
-            ("Features".to_string(), vec![
-                ChangelogEntry { subject: "add search".to_string(), hash: "abc1234".to_string() },
-            ]),
-        ];
+        let groups = vec![(
+            "Features".to_string(),
+            vec![ChangelogEntry {
+                subject: "add search".to_string(),
+                hash: "abc1234".to_string(),
+            }],
+        )];
         let json = format_changelog_json("Changes in v1.1.0", "v1.0.0", Some("v1.1.0"), &groups);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(v["title"], "Changes in v1.1.0");
