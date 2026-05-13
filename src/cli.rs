@@ -219,12 +219,20 @@ pub struct ChangelogArgs {
     )]
     pub other: Option<String>,
     #[clap(
-        help = "Title template for the changelog heading. Use {from} as a placeholder for \
-                the starting version tag (default: \"Changelog since {from}\")",
-        long,
-        default_value = "Changelog since {from}"
+        help = "Title template for the changelog heading. Use {from} for the starting version \
+                and {to} for the target version. \
+                Defaults to \"Changes in {to}\" when --to is given, \
+                otherwise \"Changelog since {from}\".",
+        long
     )]
-    pub title: String,
+    pub title: Option<String>,
+    #[clap(
+        help = "Target version label for this changelog entry (e.g. v1.2.3). \
+                The tag does not need to exist yet — this is purely for display. \
+                Exposed as {to} in the --title template.",
+        long
+    )]
+    pub to: Option<String>,
     #[clap(
         help = "Overwrite the output file instead of prepending to it",
         long,
