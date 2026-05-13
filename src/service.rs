@@ -273,7 +273,7 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
     };
 
     if let Some(ref output_path) = args.output {
-        if args.prepend && std::path::Path::new(output_path).exists() {
+        if !args.overwrite && std::path::Path::new(output_path).exists() {
             let existing = std::fs::read_to_string(output_path)?;
             std::fs::write(output_path, format!("{}\n{}", content, existing))?;
         } else {
@@ -948,7 +948,7 @@ mod tests {
             group: vec![],
             other: None,
             title: "Changelog since {from}".to_string(),
-            prepend: false,
+            overwrite: false,
             output: None,
             format: OutputFormat::Text,
         };
@@ -974,7 +974,7 @@ mod tests {
             group: vec!["Breaking:BUMP_MAJOR:".to_string(), "Additions:^ADD:".to_string()],
             other: None,
             title: "Changelog since {from}".to_string(),
-            prepend: false,
+            overwrite: false,
             output: None,
             format: OutputFormat::Text,
         };

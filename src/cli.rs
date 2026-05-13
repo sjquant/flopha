@@ -226,12 +226,11 @@ pub struct ChangelogArgs {
     )]
     pub title: String,
     #[clap(
-        help = "When writing to a file, prepend the new changelog above existing content \
-                instead of overwriting it",
+        help = "Overwrite the output file instead of prepending to it",
         long,
         action
     )]
-    pub prepend: bool,
+    pub overwrite: bool,
     #[clap(
         help = "Write the changelog to a file instead of stdout",
         long,
