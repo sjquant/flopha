@@ -22,4 +22,6 @@ pub enum FlophaError {
     InvalidRule { input: String, reason: String },
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("invalid argument: {0}")]
+    InvalidArgs(String),
 }
