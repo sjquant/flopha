@@ -333,8 +333,8 @@ fn parse_group_rule(s: &str) -> Result<GroupRule, FlophaError> {
 
 fn format_changelog_text(title: &str, groups: &[(String, Vec<ChangelogEntry>)]) -> String {
     let mut out = format!("## {}\n", title);
-    for (title, entries) in groups {
-        out.push_str(&format!("\n### {}\n", title));
+    for (group_title, entries) in groups {
+        out.push_str(&format!("\n### {}\n", group_title));
         for e in entries {
             out.push_str(&format!("- {} ({})\n", e.subject, e.hash));
         }
@@ -353,7 +353,7 @@ fn format_changelog_json(title: &str, from: &str, groups: &[(String, Vec<Changel
             serde_json::json!({"title": group_title, "entries": entries_val})
         })
         .collect();
-    serde_json::json!({"title": title, "from": from, "groups": groups_val}).to_string()
+    serde_json::json!({"title": title, "from": from, "groups": groups_val}).to_string() + "\n"
 }
 
 fn try_fetch_from_origin(repo: &git2::Repository) {
