@@ -44,7 +44,7 @@ PREV_TAG=$(flopha last-version --pattern "$INPUT_PATTERN" --format json | jq -r 
 
 # ── create and push the version tag ─────────────────────────────────────────
 if ! NEW_TAG=$(flopha next-version "${ARGS[@]}" --create --push); then
-  echo "::error::Failed to create or push tag."
+  echo "::error::Failed to create or push tag '$NEW_TAG'."
   echo "::error::Make sure the calling workflow has 'permissions: contents: write'."
   exit 1
 fi

@@ -108,7 +108,7 @@ pub struct NextVersionArgs {
     )]
     pub tag_message: Option<String>,
     #[clap(
-        help = "Push the created tag or branch to 'origin' after creation",
+        help = "Push the tag or branch created by --create to 'origin'",
         long,
         action,
         requires = "create"
