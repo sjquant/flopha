@@ -318,7 +318,7 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
     };
 
     let content = match args.format {
-        OutputFormat::Json => format_changelog_json(&title, from_tag.as_deref().unwrap_or(""), args.to.as_deref(), &groups),
+        OutputFormat::Json => format_changelog_json(&title, from_tag.as_deref(), args.to.as_deref(), &groups),
         OutputFormat::Text => format_changelog_text(&title, &groups),
     };
 
@@ -402,7 +402,7 @@ fn format_changelog_text(title: &str, groups: &[(String, Vec<ChangelogEntry>)]) 
 
 fn format_changelog_json(
     title: &str,
-    from: &str,
+    from: Option<&str>,
     to: Option<&str>,
     groups: &[(String, Vec<ChangelogEntry>)],
 ) -> String {
@@ -1073,6 +1073,62 @@ mod tests {
         changelog(td.path(), &args).unwrap();
     }
 
+    #[test]
+    fn test_changelog_no_prior_tag() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, _remote) = testutils::init_remote(&repo);
+
+        gitutils::commit(&repo, "✨ Add initial feature").unwrap();
+        gitutils::commit(&repo, "🐛 Fix startup crash").unwrap();
+
+        let args = ChangelogArgs {
+            from: None,
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            source: VersionSourceName::Tag,
+            group: vec![
+                "New Features:^✨".to_string(),
+                "Bug Fixes:^🐛".to_string(),
+            ],
+            other: None,
+            title: None,
+            to: Some("v0.1.0".to_string()),
+            overwrite: false,
+            output: None,
+            format: OutputFormat::Text,
+        };
+
+        // Should walk full history and produce output without error.
+        changelog(td.path(), &args).unwrap();
+    }
+
+    #[test]
+    fn test_changelog_no_prior_tag_json_from_is_null() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, _remote) = testutils::init_remote(&repo);
+
+        gitutils::commit(&repo, "✨ Add initial feature").unwrap();
+
+        let args = ChangelogArgs {
+            from: None,
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            source: VersionSourceName::Tag,
+            group: vec![],
+            other: None,
+            title: None,
+            to: Some("v0.1.0".to_string()),
+            overwrite: false,
+            output: Some(format!("{}/out.json", td.path().display())),
+            format: OutputFormat::Json,
+        };
+
+        changelog(td.path(), &args).unwrap();
+
+        let content = std::fs::read_to_string(format!("{}/out.json", td.path().display())).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&content).expect("valid JSON");
+        assert!(v["from"].is_null(), "from should be null when no prior tag");
+        assert_eq!(v["to"], "v0.1.0");
+    }
+
     fn create_new_remote_tag(
         repo: &git2::Repository,
         remote: &mut git2::Remote,
@@ -1115,7 +1171,7 @@ mod tests {
                 }],
             ),
         ];
-        let json = format_changelog_json("Changelog since v1.0.0", "v1.0.0", None, &groups);
+        let json = format_changelog_json("Changelog since v1.0.0", Some("v1.0.0"), None, &groups);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
 
         assert_eq!(v["title"], "Changelog since v1.0.0");
@@ -1139,7 +1195,7 @@ mod tests {
         )];
         let json = format_changelog_json(
             r#"Release v1.0.0"edge""#,
-            r#"v1.0.0"edge"#,
+            Some(r#"v1.0.0"edge"#),
             Some(r#"v1.0.0"edge""#),
             &groups,
         );
@@ -1159,7 +1215,7 @@ mod tests {
 
     #[test]
     fn test_changelog_json_empty_groups() {
-        let json = format_changelog_json("Changelog since v1.0.0", "v1.0.0", None, &[]);
+        let json = format_changelog_json("Changelog since v1.0.0", Some("v1.0.0"), None, &[]);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(v["from"], "v1.0.0");
         assert!(v.get("to").is_none());
@@ -1175,7 +1231,7 @@ mod tests {
                 hash: "abc1234".to_string(),
             }],
         )];
-        let json = format_changelog_json("Changes in v1.1.0", "v1.0.0", Some("v1.1.0"), &groups);
+        let json = format_changelog_json("Changes in v1.1.0", Some("v1.0.0"), Some("v1.1.0"), &groups);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(v["title"], "Changes in v1.1.0");
         assert_eq!(v["from"], "v1.0.0");

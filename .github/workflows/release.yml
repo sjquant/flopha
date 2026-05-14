@@ -61,7 +61,7 @@ jobs:
               --group 'Bug Fixes:^(🐛|🚑)' \
               --group 'Performance:^⚡' \
               --group 'Refactoring:^♻' \
-              --group 'Documentation:^📝' || true
+              --group 'Documentation:^📝'
             echo "${CL_EOF}"
           } >> "$GITHUB_OUTPUT"
 
