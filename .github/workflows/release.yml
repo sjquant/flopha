@@ -53,7 +53,15 @@ jobs:
           CL_EOF="__FLOPHA_CL_${RANDOM}${RANDOM}__"
           {
             echo "changelog<<${CL_EOF}"
-            [ -n "$prev_tag" ] && flopha changelog --from "$prev_tag" --to HEAD || true
+            if [ -n "$prev_tag" ]; then
+              flopha changelog --from "$prev_tag" --to HEAD \
+                --group 'Breaking Changes:^💥' \
+                --group 'New Features:^✨' \
+                --group 'Bug Fixes:^(🐛|🚑)' \
+                --group 'Performance:^⚡' \
+                --group 'Refactoring:^♻' \
+                --group 'Documentation:^📝' || true
+            fi
             echo "${CL_EOF}"
           } >> "$GITHUB_OUTPUT"
 
