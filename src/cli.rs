@@ -102,6 +102,19 @@ pub struct NextVersionArgs {
     )]
     pub create: bool,
     #[clap(
+        help = "Annotated tag message; when set an annotated tag is created instead of a lightweight one",
+        long,
+        requires = "create"
+    )]
+    pub tag_message: Option<String>,
+    #[clap(
+        help = "Push the tag or branch created by --create to 'origin'",
+        long,
+        action,
+        requires = "create"
+    )]
+    pub push: bool,
+    #[clap(
         help = "Specify the source for versioning: tag (default) or branch",
         long,
         short = 's',

@@ -25,6 +25,17 @@ pub fn tag_oid(repo: &Repository, id: git2::Oid, tagname: &str) -> Result<git2::
     repo.tag_lightweight(tagname, &obj, true)
 }
 
+pub fn annotated_tag_oid(
+    repo: &Repository,
+    id: git2::Oid,
+    tagname: &str,
+    message: &str,
+) -> Result<git2::Oid, git2::Error> {
+    let obj = repo.find_object(id, None)?;
+    let sig = repo.signature()?;
+    repo.tag(tagname, &obj, &sig, message, true)
+}
+
 pub fn commit(repo: &Repository, message: &str) -> Result<git2::Oid, git2::Error> {
     let mut index = repo.index()?;
     let id = index.write_tree()?;

@@ -40,6 +40,14 @@ pub fn last_version(path: &Path, args: &LastVersionArgs) -> Result<Option<String
 }
 
 pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String>, FlophaError> {
+    if args.tag_message.is_some() {
+        if let VersionSourceName::Branch = args.source {
+            return Err(FlophaError::InvalidArgs(
+                "--tag-message is only valid with --source tag".to_string(),
+            ));
+        }
+    }
+
     let repo = gitutils::get_repo(path)?;
     try_fetch_from_origin(&repo);
     let pattern = args
@@ -89,7 +97,18 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
     }
 
     if args.create {
-        version_source.create(&repo, &final_tag)?;
+        version_source.create(&repo, &final_tag, args.tag_message.as_deref())?;
+
+        if args.push {
+            let mut remote = gitutils::get_remote(&repo, "origin")?;
+            match args.source {
+                VersionSourceName::Tag => gitutils::push_tag(&mut remote, &final_tag)?,
+                VersionSourceName::Branch => {
+                    let mut branch = repo.find_branch(&final_tag, git2::BranchType::Local)?;
+                    gitutils::push_branch(&mut remote, &mut branch)?;
+                }
+            }
+        }
     }
 
     Ok(Some(final_tag))
@@ -737,6 +756,8 @@ mod tests {
             source: VersionSourceName::Tag,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -770,6 +791,8 @@ mod tests {
             source: VersionSourceName::Tag,
             create: true,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         next_version(td.path(), &args).unwrap();
 
@@ -808,6 +831,8 @@ mod tests {
             source: VersionSourceName::Branch,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -833,6 +858,8 @@ mod tests {
             source: VersionSourceName::Branch,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
 
         let result = next_version(td.path(), &args).unwrap();
@@ -861,6 +888,8 @@ mod tests {
             source: VersionSourceName::Branch,
             create: true,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -894,6 +923,8 @@ mod tests {
             source: VersionSourceName::Tag,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -921,6 +952,8 @@ mod tests {
             source: VersionSourceName::Tag,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -948,6 +981,8 @@ mod tests {
             source: VersionSourceName::Tag,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -975,6 +1010,8 @@ mod tests {
             source: VersionSourceName::Tag,
             create: false,
             format: OutputFormat::Text,
+            tag_message: None,
+            push: false,
         };
         let result = next_version(td.path(), &args).unwrap();
 
@@ -1156,5 +1193,132 @@ mod tests {
         let json = serde_json::json!({"version": tricky}).to_string();
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(v["version"], tricky);
+    }
+
+    #[test]
+    fn test_next_version_annotated_tag_created_when_tag_message_set() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        create_new_remote_tag(&repo, &mut remote, "v1.0.0", false);
+        gitutils::checkout_tag(&repo, "v1.0.0").unwrap();
+        gitutils::commit(&repo, "fix: something").unwrap();
+
+        let args = NextVersionArgs {
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            increment: Increment::Patch,
+            auto: false,
+            rule: vec![],
+            pre: None,
+            source: VersionSourceName::Tag,
+            create: true,
+            tag_message: Some("Release v1.0.1".to_string()),
+            push: false,
+            format: OutputFormat::Text,
+        };
+        next_version(td.path(), &args).unwrap();
+
+        let tag_obj = repo.revparse_single("refs/tags/v1.0.1").unwrap();
+        assert_eq!(
+            tag_obj.kind(),
+            Some(git2::ObjectType::Tag),
+            "expected annotated tag object"
+        );
+    }
+
+    #[test]
+    fn test_tag_message_with_branch_source_returns_error() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        create_new_remote_branch(&repo, &mut remote, "release/1.0.0");
+        gitutils::checkout_branch(&repo, "release/1.0.0", false).unwrap();
+        gitutils::commit(&repo, "New commit").unwrap();
+
+        let args = NextVersionArgs {
+            pattern: Some("release/{major}.{minor}.{patch}".to_string()),
+            increment: Increment::Patch,
+            auto: false,
+            rule: vec![],
+            pre: None,
+            source: VersionSourceName::Branch,
+            create: true,
+            tag_message: Some("should fail".to_string()),
+            push: false,
+            format: OutputFormat::Text,
+        };
+        let result = next_version(td.path(), &args);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("--tag-message is only valid with --source tag"));
+    }
+
+    #[test]
+    fn test_next_version_push_tag_reaches_remote() {
+        let (td, repo) = testutils::init_repo();
+        let (remote_td, mut remote) = testutils::init_remote(&repo);
+
+        create_new_remote_tag(&repo, &mut remote, "v1.0.0", false);
+        gitutils::checkout_tag(&repo, "v1.0.0").unwrap();
+        gitutils::commit(&repo, "fix: something").unwrap();
+
+        let args = NextVersionArgs {
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            increment: Increment::Patch,
+            auto: false,
+            rule: vec![],
+            pre: None,
+            source: VersionSourceName::Tag,
+            create: true,
+            tag_message: None,
+            push: true,
+            format: OutputFormat::Text,
+        };
+        next_version(td.path(), &args).unwrap();
+
+        let remote_repo = git2::Repository::open(remote_td.path()).unwrap();
+        let tag_names = remote_repo.tag_names(None).unwrap();
+        assert!(
+            tag_names.iter().any(|t| t == Some("v1.0.1")),
+            "v1.0.1 tag should have been pushed to remote"
+        );
+    }
+
+    #[test]
+    fn test_next_version_push_branch_reaches_remote() {
+        let (td, repo) = testutils::init_repo();
+        let (remote_td, mut remote) = testutils::init_remote(&repo);
+
+        for branch in ["release/1.0.0", "release/2.0.0"] {
+            create_new_remote_branch(&repo, &mut remote, branch);
+        }
+        gitutils::checkout_branch(&repo, "release/2.0.0", false).unwrap();
+        gitutils::commit(&repo, "New commit").unwrap();
+
+        let args = NextVersionArgs {
+            pattern: Some("release/{major}.{minor}.{patch}".to_string()),
+            increment: Increment::Minor,
+            auto: false,
+            rule: vec![],
+            pre: None,
+            source: VersionSourceName::Branch,
+            create: true,
+            tag_message: None,
+            push: true,
+            format: OutputFormat::Text,
+        };
+        next_version(td.path(), &args).unwrap();
+
+        let remote_repo = git2::Repository::open(remote_td.path()).unwrap();
+        let branches = remote_repo.branches(Some(git2::BranchType::Local)).unwrap();
+        assert!(
+            branches.into_iter().any(|b| {
+                let (branch, _) = b.unwrap();
+                branch.name().unwrap() == Some("release/2.1.0")
+            }),
+            "release/2.1.0 branch should have been pushed to remote"
+        );
     }
 }
