@@ -104,8 +104,7 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
             match args.source {
                 VersionSourceName::Tag => gitutils::push_tag(&mut remote, &final_tag)?,
                 VersionSourceName::Branch => {
-                    let mut branch =
-                        repo.find_branch(&final_tag, git2::BranchType::Local)?;
+                    let mut branch = repo.find_branch(&final_tag, git2::BranchType::Local)?;
                     gitutils::push_branch(&mut remote, &mut branch)?;
                 }
             }
@@ -1313,9 +1312,7 @@ mod tests {
         next_version(td.path(), &args).unwrap();
 
         let remote_repo = git2::Repository::open(remote_td.path()).unwrap();
-        let branches = remote_repo
-            .branches(Some(git2::BranchType::Local))
-            .unwrap();
+        let branches = remote_repo.branches(Some(git2::BranchType::Local)).unwrap();
         assert!(
             branches.into_iter().any(|b| {
                 let (branch, _) = b.unwrap();
