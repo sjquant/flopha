@@ -233,24 +233,18 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
         .clone()
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
 
-    let from_tag = if let Some(ref from) = args.from {
-        from.clone()
+    let from_tag: Option<String> = if let Some(ref from) = args.from {
+        Some(from.clone())
     } else {
         let versioner = versioner_factory(&repo, pattern, &args.source);
-        match versioner.last_version() {
-            Some(v) => v.tag,
-            None => {
-                match args.format {
-                    OutputFormat::Json => println!("null"),
-                    OutputFormat::Text => println!("No version found"),
-                }
-                return Ok(());
-            }
-        }
+        versioner.last_version().map(|v| v.tag)
     };
 
     let group_rules = build_group_rules(&args.group)?;
-    let commits = gitutils::commits_since_tag_with_info(&repo, &from_tag)?;
+    let commits = match &from_tag {
+        Some(tag) => gitutils::commits_since_tag_with_info(&repo, tag)?,
+        None => gitutils::all_commits_with_info(&repo)?,
+    };
 
     // Pre-build ordered section labels from the rules (deduplicated).
     let mut group_order: Vec<String> = Vec::new();
@@ -311,17 +305,20 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
                     "--title contains {{to}} but --to was not supplied; placeholder will be empty"
                 );
             }
-            t.replace("{from}", &from_tag)
+            t.replace("{from}", from_tag.as_deref().unwrap_or(""))
                 .replace("{to}", args.to.as_deref().unwrap_or(""))
         }
         None => match &args.to {
             Some(to) => format!("Changes in {}", to),
-            None => format!("Changelog since {}", from_tag),
+            None => match &from_tag {
+                Some(from) => format!("Changelog since {}", from),
+                None => "Initial Changelog".to_string(),
+            },
         },
     };
 
     let content = match args.format {
-        OutputFormat::Json => format_changelog_json(&title, &from_tag, args.to.as_deref(), &groups),
+        OutputFormat::Json => format_changelog_json(&title, from_tag.as_deref().unwrap_or(""), args.to.as_deref(), &groups),
         OutputFormat::Text => format_changelog_text(&title, &groups),
     };
 

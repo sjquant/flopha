@@ -50,18 +50,18 @@ jobs:
         run: |
           export PATH="${HOME}/.flopha/bin:${PATH}"
           prev_tag=$(git tag --list 'v*' --sort=-version:refname | head -1)
+          CL_ARGS=(--to "v${{ steps.version_check.outputs.new_version }}")
+          [ -n "$prev_tag" ] && CL_ARGS+=(--from "$prev_tag")
           CL_EOF="__FLOPHA_CL_${RANDOM}${RANDOM}__"
           {
             echo "changelog<<${CL_EOF}"
-            if [ -n "$prev_tag" ]; then
-              flopha changelog --from "$prev_tag" --to HEAD \
-                --group 'Breaking Changes:^💥' \
-                --group 'New Features:^✨' \
-                --group 'Bug Fixes:^(🐛|🚑)' \
-                --group 'Performance:^⚡' \
-                --group 'Refactoring:^♻' \
-                --group 'Documentation:^📝' || true
-            fi
+            flopha changelog "${CL_ARGS[@]}" \
+              --group 'Breaking Changes:^💥' \
+              --group 'New Features:^✨' \
+              --group 'Bug Fixes:^(🐛|🚑)' \
+              --group 'Performance:^⚡' \
+              --group 'Refactoring:^♻' \
+              --group 'Documentation:^📝' || true
             echo "${CL_EOF}"
           } >> "$GITHUB_OUTPUT"
 

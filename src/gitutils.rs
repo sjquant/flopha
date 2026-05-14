@@ -276,6 +276,27 @@ pub fn commits_since_tag_with_info(
     Ok(commits)
 }
 
+/// Returns every commit reachable from HEAD, used when there is no prior tag.
+pub fn all_commits_with_info(repo: &Repository) -> Result<Vec<CommitInfo>, git2::Error> {
+    let mut revwalk = repo.revwalk()?;
+    revwalk.push_head()?;
+    revwalk.set_sorting(git2::Sort::TOPOLOGICAL)?;
+
+    let mut commits = Vec::new();
+    for oid in revwalk {
+        let oid = oid?;
+        let commit = repo.find_commit(oid)?;
+        if let Some(msg) = commit.message() {
+            let id_str = oid.to_string();
+            commits.push(CommitInfo {
+                short_id: id_str[..7.min(id_str.len())].to_string(),
+                message: msg.to_string(),
+            });
+        }
+    }
+    Ok(commits)
+}
+
 /// Returns commit messages for every commit reachable from HEAD that was made
 /// *after* the given tag (i.e., not included in the tagged commit or its ancestors).
 pub fn commits_since_tag(repo: &Repository, tag_name: &str) -> Result<Vec<String>, git2::Error> {
