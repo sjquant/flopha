@@ -43,11 +43,8 @@ fi
 PREV_TAG=$(flopha last-version --pattern "$INPUT_PATTERN" --format json | jq -r '.version // empty')
 
 # ── create and push the version tag ─────────────────────────────────────────
-NEW_TAG=$(flopha next-version "${ARGS[@]}" --create)
-
-if ! PUSH_OUT=$(git push origin "$NEW_TAG" 2>&1); then
-  git tag -d "$NEW_TAG" 2>/dev/null || true
-  echo "::error::Failed to push tag '$NEW_TAG': $PUSH_OUT"
+if ! NEW_TAG=$(flopha next-version "${ARGS[@]}" --create --push); then
+  echo "::error::Failed to create or push tag."
   echo "::error::Make sure the calling workflow has 'permissions: contents: write'."
   exit 1
 fi
