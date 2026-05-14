@@ -48,8 +48,7 @@ jobs:
         if: steps.version_check.outputs.should_release == 'true'
         shell: bash
         run: |
-          export PATH="${HOME}/.flopha/bin:${PATH}"
-          prev_tag=$(git tag --list 'v*' --sort=-version:refname | head -1)
+          prev_tag=$(flopha lv --pattern 'v{major}.{minor}.{patch}' --format json | jq -r '.version // empty')
           CL_ARGS=(--to "v${{ steps.version_check.outputs.new_version }}")
           [ -n "$prev_tag" ] && CL_ARGS+=(--from "$prev_tag")
           CL_EOF="__FLOPHA_CL_${RANDOM}${RANDOM}__"
