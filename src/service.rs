@@ -318,7 +318,9 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
     };
 
     let content = match args.format {
-        OutputFormat::Json => format_changelog_json(&title, from_tag.as_deref(), args.to.as_deref(), &groups),
+        OutputFormat::Json => {
+            format_changelog_json(&title, from_tag.as_deref(), args.to.as_deref(), &groups)
+        }
         OutputFormat::Text => format_changelog_text(&title, &groups),
     };
 
@@ -1085,10 +1087,7 @@ mod tests {
             from: None,
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             source: VersionSourceName::Tag,
-            group: vec![
-                "New Features:^✨".to_string(),
-                "Bug Fixes:^🐛".to_string(),
-            ],
+            group: vec!["New Features:^✨".to_string(), "Bug Fixes:^🐛".to_string()],
             other: None,
             title: None,
             to: Some("v0.1.0".to_string()),
@@ -1231,7 +1230,8 @@ mod tests {
                 hash: "abc1234".to_string(),
             }],
         )];
-        let json = format_changelog_json("Changes in v1.1.0", Some("v1.0.0"), Some("v1.1.0"), &groups);
+        let json =
+            format_changelog_json("Changes in v1.1.0", Some("v1.0.0"), Some("v1.1.0"), &groups);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(v["title"], "Changes in v1.1.0");
         assert_eq!(v["from"], "v1.0.0");
