@@ -242,8 +242,8 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
 
     let group_rules = build_group_rules(&args.group)?;
     let commits = match &from_tag {
-        Some(tag) => gitutils::commits_since_tag_with_info(&repo, tag)?,
-        None => gitutils::all_commits_with_info(&repo)?,
+        Some(tag) => gitutils::commits_since_tag_with_info(&repo, tag, args.to.as_deref())?,
+        None => gitutils::all_commits_with_info(&repo, args.to.as_deref())?,
     };
 
     // Pre-build ordered section labels from the rules (deduplicated).
@@ -1073,6 +1073,48 @@ mod tests {
 
         // Custom rules should categorize without error.
         changelog(td.path(), &args).unwrap();
+    }
+
+    #[test]
+    fn test_changelog_historical_range() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        create_new_remote_tag(&repo, &mut remote, "v1.0.0", false);
+        gitutils::commit(&repo, "✨ Add feature A").unwrap();
+        gitutils::commit(&repo, "🐛 Fix bug B").unwrap();
+        create_new_remote_tag(&repo, &mut remote, "v1.1.0", false);
+        // commits after v1.1.0 — should NOT appear in the v1.0.0..v1.1.0 slice
+        gitutils::commit(&repo, "✨ Add feature C").unwrap();
+
+        let args = ChangelogArgs {
+            from: Some("v1.0.0".to_string()),
+            to: Some("v1.1.0".to_string()),
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            source: VersionSourceName::Tag,
+            group: vec![],
+            other: None,
+            title: None,
+            overwrite: false,
+            output: Some(format!("{}/out.txt", td.path().display())),
+            format: OutputFormat::Text,
+        };
+
+        changelog(td.path(), &args).unwrap();
+
+        let content = std::fs::read_to_string(format!("{}/out.txt", td.path().display())).unwrap();
+        assert!(
+            content.contains("feature A"),
+            "should include commits up to v1.1.0"
+        );
+        assert!(
+            content.contains("bug B"),
+            "should include commits up to v1.1.0"
+        );
+        assert!(
+            !content.contains("feature C"),
+            "should exclude commits after v1.1.0"
+        );
     }
 
     #[test]
