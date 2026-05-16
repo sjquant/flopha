@@ -1,5 +1,3 @@
-# flopha
-
 ## Setup
 
 ```sh

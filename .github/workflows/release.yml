@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 concurrency:
   group: ${{ github.sha }}
@@ -44,26 +43,26 @@ jobs:
           FLOPHA_VERSION: latest
         run: bash action/install.sh
 
-      # - name: Generate changelog
-      #   id: changelog
-      #   if: steps.version_check.outputs.should_release == 'true'
-      #   shell: bash
-      #   run: |
-      #     prev_tag=$(flopha lv --pattern 'v{major}.{minor}.{patch}' --format json | jq -r '.version // empty')
-      #     CL_ARGS=(--title "Changes in v${{ steps.version_check.outputs.new_version }}")
-      #     [ -n "$prev_tag" ] && CL_ARGS+=(--from "$prev_tag")
-      #     CL_EOF="__FLOPHA_CL_${RANDOM}${RANDOM}__"
-      #     {
-      #       echo "changelog<<${CL_EOF}"
-      #       flopha changelog "${CL_ARGS[@]}" \
-      #         --group 'Breaking Changes:^💥' \
-      #         --group 'New Features:^✨' \
-      #         --group 'Bug Fixes:^(🐛|🚑)' \
-      #         --group 'Performance:^⚡' \
-      #         --group 'Refactoring:^♻' \
-      #         --group 'Documentation:^📝'
-      #       echo "${CL_EOF}"
-      #     } >> "$GITHUB_OUTPUT"
+      - name: Generate changelog
+        id: changelog
+        if: steps.version_check.outputs.should_release == 'true'
+        shell: bash
+        run: |
+          prev_tag=$(flopha lv --pattern 'v{major}.{minor}.{patch}' --format json | jq -r '.version // empty')
+          CL_ARGS=(--title "Changes in v${{ steps.version_check.outputs.new_version }}")
+          [ -n "$prev_tag" ] && CL_ARGS+=(--from "$prev_tag")
+          CL_EOF="__FLOPHA_CL_${RANDOM}${RANDOM}__"
+          {
+            echo "changelog<<${CL_EOF}"
+            flopha changelog "${CL_ARGS[@]}" \
+              --group 'Breaking Changes:^💥' \
+              --group 'New Features:^✨' \
+              --group 'Bug Fixes:^(🐛|🚑)' \
+              --group 'Performance:^⚡' \
+              --group 'Refactoring:^♻' \
+              --group 'Documentation:^📝'
+            echo "${CL_EOF}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create draft release
         if: steps.version_check.outputs.should_release == 'true'
