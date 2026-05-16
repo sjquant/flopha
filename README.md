@@ -26,6 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
 
 ## Docs
 
+- Official docs: https://sjquant.github.io/flopha
 - Website source: `website/`
 - Local preview: `pnpm docs:start`
 - Production build: `pnpm docs:build`

@@ -21,6 +21,7 @@ const config: Config = {
     locales: ['en'],
   },
   customFields: {
+    docsUrl: 'https://sjquant.github.io/flopha',
     githubUrl: 'https://github.com/sjquant/flopha',
   },
   presets: [
@@ -112,6 +113,10 @@ const config: Config = {
         {
           title: 'Project',
           items: [
+            {
+              label: 'Official docs',
+              href: 'https://sjquant.github.io/flopha',
+            },
             {
               label: 'GitHub',
               href: 'https://github.com/sjquant/flopha',
