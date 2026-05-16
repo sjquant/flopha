@@ -18,6 +18,18 @@ esac
 
 BIN_DIR="${HOME}/.flopha/bin"
 
+if [ -n "${FLOPHA_BINARY:-}" ]; then
+  mkdir -p "$BIN_DIR"
+  cp "$FLOPHA_BINARY" "$BIN_DIR/flopha"
+  chmod +x "$BIN_DIR/flopha"
+  echo "$BIN_DIR" >> "$GITHUB_PATH"
+
+  export PATH="$BIN_DIR:$PATH"
+  INSTALLED="$(flopha --version)"
+  echo "Installed $INSTALLED from $FLOPHA_BINARY"
+  exit 0
+fi
+
 # Skip download if flopha is already on PATH (e.g. built from source in CI)
 if command -v flopha >/dev/null 2>&1; then
   FOUND="$(command -v flopha)"

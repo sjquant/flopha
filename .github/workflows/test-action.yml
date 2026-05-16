@@ -104,3 +104,31 @@ jobs:
       - name: Verify binary
         shell: bash
         run: flopha --version
+
+  install-local-binary:
+    name: Install local binary
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download flopha binary
+        uses: actions/download-artifact@v4
+        with:
+          name: flopha-linux
+          path: /tmp/flopha-local
+
+      - name: Install local binary
+        shell: bash
+        env:
+          FLOPHA_BINARY: /tmp/flopha-local/flopha
+        run: bash action/install.sh
+
+      - name: Verify binary
+        shell: bash
+        run: |
+          [ "$(command -v flopha)" = "$HOME/.flopha/bin/flopha" ]
+          flopha --version
