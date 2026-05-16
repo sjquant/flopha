@@ -20,7 +20,7 @@ flopha treats **Git tags as the authoritative version source**. It is not the ri
 |---|---|---|
 | `auto` | `true` | Detect bump level from conventional commits: `feat`→minor, `feat!`/`BREAKING CHANGE`→major, anything else→patch. |
 | `increment` | `patch` | Bump level when `auto: false`: `major`, `minor`, or `patch`. |
-| `pattern` | `v{major}.{minor}.{patch}` | Tag pattern. Use `{major}`, `{minor}`, `{patch}` as placeholders. |
+| `pattern` | `v{major}.{minor}.{patch}` | Tag pattern. Use `{major}`, `{minor}`, `{patch}` as placeholders, or `{semver}` as shorthand. |
 | `pre` | | Pre-release channel: `alpha`, `beta`, `rc`, etc. Produces tags like `v1.2.3-rc.1`. |
 | `rule` | | Custom bump rules, one per line, as `level:regex`. Replaces built-in conventional-commit defaults entirely. |
 | `create-release` | `false` | Create a GitHub Release for the new tag. |
@@ -108,5 +108,5 @@ steps:
 ```yaml
 - uses: sjquant/flopha@v1
   with:
-    pattern: 'app@{major}.{minor}.{patch}'
+    pattern: 'app@{semver}'
 ```

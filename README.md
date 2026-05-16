@@ -61,7 +61,7 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
 4.  Use a custom version pattern:
 
     ```
-    flopha next-version --pattern "desktop@{major}.{minor}.{patch}"
+    flopha next-version --pattern "desktop@{semver}"
     ```
 
 5.  Auto-detect the next bump from conventional commits:
@@ -85,7 +85,7 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
 8.  Create a new version tag:
 
     ```
-    flopha next-version --pattern "desktop@{major}.{minor}.{patch}" --create
+    flopha next-version --pattern "desktop@{semver}" --create
     ```
 
 9.  Increment major version:
@@ -138,9 +138,10 @@ Aliases: `nv`
 
 - `--rule <LEVEL:PATTERN>`: Define custom bump rules used with `--auto`. Repeatable. When any `--rule` flags are provided, they replace the built-in conventional commit rules entirely.
 
-- `-p`, `--pattern <PATTERN>`: Specify a custom pattern for version matching and generation. Use placeholders `{major}`, `{minor}`, and `{patch}`. Example patterns:
+- `-p`, `--pattern <PATTERN>`: Specify a custom pattern for version matching and generation. Use placeholders `{major}`, `{minor}`, and `{patch}`, or `{semver}` as shorthand for `{major}.{minor}.{patch}`. Example patterns:
 
   - `v{major}.{minor}.{patch}`
+  - `mobile@{semver}`
   - `release-{major}.{minor}.{patch}`
 
 - `--pre <CHANNEL>`: Format the next version as a pre-release on the given channel. Example: `--pre alpha` produces `v1.2.3-alpha.1`.
@@ -159,7 +160,7 @@ Aliases: `lv`
 
 #### Options
 
-- `-p`, `--pattern <PATTERN>`: Get the last version based on a given pattern (e.g., `v{major}.{minor}.{patch}`).
+- `-p`, `--pattern <PATTERN>`: Get the last version based on a given pattern (e.g., `v{major}.{minor}.{patch}` or `v{semver}`).
 
 - `-s`, `--source <SOURCE>`: Specify the source for versioning. Options are:
 
@@ -175,7 +176,7 @@ Aliases: `lg`
 
 #### Options
 
-- `-p`, `--pattern <PATTERN>`: Filter versions by a pattern such as `v{major}.{minor}.{patch}`.
+- `-p`, `--pattern <PATTERN>`: Filter versions by a pattern such as `v{major}.{minor}.{patch}` or `v{semver}`.
 
 - `-s`, `--source <SOURCE>`: Specify the source for versioning. Options are:
 

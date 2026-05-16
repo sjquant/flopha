@@ -11,11 +11,13 @@ title: Version Patterns
 - `{minor}`
 - `{patch}`
 
+Use `{semver}` as shorthand for `{major}.{minor}.{patch}`.
+
 ## Common examples
 
 ```bash
 flopha last-version --pattern "v{major}.{minor}.{patch}"
-flopha next-version --pattern "desktop@{major}.{minor}.{patch}"
+flopha next-version --pattern "desktop@{semver}"
 flopha next-version --pattern "release/{major}.{minor}.{patch}" --source branch
 ```
 
@@ -26,6 +28,7 @@ The pattern is converted into a full regular expression internally. Static text 
 That means:
 
 - `desktop@{major}.{minor}.{patch}` matches `desktop@1.3.7`
+- `desktop@{semver}` matches `desktop@1.3.7`
 - `release/{major}.{minor}.{patch}` matches `release/2.0.0`
 - `v1.{minor}.{patch}` scopes operations to the `1.x` line
 

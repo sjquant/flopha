@@ -23,7 +23,7 @@ inputs:
     required: false
     default: 'patch'
   pattern:
-    description: "Tag pattern, e.g. 'v{major}.{minor}.{patch}' or 'app@{major}.{minor}.{patch}'."
+    description: "Tag pattern, e.g. 'v{major}.{minor}.{patch}' or 'app@{semver}'."
     required: false
     default: 'v{major}.{minor}.{patch}'
   pre:
