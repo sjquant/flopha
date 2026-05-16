@@ -70,7 +70,7 @@ jobs:
         with:
           tag_name: v${{ steps.version_check.outputs.new_version }}
           draft: true
-          # body: ${{ steps.changelog.outputs.changelog }}
+          body: ${{ steps.changelog.outputs.changelog }}
 
   build-release:
     needs: prepare-release
