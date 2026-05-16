@@ -277,7 +277,7 @@ pub fn commits_since_tag_with_info(
     Ok(commits)
 }
 
-/// Returns every commit reachable from HEAD (or `to` if it resolves), used when there is no prior tag.
+/// Returns every commit reachable from `to` (or HEAD when `to` is None), used when there is no prior tag.
 pub fn all_commits_with_info(
     repo: &Repository,
     to: Option<&str>,
@@ -314,10 +314,7 @@ fn push_revwalk_start(
             .or_else(|_| repo.revparse_single(to_ref))
         {
             Ok(obj) => revwalk.push(obj.peel_to_commit()?.id()),
-            Err(_) => Err(git2::Error::from_str(&format!(
-                "tag '{}' not found",
-                to_ref
-            ))),
+            Err(_) => Err(git2::Error::from_str(&format!("'{}' not found", to_ref))),
         },
         None => revwalk.push_head(),
     }

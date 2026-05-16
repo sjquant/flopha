@@ -1138,8 +1138,22 @@ mod tests {
             format: OutputFormat::Text,
         };
 
-        // Should walk full history and produce output without error.
+        let out_path = format!("{}/out.txt", td.path().display());
+        let args = ChangelogArgs {
+            output: Some(out_path.clone()),
+            ..args
+        };
         changelog(td.path(), &args).unwrap();
+
+        let content = std::fs::read_to_string(&out_path).unwrap();
+        assert!(
+            content.contains("initial feature"),
+            "should include all commits when no prior tag"
+        );
+        assert!(
+            content.contains("startup crash"),
+            "should include all commits when no prior tag"
+        );
     }
 
     #[test]
