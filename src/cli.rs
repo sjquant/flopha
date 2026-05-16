@@ -242,9 +242,9 @@ pub struct ChangelogArgs {
     )]
     pub title: Option<String>,
     #[clap(
-        help = "Target version label for this changelog entry (e.g. v1.2.3). \
-                Display-only: does not affect which commits are included (use --from for that). \
-                The tag does not need to exist yet. Exposed as {to} in the --title template.",
+        help = "Upper bound for the changelog (e.g. v1.2.3). The tag must exist. \
+                Limits which commits are included and is exposed as {to} in the --title template. \
+                Use --title directly when the tag does not exist yet (e.g. in CI before tagging).",
         long
     )]
     pub to: Option<String>,

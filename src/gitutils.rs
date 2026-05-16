@@ -249,6 +249,7 @@ pub struct CommitInfo {
 pub fn commits_since_tag_with_info(
     repo: &Repository,
     tag_name: &str,
+    to: Option<&str>,
 ) -> Result<Vec<CommitInfo>, git2::Error> {
     let tag_obj = repo
         .revparse_single(&format!("refs/tags/{}", tag_name))
@@ -257,7 +258,7 @@ pub fn commits_since_tag_with_info(
     let tag_commit_oid = tag_obj.peel_to_commit()?.id();
 
     let mut revwalk = repo.revwalk()?;
-    revwalk.push_head()?;
+    push_revwalk_start(repo, &mut revwalk, to)?;
     revwalk.hide(tag_commit_oid)?;
     revwalk.set_sorting(git2::Sort::TOPOLOGICAL)?;
 
@@ -274,6 +275,49 @@ pub fn commits_since_tag_with_info(
         }
     }
     Ok(commits)
+}
+
+/// Returns every commit reachable from `to` (or HEAD when `to` is None), used when there is no prior tag.
+pub fn all_commits_with_info(
+    repo: &Repository,
+    to: Option<&str>,
+) -> Result<Vec<CommitInfo>, git2::Error> {
+    let mut revwalk = repo.revwalk()?;
+    push_revwalk_start(repo, &mut revwalk, to)?;
+    revwalk.set_sorting(git2::Sort::TOPOLOGICAL)?;
+
+    let mut commits = Vec::new();
+    for oid in revwalk {
+        let oid = oid?;
+        let commit = repo.find_commit(oid)?;
+        if let Some(msg) = commit.message() {
+            let id_str = oid.to_string();
+            commits.push(CommitInfo {
+                short_id: id_str[..7.min(id_str.len())].to_string(),
+                message: msg.to_string(),
+            });
+        }
+    }
+    Ok(commits)
+}
+
+/// Pushes the revwalk start point to the `to` tag's commit, or HEAD when `to` is None.
+/// Returns an error if `to` is given but does not resolve to a known git object.
+fn push_revwalk_start(
+    repo: &Repository,
+    revwalk: &mut git2::Revwalk,
+    to: Option<&str>,
+) -> Result<(), git2::Error> {
+    match to {
+        Some(to_ref) => match repo
+            .revparse_single(&format!("refs/tags/{}", to_ref))
+            .or_else(|_| repo.revparse_single(to_ref))
+        {
+            Ok(obj) => revwalk.push(obj.peel_to_commit()?.id()),
+            Err(_) => Err(git2::Error::from_str(&format!("'{}' not found", to_ref))),
+        },
+        None => revwalk.push_head(),
+    }
 }
 
 /// Returns commit messages for every commit reachable from HEAD that was made

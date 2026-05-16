@@ -233,24 +233,18 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
         .clone()
         .unwrap_or("v{major}.{minor}.{patch}".to_string());
 
-    let from_tag = if let Some(ref from) = args.from {
-        from.clone()
+    let from_tag: Option<String> = if let Some(ref from) = args.from {
+        Some(from.clone())
     } else {
         let versioner = versioner_factory(&repo, pattern, &args.source);
-        match versioner.last_version() {
-            Some(v) => v.tag,
-            None => {
-                match args.format {
-                    OutputFormat::Json => println!("null"),
-                    OutputFormat::Text => println!("No version found"),
-                }
-                return Ok(());
-            }
-        }
+        versioner.last_version().map(|v| v.tag)
     };
 
     let group_rules = build_group_rules(&args.group)?;
-    let commits = gitutils::commits_since_tag_with_info(&repo, &from_tag)?;
+    let commits = match &from_tag {
+        Some(tag) => gitutils::commits_since_tag_with_info(&repo, tag, args.to.as_deref())?,
+        None => gitutils::all_commits_with_info(&repo, args.to.as_deref())?,
+    };
 
     // Pre-build ordered section labels from the rules (deduplicated).
     let mut group_order: Vec<String> = Vec::new();
@@ -311,17 +305,22 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
                     "--title contains {{to}} but --to was not supplied; placeholder will be empty"
                 );
             }
-            t.replace("{from}", &from_tag)
+            t.replace("{from}", from_tag.as_deref().unwrap_or(""))
                 .replace("{to}", args.to.as_deref().unwrap_or(""))
         }
         None => match &args.to {
             Some(to) => format!("Changes in {}", to),
-            None => format!("Changelog since {}", from_tag),
+            None => match &from_tag {
+                Some(from) => format!("Changelog since {}", from),
+                None => "Initial Changelog".to_string(),
+            },
         },
     };
 
     let content = match args.format {
-        OutputFormat::Json => format_changelog_json(&title, &from_tag, args.to.as_deref(), &groups),
+        OutputFormat::Json => {
+            format_changelog_json(&title, from_tag.as_deref(), args.to.as_deref(), &groups)
+        }
         OutputFormat::Text => format_changelog_text(&title, &groups),
     };
 
@@ -405,7 +404,7 @@ fn format_changelog_text(title: &str, groups: &[(String, Vec<ChangelogEntry>)]) 
 
 fn format_changelog_json(
     title: &str,
-    from: &str,
+    from: Option<&str>,
     to: Option<&str>,
     groups: &[(String, Vec<ChangelogEntry>)],
 ) -> String {
@@ -1076,6 +1075,137 @@ mod tests {
         changelog(td.path(), &args).unwrap();
     }
 
+    #[test]
+    fn test_changelog_historical_range() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        create_new_remote_tag(&repo, &mut remote, "v1.0.0", false);
+        gitutils::commit(&repo, "✨ Add feature A").unwrap();
+        gitutils::commit(&repo, "🐛 Fix bug B").unwrap();
+        create_new_remote_tag(&repo, &mut remote, "v1.1.0", false);
+        // commits after v1.1.0 — should NOT appear in the v1.0.0..v1.1.0 slice
+        gitutils::commit(&repo, "✨ Add feature C").unwrap();
+
+        let args = ChangelogArgs {
+            from: Some("v1.0.0".to_string()),
+            to: Some("v1.1.0".to_string()),
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            source: VersionSourceName::Tag,
+            group: vec![],
+            other: None,
+            title: None,
+            overwrite: false,
+            output: Some(format!("{}/out.txt", td.path().display())),
+            format: OutputFormat::Text,
+        };
+
+        changelog(td.path(), &args).unwrap();
+
+        let content = std::fs::read_to_string(format!("{}/out.txt", td.path().display())).unwrap();
+        assert!(
+            content.contains("feature A"),
+            "should include commits up to v1.1.0"
+        );
+        assert!(
+            content.contains("bug B"),
+            "should include commits up to v1.1.0"
+        );
+        assert!(
+            !content.contains("feature C"),
+            "should exclude commits after v1.1.0"
+        );
+    }
+
+    #[test]
+    fn test_changelog_no_prior_tag() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, _remote) = testutils::init_remote(&repo);
+
+        gitutils::commit(&repo, "✨ Add initial feature").unwrap();
+        gitutils::commit(&repo, "🐛 Fix startup crash").unwrap();
+
+        let args = ChangelogArgs {
+            from: None,
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            source: VersionSourceName::Tag,
+            group: vec!["New Features:^✨".to_string(), "Bug Fixes:^🐛".to_string()],
+            other: None,
+            title: None,
+            to: None,
+            overwrite: false,
+            output: None,
+            format: OutputFormat::Text,
+        };
+
+        let out_path = format!("{}/out.txt", td.path().display());
+        let args = ChangelogArgs {
+            output: Some(out_path.clone()),
+            ..args
+        };
+        changelog(td.path(), &args).unwrap();
+
+        let content = std::fs::read_to_string(&out_path).unwrap();
+        assert!(
+            content.contains("initial feature"),
+            "should include all commits when no prior tag"
+        );
+        assert!(
+            content.contains("startup crash"),
+            "should include all commits when no prior tag"
+        );
+    }
+
+    #[test]
+    fn test_changelog_no_prior_tag_json_from_is_null() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, _remote) = testutils::init_remote(&repo);
+
+        gitutils::commit(&repo, "✨ Add initial feature").unwrap();
+
+        let args = ChangelogArgs {
+            from: None,
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            source: VersionSourceName::Tag,
+            group: vec![],
+            other: None,
+            title: None,
+            to: None,
+            overwrite: false,
+            output: Some(format!("{}/out.json", td.path().display())),
+            format: OutputFormat::Json,
+        };
+
+        changelog(td.path(), &args).unwrap();
+
+        let content = std::fs::read_to_string(format!("{}/out.json", td.path().display())).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&content).expect("valid JSON");
+        assert!(v["from"].is_null(), "from should be null when no prior tag");
+    }
+
+    #[test]
+    fn test_changelog_to_nonexistent_tag_errors() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, _remote) = testutils::init_remote(&repo);
+
+        gitutils::commit(&repo, "✨ Add feature").unwrap();
+
+        let args = ChangelogArgs {
+            from: None,
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            source: VersionSourceName::Tag,
+            group: vec![],
+            other: None,
+            title: None,
+            to: Some("v99.0.0".to_string()),
+            overwrite: false,
+            output: None,
+            format: OutputFormat::Text,
+        };
+
+        assert!(changelog(td.path(), &args).is_err());
+    }
+
     fn create_new_remote_tag(
         repo: &git2::Repository,
         remote: &mut git2::Remote,
@@ -1118,7 +1248,7 @@ mod tests {
                 }],
             ),
         ];
-        let json = format_changelog_json("Changelog since v1.0.0", "v1.0.0", None, &groups);
+        let json = format_changelog_json("Changelog since v1.0.0", Some("v1.0.0"), None, &groups);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
 
         assert_eq!(v["title"], "Changelog since v1.0.0");
@@ -1142,7 +1272,7 @@ mod tests {
         )];
         let json = format_changelog_json(
             r#"Release v1.0.0"edge""#,
-            r#"v1.0.0"edge"#,
+            Some(r#"v1.0.0"edge"#),
             Some(r#"v1.0.0"edge""#),
             &groups,
         );
@@ -1162,7 +1292,7 @@ mod tests {
 
     #[test]
     fn test_changelog_json_empty_groups() {
-        let json = format_changelog_json("Changelog since v1.0.0", "v1.0.0", None, &[]);
+        let json = format_changelog_json("Changelog since v1.0.0", Some("v1.0.0"), None, &[]);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(v["from"], "v1.0.0");
         assert!(v.get("to").is_none());
@@ -1178,7 +1308,8 @@ mod tests {
                 hash: "abc1234".to_string(),
             }],
         )];
-        let json = format_changelog_json("Changes in v1.1.0", "v1.0.0", Some("v1.1.0"), &groups);
+        let json =
+            format_changelog_json("Changes in v1.1.0", Some("v1.0.0"), Some("v1.1.0"), &groups);
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(v["title"], "Changes in v1.1.0");
         assert_eq!(v["from"], "v1.0.0");
