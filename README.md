@@ -6,13 +6,13 @@ Use flopha when you want a lightweight release management tool for Git repositor
 
 ## GitHub Action
 
-Use flopha as a GitHub Action to auto-tag the next semantic version and optionally create a GitHub Release — no setup required.
+Use flopha as a GitHub Action to auto-tag the next semantic version and optionally create a GitHub Release. No setup required.
 
 ```yaml
 - uses: sjquant/flopha@v1
 ```
 
-→ [Full action docs: inputs, outputs, and examples](docs/github-action.md)
+See [Full action docs: inputs, outputs, and examples](docs/github-action.md).
 
 ---
 
@@ -40,96 +40,37 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
 
 ## Quickstart
 
-1.  Get the last version:
-
-    ```
-    flopha last-version
-    ```
-
-2.  Check out to the last version:
-
-    ```
-    flopha last-version --checkout
-    ```
-
-3.  Calculate the next version:
-
-    ```
-    flopha next-version
-    ```
-
-4.  Use a custom version pattern:
-
-    ```
-    flopha next-version --pattern "desktop@{semver}"
-    ```
-
-5.  Auto-detect the next bump from conventional commits:
-
-    ```
-    flopha next-version --auto
-    ```
-
-6.  Override auto-detection with custom rules:
-
-    ```
-    flopha next-version --auto --rule 'major:BREAKING CHANGE' --rule 'minor:^feat'
-    ```
-
-7.  Preview a pre-release version:
-
-    ```
-    flopha next-version --pre rc
-    ```
-
-8.  Create a new version tag:
-
-    ```
-    flopha next-version --pattern "desktop@{semver}" --create
-    ```
-
-9.  Increment major version:
-
-    ```
-    flopha next-version --increment major
-    ```
-
-10.  Use branch-based versioning:
-
-    ```
-    flopha next-version --source branch
-    ```
-
-11.  Create a new version branch:
-
-    ```
-    flopha next-version --pattern "release/{major}.{minor}.{patch}" --source branch --create
-    ```
-
-12.  Show version history:
-
-    ```
-    flopha log --limit 10
-    ```
+| Task | Command |
+|---|---|
+| Get the last version | `flopha last-version` |
+| Check out the last version | `flopha last-version --checkout` |
+| Calculate the next patch version | `flopha next-version` |
+| Use a custom tag pattern | `flopha next-version --pattern "desktop@{semver}"` |
+| Auto-detect the next bump from commits | `flopha next-version --auto` |
+| Override auto-detection rules | `flopha next-version --auto --rule 'major:BREAKING CHANGE' --rule 'minor:^feat'` |
+| Preview a pre-release version | `flopha next-version --pre rc` |
+| Create a new version tag | `flopha next-version --pattern "desktop@{semver}" --create` |
+| Create and push a new tag | `flopha next-version --create --push` |
+| Create an annotated tag | `flopha next-version --create --tag-message "Release v1.2.3"` |
+| Increment the major version | `flopha next-version --increment major` |
+| Use branch-based versioning | `flopha next-version --source branch` |
+| Create a new version branch | `flopha next-version --pattern "release/{semver}" --source branch --create` |
+| Show version history | `flopha log --limit 10` |
+| Generate a changelog | `flopha changelog --pattern "mobile@{semver}" --from mobile@26.33.0 --to mobile@26.34.0` |
+| Write a changelog file for the next version | `flopha changelog --title "Changes in $(flopha next-version)" --output CHANGELOG.md` |
 
 ## CLI Commands
 
 ### NextVersion
 
-Calculates and displays the next version based on the current version in the repository.
+Calculates and displays the next version based on the latest matching tag or branch.
 Aliases: `nv`
 
 #### Options
 
-- `-i`, `--increment <INCREMENT>`: Specify the version part to increment. Options are:
+- `-i`, `--increment <major|minor|patch>`: Explicit bump level. Default: `patch`.
 
-  - `major`
-  - `minor`
-  - `patch`
-
-  Default: `patch`
-
-- `--auto`: Auto-detect the bump level from commit messages since the last tag. This currently works with tag-based versioning. Built-in conventional commit behavior is:
+- `--auto`: Auto-detect the bump level from commit messages since the last version. Built-in conventional commit behavior is:
 
   - `BREAKING CHANGE` or `BREAKING-CHANGE` -> `major`
   - `<type>!:` or `<type>(<scope>)!:` -> `major`
@@ -146,12 +87,15 @@ Aliases: `nv`
 
 - `--pre <CHANNEL>`: Format the next version as a pre-release on the given channel. Example: `--pre alpha` produces `v1.2.3-alpha.1`.
 
-- `-s`, `--source <SOURCE>`: Specify the source for versioning. Options are:
-
-  - `tag` (default)
-  - `branch`
+- `-s`, `--source <tag|branch>`: Read versions from tags or branches. Default: `tag`.
 
 - `-c`, `--create`: Create the next tag or branch in Git.
+
+- `--tag-message <MESSAGE>`: Create an annotated tag with the given message. Requires `--create` and tag source.
+
+- `--push`: Push the created tag or branch to `origin`. Requires `--create`.
+
+- `-f`, `--format <text|json>`: Output format. Default: `text`.
 
 ### LastVersion
 
@@ -162,12 +106,11 @@ Aliases: `lv`
 
 - `-p`, `--pattern <PATTERN>`: Get the last version based on a given pattern (e.g., `v{major}.{minor}.{patch}` or `v{semver}`).
 
-- `-s`, `--source <SOURCE>`: Specify the source for versioning. Options are:
-
-  - `tag` (default)
-  - `branch`
+- `-s`, `--source <tag|branch>`: Read versions from tags or branches. Default: `tag`.
 
 - `-c`, `--checkout`: Check out the last matching version.
+
+- `-f`, `--format <text|json>`: Output format. Default: `text`.
 
 ### Log
 
@@ -178,18 +121,58 @@ Aliases: `lg`
 
 - `-p`, `--pattern <PATTERN>`: Filter versions by a pattern such as `v{major}.{minor}.{patch}` or `v{semver}`.
 
-- `-s`, `--source <SOURCE>`: Specify the source for versioning. Options are:
-
-  - `tag` (default)
-  - `branch`
+- `-s`, `--source <tag|branch>`: Read versions from tags or branches. Default: `tag`.
 
   Tag mode provides full timeline metadata. Branch mode still lists matching versions, but tag dates and commit counts are not available.
 
 - `-n`, `--limit <LIMIT>`: Limit the number of versions shown.
 
+- `-f`, `--format <text|json>`: Output format. Default: `text`.
+
+### Changelog
+
+Generates a changelog from commits since the last matching version or a specific starting tag.
+Aliases: `cl`
+
+#### Options
+
+- `--from <TAG>`: Tag to start from. Defaults to the latest version matching `--pattern`.
+
+- `--to <VERSION>`: Upper bound for the changelog. The tag must exist when limiting commit history. Also available as `{to}` in `--title`.
+
+- `-p`, `--pattern <PATTERN>`: Match a custom version format. `{semver}` expands to `{major}.{minor}.{patch}`.
+
+- `-s`, `--source <tag|branch>`: Read versions from tags or branches when resolving the default `--from`. Default: `tag`.
+
+- `--group <TITLE:PATTERN>`: Custom changelog group rule. Repeatable. When any group is provided, it replaces the built-in defaults.
+
+- `--other <TITLE>`: Title for commits that match no group. Pass an empty string to suppress unmatched commits. Default: `Other Changes`.
+
+- `--title <TEMPLATE>`: Heading template. Use `{from}` and `{to}` placeholders.
+
+- `-o`, `--output <FILE>`: Write to a file instead of stdout. Existing content is prepended by default.
+
+- `--overwrite`: Replace the output file instead of prepending.
+
+- `-f`, `--format <text|json>`: Output format. Default: `text`.
+
+Default changelog groups:
+
+| Section | Matched commits |
+|---|---|
+| Breaking Changes | `BREAKING CHANGE`, `BREAKING-CHANGE`, or `type!:` |
+| Features | `feat:` or `feat(scope):` |
+| Bug Fixes | `fix:` or `fix(scope):` |
+| Other Changes | Everything else |
+
 ### Global Options
 
 - `-v`, `--verbose`: Enable verbose output for detailed information.
+
+## Default Behavior
+
+- The CLI fetches from the `origin` remote before resolving versions.
+- The default version pattern is `v{major}.{minor}.{patch}`. Use `v{semver}` as a shorter equivalent.
 
 ## Contributing
 
