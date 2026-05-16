@@ -89,7 +89,7 @@ pub struct NextVersionArgs {
     pub pre: Option<String>,
     #[clap(
         help = "Specify a custom pattern for version matching and generation. \
-                Use {major}, {minor}, and {patch} as placeholders. \
+                Use {major}, {minor}, and {patch} as placeholders, or {semver} as shorthand. \
                 Example: 'v{major}.{minor}.{patch}' or 'release-{major}.{minor}.{patch}'",
         long,
         short = 'p'
@@ -135,7 +135,7 @@ pub struct NextVersionArgs {
 #[derive(Args, Debug)]
 pub struct LastVersionArgs {
     #[clap(
-        help = "Get last version based on a given pattern (e.g., 'v{major}.{minor}.{patch}')",
+        help = "Get last version based on a given pattern (e.g., 'v{major}.{minor}.{patch}' or 'v{semver}')",
         long,
         short = 'p'
     )]
@@ -163,7 +163,7 @@ pub struct LastVersionArgs {
 #[derive(Args, Debug)]
 pub struct LogArgs {
     #[clap(
-        help = "Pattern for version matching (e.g., 'v{major}.{minor}.{patch}')",
+        help = "Pattern for version matching (e.g., 'v{major}.{minor}.{patch}' or 'v{semver}')",
         long,
         short = 'p'
     )]
@@ -202,7 +202,7 @@ pub struct ChangelogArgs {
     )]
     pub from: Option<String>,
     #[clap(
-        help = "Pattern for version matching (e.g., 'v{major}.{minor}.{patch}')",
+        help = "Pattern for version matching (e.g., 'v{major}.{minor}.{patch}' or 'v{semver}')",
         long,
         short = 'p'
     )]

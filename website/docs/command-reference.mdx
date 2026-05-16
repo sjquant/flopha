@@ -15,7 +15,7 @@ flopha last-version [--pattern <pattern>] [--source <tag|branch>] [--checkout] [
 
 Options:
 
-- `--pattern`, `-p`: Match a custom version format.
+- `--pattern`, `-p`: Match a custom version format. `{semver}` expands to `{major}.{minor}.{patch}`.
 - `--source`, `-s`: Read versions from tags or branches. Default is `tag`.
 - `--checkout`: Check out the resolved version after printing it.
 - `--format`, `-f`: Output format — `text` (default) or `json`.
@@ -33,6 +33,8 @@ flopha next-version \
   [--pattern <pattern>] \
   [--source <tag|branch>] \
   [--create] \
+  [--tag-message <message>] \
+  [--push] \
   [--format <text|json>]
 ```
 
@@ -42,9 +44,11 @@ Options:
 - `--auto`: Detect the bump from commit messages since the last version.
 - `--rule`: Replace the built-in auto-detection rules. Requires `--auto`.
 - `--pre`: Create a pre-release tag like `-alpha.1` or `-rc.1`.
-- `--pattern`, `-p`: Match and generate a custom version format.
+- `--pattern`, `-p`: Match and generate a custom version format. `{semver}` expands to `{major}.{minor}.{patch}`.
 - `--source`, `-s`: Read versions from tags or branches. Default is `tag`.
 - `--create`: Create the new tag or branch after printing it.
+- `--tag-message`: Create an annotated tag with the given message. Requires `--create` and tag source.
+- `--push`: Push the created tag or branch to `origin`. Requires `--create`.
 - `--format`, `-f`: Output format — `text` (default) or `json`.
 
 ## `flopha log`
@@ -57,7 +61,7 @@ flopha log [--pattern <pattern>] [--source <tag|branch>] [--limit <number>] [--f
 
 Options:
 
-- `--pattern`, `-p`: Match a custom version format.
+- `--pattern`, `-p`: Match a custom version format. `{semver}` expands to `{major}.{minor}.{patch}`.
 - `--source`, `-s`: Read versions from tags or branches. Default is `tag`.
 - `--limit`, `-n`: Limit the number of rows.
 - `--format`, `-f`: Output format — `text` (default) or `json`.
@@ -84,7 +88,7 @@ Options:
 
 - `--from`: Tag to start from. Defaults to the latest matching tag.
 - `--to`: Target version label (does not need to exist as a tag yet). Exposed as `{to}` in `--title`. Useful for stamping the upcoming version before creating the tag.
-- `--pattern`, `-p`: Match a custom version format.
+- `--pattern`, `-p`: Match a custom version format. `{semver}` expands to `{major}.{minor}.{patch}`.
 - `--source`, `-s`: Read versions from tags or branches. Default is `tag`.
 - `--group`: Custom group rule as `TITLE:REGEX`. Repeatable. When any `--group` flags are given they replace the built-in defaults entirely. Commits not matching any group are collected under the fallback group.
 - `--other`: Title for commits that match no group. Pass an empty string to suppress them entirely. Default: `"Other Changes"`.
@@ -128,4 +132,4 @@ When no `--group` flags are provided, commits are classified as:
 
 - `--verbose`, `-v` enables debug logging.
 - The CLI fetches from the `origin` remote before resolving versions.
-- The default version pattern is `v{major}.{minor}.{patch}`.
+- The default version pattern is `v{major}.{minor}.{patch}`. Use `v{semver}` as a shorter equivalent.

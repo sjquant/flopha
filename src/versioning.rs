@@ -3,6 +3,9 @@ use regex::Regex;
 
 use crate::error::FlophaError;
 
+const SEMVER_ALIAS: &str = "{semver}";
+const SEMVER_PATTERN: &str = "{major}.{minor}.{patch}";
+
 /// A single rule that maps a regex pattern (matched against a commit message) to an
 /// [`Increment`] level.  Rules are evaluated with major > minor > patch precedence.
 pub struct BumpRule {
@@ -88,6 +91,7 @@ pub enum Increment {
 
 impl Versioner {
     pub fn new(tags: Vec<String>, pattern: String) -> Self {
+        let pattern = pattern.replace(SEMVER_ALIAS, SEMVER_PATTERN);
         Self { tags, pattern }
     }
 
@@ -301,6 +305,32 @@ mod tests {
         );
     }
 
+    /// It expands `{semver}` when matching versions.
+    #[test]
+    fn test_last_version_with_semver_alias() {
+        // Given
+        let tags = vec![
+            "mobile@26.33.0".to_string(),
+            "mobile@26.34.0".to_string(),
+            "desktop@26.35.0".to_string(),
+        ];
+        let versioner = Versioner::new(tags, "mobile@{semver}".to_string());
+
+        // When
+        let last_version = versioner.last_version();
+
+        // Then
+        assert_eq!(
+            last_version,
+            Some(Version::new(
+                "mobile@26.34.0".to_string(),
+                Some(26),
+                Some(34),
+                Some(0)
+            ))
+        );
+    }
+
     #[test]
     fn test_next_version() {
         let tags = vec![
@@ -359,6 +389,28 @@ mod tests {
         );
         let next_version = versioner.next_version(Increment::Major).unwrap();
         assert_eq!(next_version, None);
+    }
+
+    /// It expands `{semver}` when generating the next version.
+    #[test]
+    fn test_next_version_with_semver_alias() {
+        // Given
+        let tags = vec!["mobile@26.33.0".to_string()];
+        let versioner = Versioner::new(tags, "mobile@{semver}".to_string());
+
+        // When
+        let next_version = versioner.next_version(Increment::Minor).unwrap();
+
+        // Then
+        assert_eq!(
+            next_version,
+            Some(Version::new(
+                "mobile@26.34.0".to_string(),
+                Some(26),
+                Some(34),
+                Some(0)
+            ))
+        );
     }
 
     #[test]

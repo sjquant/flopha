@@ -1075,6 +1075,40 @@ mod tests {
         changelog(td.path(), &args).unwrap();
     }
 
+    /// It uses `{semver}` to find the changelog baseline version.
+    #[test]
+    fn test_changelog_uses_semver_alias_for_baseline_lookup() {
+        // Given
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        create_new_remote_tag(&repo, &mut remote, "mobile@26.33.0", false);
+        gitutils::checkout_tag(&repo, "mobile@26.33.0").unwrap();
+        gitutils::commit(&repo, "feat: add mobile checkout").unwrap();
+
+        let output_path = format!("{}/out.txt", td.path().display());
+        let args = ChangelogArgs {
+            from: None,
+            pattern: Some("mobile@{semver}".to_string()),
+            source: VersionSourceName::Tag,
+            group: vec![],
+            other: None,
+            title: None,
+            to: None,
+            overwrite: false,
+            output: Some(output_path.clone()),
+            format: OutputFormat::Text,
+        };
+
+        // When
+        changelog(td.path(), &args).unwrap();
+
+        // Then
+        let content = std::fs::read_to_string(output_path).unwrap();
+        assert!(content.contains("Changelog since mobile@26.33.0"));
+        assert!(content.contains("add mobile checkout"));
+    }
+
     #[test]
     fn test_changelog_historical_range() {
         let (td, repo) = testutils::init_repo();

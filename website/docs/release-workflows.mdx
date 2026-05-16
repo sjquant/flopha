@@ -47,7 +47,7 @@ flopha next-version --source branch --pattern "release/{major}.{minor}.{patch}" 
 Use `log` to confirm what has already been published:
 
 ```bash
-flopha log --pattern "desktop@{major}.{minor}.{patch}" --limit 20
+flopha log --pattern "desktop@{semver}" --limit 20
 ```
 
 The log output includes the version, the release date, and the number of commits since the previous matching version.
