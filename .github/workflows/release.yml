@@ -37,10 +37,19 @@ jobs:
             echo "should_release=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Install flopha
+      - name: Install Rust
+        if: steps.version_check.outputs.should_release == 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build flopha
+        if: steps.version_check.outputs.should_release == 'true'
+        shell: bash
+        run: cargo build --release
+
+      - name: Install local flopha
         if: steps.version_check.outputs.should_release == 'true'
         env:
-          FLOPHA_VERSION: latest
+          FLOPHA_BINARY: ${{ github.workspace }}/target/release/flopha
         run: bash action/install.sh
 
       - name: Generate changelog
