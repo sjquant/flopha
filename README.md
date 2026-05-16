@@ -41,24 +41,39 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
 
 ## Quickstart
 
-| Task | Command |
-|---|---|
-| Get the last version | `flopha last-version` |
-| Check out the last version | `flopha last-version --checkout` |
-| Calculate the next patch version | `flopha next-version` |
-| Use a custom tag pattern | `flopha next-version --pattern "desktop@{semver}"` |
-| Auto-detect the next bump from commits | `flopha next-version --auto` |
-| Override auto-detection rules | `flopha next-version --auto --rule 'major:BREAKING CHANGE' --rule 'minor:^feat'` |
-| Preview a pre-release version | `flopha next-version --pre rc` |
-| Create a new version tag | `flopha next-version --pattern "desktop@{semver}" --create` |
-| Create and push a new tag | `flopha next-version --create --push` |
-| Create an annotated tag | `flopha next-version --create --tag-message "Release v1.2.3"` |
-| Increment the major version | `flopha next-version --increment major` |
-| Use branch-based versioning | `flopha next-version --source branch` |
-| Create a new version branch | `flopha next-version --pattern "release/{semver}" --source branch --create` |
-| Show version history | `flopha log --limit 10` |
-| Generate a changelog | `flopha changelog --pattern "mobile@{semver}" --from mobile@26.33.0 --to mobile@26.34.0` |
-| Write a changelog file for the next version | `flopha changelog --title "Changes in $(flopha next-version)" --output CHANGELOG.md` |
+Run commands inside a Git repository with release tags such as `v1.2.3`.
+
+Check the latest version:
+
+```sh
+flopha last-version
+```
+
+Calculate the next patch version:
+
+```sh
+flopha next-version
+```
+
+Let commit messages decide the bump:
+
+```sh
+flopha next-version --auto
+```
+
+Create the next version in Git:
+
+```sh
+flopha next-version --create
+```
+
+Show recent release history:
+
+```sh
+flopha log --limit 10
+```
+
+For custom tag names like `mobile@1.2.3`, use a pattern such as `mobile@{semver}`. See the command reference below or the [official docs](https://sjquant.github.io/flopha) for release branches, changelogs, pre-releases, and CI examples.
 
 ## CLI Commands
 
