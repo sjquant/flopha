@@ -1132,7 +1132,7 @@ mod tests {
             group: vec!["New Features:^✨".to_string(), "Bug Fixes:^🐛".to_string()],
             other: None,
             title: None,
-            to: Some("v0.1.0".to_string()),
+            to: None,
             overwrite: false,
             output: None,
             format: OutputFormat::Text,
@@ -1156,7 +1156,7 @@ mod tests {
             group: vec![],
             other: None,
             title: None,
-            to: Some("v0.1.0".to_string()),
+            to: None,
             overwrite: false,
             output: Some(format!("{}/out.json", td.path().display())),
             format: OutputFormat::Json,
@@ -1167,7 +1167,29 @@ mod tests {
         let content = std::fs::read_to_string(format!("{}/out.json", td.path().display())).unwrap();
         let v: serde_json::Value = serde_json::from_str(&content).expect("valid JSON");
         assert!(v["from"].is_null(), "from should be null when no prior tag");
-        assert_eq!(v["to"], "v0.1.0");
+    }
+
+    #[test]
+    fn test_changelog_to_nonexistent_tag_errors() {
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, _remote) = testutils::init_remote(&repo);
+
+        gitutils::commit(&repo, "✨ Add feature").unwrap();
+
+        let args = ChangelogArgs {
+            from: None,
+            pattern: Some("v{major}.{minor}.{patch}".to_string()),
+            source: VersionSourceName::Tag,
+            group: vec![],
+            other: None,
+            title: None,
+            to: Some("v99.0.0".to_string()),
+            overwrite: false,
+            output: None,
+            format: OutputFormat::Text,
+        };
+
+        assert!(changelog(td.path(), &args).is_err());
     }
 
     fn create_new_remote_tag(

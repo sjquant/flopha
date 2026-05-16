@@ -301,7 +301,8 @@ pub fn all_commits_with_info(
     Ok(commits)
 }
 
-/// Pushes the revwalk start point: the `to` tag's commit when it resolves, HEAD otherwise.
+/// Pushes the revwalk start point to the `to` tag's commit, or HEAD when `to` is None.
+/// Returns an error if `to` is given but does not resolve to a known git object.
 fn push_revwalk_start(
     repo: &Repository,
     revwalk: &mut git2::Revwalk,
@@ -313,7 +314,10 @@ fn push_revwalk_start(
             .or_else(|_| repo.revparse_single(to_ref))
         {
             Ok(obj) => revwalk.push(obj.peel_to_commit()?.id()),
-            Err(_) => revwalk.push_head(),
+            Err(_) => Err(git2::Error::from_str(&format!(
+                "tag '{}' not found",
+                to_ref
+            ))),
         },
         None => revwalk.push_head(),
     }

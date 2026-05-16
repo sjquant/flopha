@@ -49,7 +49,7 @@ jobs:
         shell: bash
         run: |
           prev_tag=$(flopha lv --pattern 'v{major}.{minor}.{patch}' --format json | jq -r '.version // empty')
-          CL_ARGS=(--to "v${{ steps.version_check.outputs.new_version }}")
+          CL_ARGS=(--title "Changes in v${{ steps.version_check.outputs.new_version }}")
           [ -n "$prev_tag" ] && CL_ARGS+=(--from "$prev_tag")
           CL_EOF="__FLOPHA_CL_${RANDOM}${RANDOM}__"
           {

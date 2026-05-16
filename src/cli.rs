@@ -242,10 +242,9 @@ pub struct ChangelogArgs {
     )]
     pub title: Option<String>,
     #[clap(
-        help = "Upper bound for the changelog (e.g. v1.2.3). When the tag exists it limits \
-                which commits are included; when it does not exist yet (e.g. in CI before \
-                tagging) it falls back to HEAD and is used as a display label only. \
-                Exposed as {to} in the --title template.",
+        help = "Upper bound for the changelog (e.g. v1.2.3). The tag must exist. \
+                Limits which commits are included and is exposed as {to} in the --title template. \
+                Use --title directly when the tag does not exist yet (e.g. in CI before tagging).",
         long
     )]
     pub to: Option<String>,
