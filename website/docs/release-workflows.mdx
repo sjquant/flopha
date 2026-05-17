@@ -65,7 +65,7 @@ All flopha commands output plain text by default and `--format json` for machine
 NEXT=$(flopha next-version --auto --format json | jq -r '.version')
 
 # 2. Generate changelog headed with the upcoming version
-flopha changelog --to "$NEXT" --output CHANGELOG.md
+flopha changelog --title "Changes in $NEXT" --output CHANGELOG.md
 
 # 3. Commit the updated changelog
 git add CHANGELOG.md
@@ -76,7 +76,7 @@ flopha next-version --auto --create
 git push origin "$NEXT"
 ```
 
-`--to` stamps the target version into the changelog heading **before** the tag exists, so the commit and the tag refer to the same version string.
+`--title` stamps the upcoming version into the changelog heading before the tag exists. Use `--to` only when limiting the changelog to an existing tag or ref.
 
 ### GitHub Actions — using the action
 
@@ -140,7 +140,7 @@ jobs:
         run: echo "tag=$(flopha next-version --auto --format json | jq -r '.version')" >> $GITHUB_OUTPUT
 
       - name: Generate changelog
-        run: flopha changelog --to "${{ steps.version.outputs.tag }}" --output CHANGELOG.md
+        run: flopha changelog --title "Changes in ${{ steps.version.outputs.tag }}" --output CHANGELOG.md
 
       - name: Commit changelog
         run: |
@@ -168,8 +168,8 @@ flopha next-version --auto --format json | jq -r '.version'
 # List recent releases as JSON array
 flopha log --limit 5 --format json
 
-# Generate changelog as structured data
-flopha changelog --to "v2.0.0" --format json | jq '.groups[].title'
+# Generate changelog as structured data for a historical range
+flopha changelog --from "v1.9.0" --to "v2.0.0" --format json | jq '.groups[].title'
 ```
 
 ### Reusable release script
@@ -183,7 +183,7 @@ set -euo pipefail
 NEXT=$(flopha next-version --auto --format json | jq -r '.version')
 echo "Releasing $NEXT"
 
-flopha changelog --to "$NEXT" --output CHANGELOG.md
+flopha changelog --title "Changes in $NEXT" --output CHANGELOG.md
 git add CHANGELOG.md
 git diff --staged --quiet || git commit -m "chore: release $NEXT"
 git push
