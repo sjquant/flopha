@@ -73,7 +73,7 @@ Generate a changelog from commits since the last (or a given) version.
 ```bash
 flopha changelog \
   [--from <tag>] \
-  [--to <version>] \
+  [--to <tag>] \
   [--pattern <pattern>] \
   [--source <tag|branch>] \
   [--group <TITLE:REGEX>] \
@@ -87,12 +87,12 @@ flopha changelog \
 Options:
 
 - `--from`: Tag to start from. Defaults to the latest matching tag.
-- `--to`: Target version label (does not need to exist as a tag yet). Exposed as `{to}` in `--title`. Useful for stamping the upcoming version before creating the tag.
+- `--to`: Existing tag or ref to use as the upper bound for the changelog. The value must exist in Git because it limits which commits are included. It is exposed as `{to}` in `--title`.
 - `--pattern`, `-p`: Match a custom version format. `{semver}` expands to `{major}.{minor}.{patch}`.
 - `--source`, `-s`: Read versions from tags or branches. Default is `tag`.
 - `--group`: Custom group rule as `TITLE:REGEX`. Repeatable. When any `--group` flags are given they replace the built-in defaults entirely. Commits not matching any group are collected under the fallback group.
 - `--other`: Title for commits that match no group. Pass an empty string to suppress them entirely. Default: `"Other Changes"`.
-- `--title`: Heading template. Use `{from}` for the starting tag and `{to}` for the target version. Defaults to `"Changes in {to}"` when `--to` is given, otherwise `"Changelog since {from}"`.
+- `--title`: Heading template. Use `{from}` for the starting tag and `{to}` when `--to` is supplied. Defaults to `"Changes in {to}"` when `--to` is given, otherwise `"Changelog since {from}"`. Use `--title` directly when naming an upcoming version before its tag exists.
 - `--output`, `-o`: Write to a file instead of stdout. By default the new content is **prepended** to any existing file content.
 - `--overwrite`: Replace the output file instead of prepending.
 - `--format`, `-f`: Output format — `text` (default, Markdown) or `json`.
