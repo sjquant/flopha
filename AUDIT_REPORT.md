@@ -10,7 +10,7 @@
 
 flopha is a small, well-scoped tool with a clean module layout (`cli` → `service` → `gitutils`/`versioning`/`version_source`), good use of `thiserror`, and a meaningful unit-test suite. The GitHub Action wrapper is carefully written (proper quoting, randomized heredoc delimiters, dry-run support).
 
-That said, the audit found **20 distinct findings**, including one severe correctness issue: **every flopha command silently rewrites the user's local branches** due to a fetch refspec that maps remote heads directly onto `refs/heads/*`. There are also scripting-contract problems ("No version found" printed to stdout with exit code 0), a changelog range-resolution bug, a user-triggerable panic, and several high-value functional gaps (no first-release bootstrap, no offline mode, no monorepo path filtering, no Windows support).
+That said, the audit found **30 distinct findings**, including one severe correctness issue: **every flopha command silently rewrites the user's local branches** due to a fetch refspec that maps remote heads directly onto `refs/heads/*`. There are also scripting-contract problems ("No version found" printed to stdout with exit code 0), a changelog range-resolution bug, a user-triggerable panic, non-idempotent auto-tagging (a re-run or docs-only merge still cuts a release), and several high-value functional gaps (no first-release bootstrap, no offline mode, no monorepo path filtering, no Windows support).
 
 Findings are ordered by priority: **High → Medium → Low**.
 
@@ -36,6 +36,16 @@ Findings are ordered by priority: **High → Medium → Low**.
 | 18 | No Windows support (build matrix + installer are Unix-only) | Functional Enhancement | Low |
 | 19 | No shell completions or man pages | Functional Enhancement | Low |
 | 20 | Dependency hygiene: direct `openssl` dep, `thiserror` 1.x, aging `git2` | Code Quality | Low |
+| 21 | `--auto` always bumps: no "no release" outcome, tagging is not idempotent | Bug | High |
+| 22 | Release binaries ship without checksums or attestations; installers can't verify | Bug (security) | Medium |
+| 23 | `next-version --create --source branch` silently switches the working tree; no-ops on existing branch | Bug | Medium |
+| 24 | Bump/changelog rules match body lines, not just the subject → false major bumps | Bug | Medium |
+| 25 | Release workflow: per-SHA concurrency race, self-bootstrap on old binary, dangling drafts | Bug / Code Quality | Medium |
+| 26 | CI never tests macOS or the shipped musl target; no dependency-security job | Code Quality | Medium |
+| 27 | Not publishable to crates.io; no tuned release profile (size/perf) | Functional Enhancement | Low |
+| 28 | `assets/.DS_Store` committed; `.gitleaksignore` misused as a path allowlist | Code Quality | Low |
+| 29 | Action dry-run is not fully side-effect free (rewrites git identity) | Bug | Low |
+| 30 | No `-C <dir>` flag: commands only operate on the current directory | Functional Enhancement | Low |
 
 ---
 
@@ -79,6 +89,15 @@ Findings are ordered by priority: **High → Medium → Low**.
 - **Impact Level:** High
 - **The Problem:** Every command calls `try_fetch_from_origin` (`src/service.rs:428-437`) before doing anything. Consequences: (a) every version query pays a full network round-trip (often seconds; worse with large repos), (b) offline/air-gapped use is impossible to opt into cleanly, (c) the GitHub Action already runs `git fetch --unshallow && git fetch --tags --force` in its own step (`action.yml:132-136`) and then invokes flopha up to **three times** (`lv`, `nv`, `changelog` in `action/run.sh`), triggering three more redundant fetches per CI run, and (d) when the fetch fails, the tool logs a warning (hidden unless `--verbose`) and continues on stale data — CI can silently tag the wrong version.
 - **The Solution:** Add a global `--no-fetch` (or `--offline`) flag and use it in the action's invocations; consider making fetch opt-in (`--fetch`) in a future major version since git-native tooling conventionally operates on local state. When a fetch *is* requested and fails, fail loudly (or at minimum print to stderr unconditionally). Within a single process, fetch at most once.
+
+### 21. `--auto` always bumps: no "no release" outcome, and tagging is not idempotent
+
+- **Category:** Bug
+- **Impact Level:** High
+- **The Problem:** `detect_increment` (`src/versioning.rs:45-59`) returns `Patch` when *nothing* matches — including when the commit list is **empty**. In `next_version` (`src/service.rs:61-75`), `commits_since_tag(...).unwrap_or_default()` additionally swallows revwalk errors into that same empty list. Two consequences for the GitHub Action, whose default is `auto: true` on push-to-main:
+  - a docs-only or `chore:`-only merge still mints a new patch tag (and optionally a GitHub Release) — there is no way to say "these commits don't warrant a release";
+  - re-running the workflow on the same commit tags the **same SHA again** with the next patch number, producing consecutive versions that point at identical code with an empty changelog. The repo's own `release.yml` defends itself with a Cargo.toml-version guard, but every external consumer of the action gets the unguarded behavior.
+- **The Solution:** Give the bump model a `None` outcome: when there are no commits since the last tag (or when a configured "no-bump" rule set matches nothing), `next-version --auto` should report "no release needed" via a distinct exit code/JSON value, and `action/run.sh` should skip tag creation. Support `none:<regex>` rule levels (or a `--require-match` flag) so teams can opt `chore:`/`docs:` commits out of releases. Also propagate `commits_since_tag` errors instead of `unwrap_or_default()` — a failed history walk should never silently become "patch bump".
 
 ---
 
@@ -132,6 +151,41 @@ Findings are ordered by priority: **High → Medium → Low**.
 - **Impact Level:** Medium
 - **The Problem:** (a) The revwalk includes merge commits, so PR-merge workflows produce changelogs whose "Other Changes" section is dominated by `Merge pull request #N` noise — every entry effectively appears twice (commits + their merge). (b) Entries render as `subject (shorthash)` with no repository URL linking, so pasting into GitHub Releases loses clickable commit/PR references. (c) `changelog --output file.json --format json` *prepends* the new JSON document to the previous one (`src/service.rs:327-337`), producing a file that is no longer valid JSON. (d) There's no `Unreleased`-style continuous CHANGELOG.md maintenance mode.
 - **The Solution:** Skip merge commits by default (or offer `--first-parent` walking, which matches squash/merge-based workflows better). Add an optional `--repo-url` (auto-derivable from `origin`) to render `[abc1234](…/commit/abc1234)` links and autolink `#123` PR references. For JSON output, either refuse `--output`-prepend mode or emit newline-delimited JSON explicitly. These three changes would make the generated changelog usable verbatim in GitHub Releases without post-processing.
+
+### 22. Release binaries ship without checksums or attestations; installers can't verify anything
+
+- **Category:** Bug (security / supply chain)
+- **Impact Level:** Medium
+- **The Problem:** `release.yml` uploads bare `flopha-<target>.tar.gz` assets with no `SHA256SUMS`, no signature, and no build provenance. Both installers (`scripts/install.sh`, `action/install.sh`) `curl … | tar` the archive straight into `$PATH` with zero integrity verification — and the README's recommended install is `curl … | sh` of a script that then downloads an unverified binary. Every CI pipeline using the flopha action executes this unverified binary with a `contents: write` token in scope. A compromised release asset (or a GitHub CDN MITM in exotic setups) would be undetectable.
+- **The Solution:** Emit a checksums file in the release job and verify it in both installers (`sha256sum -c`); adopt GitHub artifact attestations (`actions/attest-build-provenance`) or Sigstore/cosign signing, and pin the action's own third-party actions by commit SHA. Document `gh attestation verify` for security-conscious consumers. This is table stakes for a tool whose primary audience is CI systems.
+
+### 23. `next-version --create --source branch` silently switches the working tree — and no-ops when the branch exists
+
+- **Category:** Bug
+- **Impact Level:** Medium
+- **The Problem:** `BranchVersionSource::create` (`src/version_source.rs:70-77`) is implemented as `checkout_branch(repo, version, true)`, which not only creates the branch but **checks it out**, moving the user's HEAD and working tree as a hidden side effect. Tag creation (`TagVersionSource::create`) does no such thing, so the two sources behave inconsistently for the same flag. Worse, `checkout_branch`'s force path (`src/gitutils.rs:60-67`) only creates the branch *if it doesn't already exist* — if a branch with the computed name already exists (stale from an earlier failed run, pointing at an old commit), `--create` silently checks out the old branch and `--push` then pushes the **old** commit as the "new" release.
+- **The Solution:** Implement branch creation as a pure ref operation (`repo.branch(name, &head_commit, false)`) with no checkout, and fail loudly if the ref already exists (offering `--force` to move it). If switching to the release branch is desired behavior, make it explicit and shared with tags via the existing `--checkout`-style flag rather than an undocumented side effect.
+
+### 24. Bump and changelog rules match body lines, not just the subject — false major bumps
+
+- **Category:** Bug
+- **Impact Level:** Medium
+- **The Problem:** The built-in rules use multiline anchors against the **entire commit message** (`src/versioning.rs:32-38`, `src/service.rs:364-374`): any body or footer line beginning `feat:` triggers a minor bump, and `BREAKING[- ]CHANGE` matches *anywhere* — including prose like "this is not a BREAKING CHANGE" or a quoted changelog snippet in a revert commit — triggering an unintended **major** release under `--auto`. The changelog groups have the same issue and can categorize a `chore:` commit under "Features" because of a body line, while displaying only the subject (`src/service.rs:259-281`), making the miscategorization look inexplicable.
+- **The Solution:** Match type-prefix rules (`feat:`, `fix:`, `type!:`) against the subject line only, and per the Conventional Commits spec, recognize `BREAKING CHANGE:` only as a footer token (line-start, colon-terminated). Keep full-message matching available as an explicit opt-in for custom rules (e.g. a `--match-body` flag), since some teams rely on it.
+
+### 25. Release workflow: per-SHA concurrency race, self-bootstrap on the previous binary, dangling drafts
+
+- **Category:** Bug / Code Quality
+- **Impact Level:** Medium
+- **The Problem:** Three robustness gaps in `.github/workflows/release.yml`: (a) the concurrency group is `${{ github.sha }}` (`:7-9`), which only dedupes re-runs of the *same* commit — two merges landing minutes apart run the whole release pipeline **in parallel**, racing to create releases and upload assets; (b) the changelog step installs `FLOPHA_VERSION: latest` (`:40-44`), i.e. the *previous* release generates the notes for the new one — any workflow use of a newly added flag breaks the release of the very version that introduces it (the history shows this happened: `🐛 Temporary fix for newer flopha` → `⏪ Revert temporary fix`), and the first-ever release had nothing to bootstrap from; (c) if any `build-release` matrix job fails, the draft release created in `prepare-release` (`:67-73`) is left dangling and a re-run creates confusion around half-uploaded assets.
+- **The Solution:** Use a fixed concurrency group (`group: release`, `cancel-in-progress: false`) so releases queue serially; build flopha from the workspace (`cargo build --release`) for changelog generation so the new binary documents itself; and either create the draft *after* all builds succeed or add a cleanup job that deletes the draft on failure.
+
+### 26. CI never tests macOS or the shipped musl target, and has no dependency-security job
+
+- **Category:** Code Quality
+- **Impact Level:** Medium
+- **The Problem:** `ci.yml` runs `cargo test` on `ubuntu-latest` (glibc) only, yet releases ship `x86_64-unknown-linux-musl` and two macOS targets — the artifacts users actually run are never tested, and platform-specific code paths (the macOS-keychain-motivated `git_credential_fill`, vendored OpenSSL on musl) are exactly the risky ones. There is also no `cargo audit`/`cargo deny` job: because flopha statically links libgit2 and OpenSSL (finding #20), a CVE in either ships inside every existing binary and nothing alerts the maintainer to cut a patched release.
+- **The Solution:** Extend the test job to a matrix (`ubuntu-latest`, `macos-latest`, plus a `--target x86_64-unknown-linux-musl` test run), and add a scheduled `cargo audit` workflow (e.g. `rustsec/audit-check`) so vulnerable statically-linked dependencies trigger action rather than silence.
 
 ---
 
@@ -193,6 +247,34 @@ Findings are ordered by priority: **High → Medium → Low**.
 - **The Problem:** `Cargo.toml` depends on `openssl = { features = ["vendored"] }` directly even though nothing in `src/` uses it — it exists solely to force vendored OpenSSL for git2's TLS. git2 exposes this intent more precisely via its `vendored-openssl` feature. `thiserror` is pinned to major 1 (2.x has been current for a long while), and `git2 0.19` trails upstream (0.20+ tracks newer libgit2 with security fixes — relevant because flopha links libgit2 statically, so it only picks up libgit2 CVE fixes by bumping this crate and re-releasing).
 - **The Solution:** Replace the direct `openssl` dependency with `git2 = { features = ["vendored-libgit2", "vendored-openssl"] }`; bump `thiserror` and `git2`; add Dependabot/Renovate config and a scheduled `cargo audit` job so statically-linked library CVEs trigger a release instead of lingering.
 
+### 27. Not publishable to crates.io; no tuned release profile
+
+- **Category:** Functional Enhancement
+- **Impact Level:** Low
+- **The Problem:** `Cargo.toml` has no `description`, `license`, `repository`, `keywords`, or `categories`, so `cargo publish` would be rejected — `cargo install flopha` and `cargo binstall flopha` (the most natural install paths for a Rust CLI's core audience) are unavailable, leaving only the curl-pipe script. There is also no `[profile.release]` tuning and `scripts/package.sh` doesn't strip the binary, so the shipped artifact carries debug symbols on top of statically linked libgit2+OpenSSL.
+- **The Solution:** Add the package metadata and publish to crates.io (which also gives `cargo binstall` users the release-asset fast path); add `[profile.release] strip = true, lto = "thin", codegen-units = 1` for a substantially smaller, faster binary at no maintenance cost.
+
+### 28. `assets/.DS_Store` is committed, and `.gitleaksignore` is misused to paper over it
+
+- **Category:** Code Quality
+- **Impact Level:** Low
+- **The Problem:** A macOS `.DS_Store` file is checked into `assets/`, and `.gitleaksignore` contains the line `assets/.DS_Store` — but that file's documented format is *fingerprint hashes*, not paths (its own header comment says so), so the entry likely does nothing except confuse the next reader while the binary junk file stays in history and in every checkout. `.gitignore` has no `.DS_Store` rule, so it can recur.
+- **The Solution:** `git rm assets/.DS_Store`, add `.DS_Store` to `.gitignore`, and remove the bogus allowlist line. If gitleaks genuinely flags a file, record the real fingerprint or use its `[allowlist] paths` config instead.
+
+### 29. The action's dry-run is not fully side-effect free
+
+- **Category:** Bug
+- **Impact Level:** Low
+- **The Problem:** `action.yml` documents `dry-run` as "Compute and print the next tag without creating or pushing anything", but `action/run.sh:9-10` rewrites the repository's local git identity (`user.name`/`user.email` → `github-actions[bot]`) *before* the dry-run branch exits. Any subsequent workflow step that commits (changelog commits, version-bump PRs — common right after a dry-run) silently authors as the bot instead of the intended identity.
+- **The Solution:** Move the `git config` calls below the dry-run early-exit (they're only needed for tag creation), or scope them per-command with `git -c user.name=… -c user.email=… tag …` semantics — flopha itself reads the signature via libgit2, so setting config only in the create path is sufficient.
+
+### 30. No way to run against a repository other than the current directory
+
+- **Category:** Functional Enhancement
+- **Impact Level:** Low
+- **The Problem:** `main.rs:18` hardcodes `Path::new(".")`. Scripts operating on multiple checkouts (monorepo release orchestration, tooling that clones into temp dirs) must `cd` around flopha, which is awkward in Makefiles and parallel CI steps. Every service function already accepts a `path` parameter — the capability exists but is not exposed.
+- **The Solution:** Add a global `-C <dir>` flag (mirroring `git -C`) wired through to the existing `path` parameter. One clap argument, zero new plumbing.
+
 ---
 
 ## Strategic / Architectural Notes
@@ -202,6 +284,7 @@ Beyond individual findings, three structural themes recur:
 1. **Define the machine contract first.** Findings #2, #9, and #12 all stem from stdout being treated as a human console rather than an API. A single `Renderer` boundary with documented exit codes and JSON schemas would fix a class of issues and make the GitHub Action wrapper trivially robust.
 2. **Make git side effects explicit and minimal.** Findings #1, #5, and #8 share a root cause: implicit network/ref mutation on every run. A read-only-by-default core with opt-in `--fetch`/`--create`/`--push` effects is both safer and faster, and matches user expectations for git tooling.
 3. **Lean into the monorepo niche.** Pattern-scoped tags (#11), pre-release channels (#7), and first-release bootstrap (#4) together form a coherent product story — "release management for repos that ship more than one thing" — that few lightweight competitors (`git-cliff`, `svu`, `release-please`) cover in one binary.
+4. **Treat the release pipeline as a trust boundary.** flopha's main consumers are CI systems holding write tokens. Idempotent tagging (#21), verifiable artifacts (#22), serialized release runs (#25), and security-audited static dependencies (#26) are what turn a convenient tool into one a team can safely put in charge of its releases.
 
 ---
 
