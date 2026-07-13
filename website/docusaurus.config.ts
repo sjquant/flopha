@@ -9,8 +9,8 @@ const config: Config = {
   future: {
     v4: true,
   },
-  url: 'https://sjquant.github.io',
-  baseUrl: '/flopha/',
+  url: 'https://flopha.solaqua.dev',
+  baseUrl: '/',
   organizationName: 'sjquant',
   projectName: 'flopha',
   deploymentBranch: 'gh-pages',
@@ -21,7 +21,7 @@ const config: Config = {
     locales: ['en'],
   },
   customFields: {
-    docsUrl: 'https://sjquant.github.io/flopha',
+    docsUrl: 'https://flopha.solaqua.dev',
     githubUrl: 'https://github.com/sjquant/flopha',
   },
   presets: [
@@ -115,7 +115,7 @@ const config: Config = {
           items: [
             {
               label: 'Official docs',
-              href: 'https://sjquant.github.io/flopha',
+              href: 'https://flopha.solaqua.dev',
             },
             {
               label: 'GitHub',

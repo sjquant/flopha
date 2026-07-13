@@ -8,8 +8,8 @@ import styles from './index.module.css';
 
 const siteDescription =
   'flopha is a semantic versioning CLI for Git that calculates the next release, supports tags or branches, and keeps pre-releases moving without manual version math.';
-const siteUrl = 'https://sjquant.github.io/flopha/';
-const socialPreviewUrl = 'https://sjquant.github.io/flopha/img/flopha-social-preview.png';
+const siteUrl = 'https://flopha.solaqua.dev/';
+const socialPreviewUrl = 'https://flopha.solaqua.dev/img/flopha-social-preview.png';
 
 const proofPoints = [
   {
