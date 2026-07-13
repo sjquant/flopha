@@ -26,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install
 
 ## Docs
 
-- Official docs: https://sjquant.github.io/flopha
+- Official docs: https://flopha.solaqua.dev
 - Website source: `website/`
 - Local preview: `pnpm docs:start`
 - Production build: `pnpm docs:build`
@@ -73,7 +73,7 @@ Show recent release history:
 flopha log --limit 10
 ```
 
-For custom tag names like `mobile@1.2.3`, use a pattern such as `mobile@{semver}`. See the command reference below or the [official docs](https://sjquant.github.io/flopha) for release branches, changelogs, pre-releases, and CI examples.
+For custom tag names like `mobile@1.2.3`, use a pattern such as `mobile@{semver}`. See the command reference below or the [official docs](https://flopha.solaqua.dev) for release branches, changelogs, pre-releases, and CI examples.
 
 ## CLI Commands
 
