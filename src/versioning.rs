@@ -82,7 +82,8 @@ impl Version {
     }
 }
 
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Clone, PartialEq, ValueEnum, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Increment {
     Major,
     Minor,

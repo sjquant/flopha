@@ -181,6 +181,65 @@ Default changelog groups:
 | Bug Fixes | `fix:` or `fix(scope):` |
 | Other Changes | Everything else |
 
+### Release
+
+Runs the full release pipeline in one command, driven by a checked-in `flopha.toml`: compute the version bump, sync it into manifest files (`Cargo.toml`, `package.json`, `pyproject.toml`, or arbitrary regex targets), commit, create an annotated tag, push, generate a changelog, and create a GitHub Release.
+Aliases: `rel`
+
+#### Options
+
+- `-c`, `--config <FILE>`: Path to the config file. Default: `flopha.toml`.
+
+- `--dry-run`: Print the release plan (bump, manifest files that would be touched, changelog preview) without making any changes.
+
+- `-f`, `--format <text|json>`: Output format for `--dry-run`. Default: `text`.
+
+#### flopha.toml
+
+```toml
+[version]
+pattern = "v{major}.{minor}.{patch}"   # default
+auto = true                            # detect bump level from conventional commits (default)
+# increment = "patch"                  # used instead of auto-detection when auto = false
+# rules = ["major:BREAKING CHANGE", "minor:^feat"]
+# pre = "beta"                         # pre-release channel, e.g. v1.2.3-beta.1
+# tag_message = "Release {tag}"        # annotated tag message; defaults to "Release <tag>"
+
+[changelog]
+enabled = true
+# groups = ["Breaking Changes:BREAKING CHANGE", "Features:^feat"]
+# other = "Other Changes"
+# title = "Changes in {to}"
+
+[release]
+create = true
+draft = false
+# title = "{tag}"                     # supports {tag} and {version}
+# body = "..."                        # falls back to the generated changelog, then generate_notes
+# generate_notes = false
+# repo = "owner/repo"                 # defaults to parsing the `origin` remote
+
+[[manifest]]
+path = "Cargo.toml"
+type = "cargo"                        # sets [package].version
+
+[[manifest]]
+path = "package.json"
+type = "npm"                          # sets the top-level "version" field
+
+[[manifest]]
+path = "pyproject.toml"
+type = "pyproject"                    # sets [project].version, falling back to [tool.poetry].version
+
+[[manifest]]
+path = "docs/VERSION"
+type = "regex"
+pattern = "(?m)^version=.*$"
+replacement = "version={version}"     # {version} is substituted with the new version
+```
+
+`version.source = "branch"` is not supported by `release` — manifest sync, commits, and GitHub Releases all assume tag-based versioning.
+
 ### Global Options
 
 - `-v`, `--verbose`: Enable verbose output for detailed information.

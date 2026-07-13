@@ -58,21 +58,13 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
     let version_source = version_source_factory(&args.source);
     let versioner = Versioner::new(version_source.fetch_all(&repo), pattern);
 
-    let increment = if args.auto {
-        let rules = build_rules(&args.rule)?;
-        match versioner.last_version() {
-            Some(last) => {
-                let messages = gitutils::commits_since_tag(&repo, &last.tag).unwrap_or_default();
-                versioning::detect_increment(&messages, &rules)
-            }
-            None => {
-                log::warn!("--auto: no prior tag found, falling back to --increment");
-                args.increment.clone()
-            }
-        }
-    } else {
-        args.increment.clone()
-    };
+    let increment = resolve_increment(
+        &repo,
+        &versioner,
+        args.auto,
+        &args.rule,
+        args.increment.clone(),
+    )?;
 
     let next = match versioner.next_version(increment)? {
         Some(v) => v,
@@ -114,12 +106,50 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
     Ok(Some(final_tag))
 }
 
+/// Determines the [`Increment`] to apply: auto-detects from commit messages
+/// since the last matching version when `auto` is set, otherwise returns
+/// `fallback` unchanged. Shared by `next-version` and the `release` pipeline
+/// so bump-detection logic lives in exactly one place.
+pub(crate) fn resolve_increment(
+    repo: &git2::Repository,
+    versioner: &Versioner,
+    auto: bool,
+    raw_rules: &[String],
+    fallback: Increment,
+) -> Result<Increment, FlophaError> {
+    if !auto {
+        return Ok(fallback);
+    }
+    let rules = build_rules(raw_rules)?;
+    Ok(match versioner.last_version() {
+        Some(last) => {
+            let messages = gitutils::commits_since_tag(repo, &last.tag).unwrap_or_default();
+            versioning::detect_increment(&messages, &rules)
+        }
+        None => {
+            log::warn!("--auto: no prior tag found, falling back to --increment");
+            fallback
+        }
+    })
+}
+
 /// Returns the next pre-release tag for `base_version` on `channel`.
 ///
 /// Always scans the repo's actual git tags (not the version-source list, which
 /// can be branch names when --source=branch is used) so the counter is correct
 /// regardless of which version source drives the base version.
 fn pre_release_tag(base_version: &str, channel: &str, repo: &git2::Repository) -> String {
+    let n = next_pre_release_number(repo, base_version, channel);
+    format!("{}-{}.{}", base_version, channel, n)
+}
+
+/// Returns the next available pre-release counter for `base_version` on `channel`
+/// (i.e. one greater than the highest existing `{base_version}-{channel}.N` tag).
+pub(crate) fn next_pre_release_number(
+    repo: &git2::Repository,
+    base_version: &str,
+    channel: &str,
+) -> u32 {
     let prefix = format!("{}-{}.", base_version, channel);
     let max_pre = repo
         .tag_names(None)
@@ -133,7 +163,7 @@ fn pre_release_tag(base_version: &str, channel: &str, repo: &git2::Repository) -
                 .unwrap_or(0)
         })
         .unwrap_or(0);
-    format!("{}-{}.{}", base_version, channel, max_pre.saturating_add(1))
+    max_pre.saturating_add(1)
 }
 
 pub fn log_versions(path: &Path, args: &LogArgs) -> Result<(), FlophaError> {
@@ -240,10 +270,51 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
         versioner.last_version().map(|v| v.tag)
     };
 
-    let group_rules = build_group_rules(&args.group)?;
-    let commits = match &from_tag {
-        Some(tag) => gitutils::commits_since_tag_with_info(&repo, tag, args.to.as_deref())?,
-        None => gitutils::all_commits_with_info(&repo, args.to.as_deref())?,
+    let content = build_changelog(
+        &repo,
+        from_tag.as_deref(),
+        args.to.as_deref(),
+        &args.group,
+        args.other.as_deref(),
+        args.title.as_deref(),
+        &args.format,
+    )?;
+
+    if let Some(ref output_path) = args.output {
+        if !args.overwrite && std::path::Path::new(output_path).exists() {
+            let existing = std::fs::read_to_string(output_path)?;
+            // Write to a sibling temp file then rename so the original is never
+            // left empty if the process is interrupted between the two operations.
+            let tmp_path = format!("{}.flopha.tmp", output_path);
+            std::fs::write(&tmp_path, format!("{}\n{}", content, existing))?;
+            std::fs::rename(&tmp_path, output_path)?;
+        } else {
+            std::fs::write(output_path, &content)?;
+        }
+    } else {
+        print!("{}", content);
+    }
+
+    Ok(())
+}
+
+/// Builds changelog content (grouped, formatted) for commits between `from_tag`
+/// (exclusive) and `to` (inclusive; HEAD when `None`). Shared by the `changelog`
+/// command and the `release` pipeline so grouping/formatting logic lives in one place.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_changelog(
+    repo: &git2::Repository,
+    from_tag: Option<&str>,
+    to: Option<&str>,
+    raw_groups: &[String],
+    other: Option<&str>,
+    title_template: Option<&str>,
+    format: &OutputFormat,
+) -> Result<String, FlophaError> {
+    let group_rules = build_group_rules(raw_groups)?;
+    let commits = match from_tag {
+        Some(tag) => gitutils::commits_since_tag_with_info(repo, tag, to)?,
+        None => gitutils::all_commits_with_info(repo, to)?,
     };
 
     // Pre-build ordered section labels from the rules (deduplicated).
@@ -254,7 +325,7 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
         }
     }
     let mut group_entries: HashMap<String, Vec<ChangelogEntry>> = HashMap::new();
-    let mut other: Vec<ChangelogEntry> = Vec::new();
+    let mut other_entries: Vec<ChangelogEntry> = Vec::new();
 
     for commit in &commits {
         let subject = commit
@@ -276,7 +347,7 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
                 .entry(rule.title.clone())
                 .or_default()
                 .push(entry),
-            None => other.push(entry),
+            None => other_entries.push(entry),
         }
     }
 
@@ -290,56 +361,37 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
                 .map(|e| (title, e))
         })
         .collect();
-    if !other.is_empty() {
-        match args.other.as_deref() {
+    if !other_entries.is_empty() {
+        match other {
             Some("") => {} // suppress unmatched commits
-            Some(title) => groups.push((title.to_string(), other)),
-            None => groups.push(("Other Changes".to_string(), other)),
+            Some(title) => groups.push((title.to_string(), other_entries)),
+            None => groups.push(("Other Changes".to_string(), other_entries)),
         }
     }
 
-    let title = match &args.title {
+    let title = match title_template {
         Some(t) => {
-            if t.contains("{to}") && args.to.is_none() {
+            if t.contains("{to}") && to.is_none() {
                 log::warn!(
                     "--title contains {{to}} but --to was not supplied; placeholder will be empty"
                 );
             }
-            t.replace("{from}", from_tag.as_deref().unwrap_or(""))
-                .replace("{to}", args.to.as_deref().unwrap_or(""))
+            t.replace("{from}", from_tag.unwrap_or(""))
+                .replace("{to}", to.unwrap_or(""))
         }
-        None => match &args.to {
+        None => match to {
             Some(to) => format!("Changes in {}", to),
-            None => match &from_tag {
+            None => match from_tag {
                 Some(from) => format!("Changelog since {}", from),
                 None => "Initial Changelog".to_string(),
             },
         },
     };
 
-    let content = match args.format {
-        OutputFormat::Json => {
-            format_changelog_json(&title, from_tag.as_deref(), args.to.as_deref(), &groups)
-        }
+    Ok(match format {
+        OutputFormat::Json => format_changelog_json(&title, from_tag, to, &groups),
         OutputFormat::Text => format_changelog_text(&title, &groups),
-    };
-
-    if let Some(ref output_path) = args.output {
-        if !args.overwrite && std::path::Path::new(output_path).exists() {
-            let existing = std::fs::read_to_string(output_path)?;
-            // Write to a sibling temp file then rename so the original is never
-            // left empty if the process is interrupted between the two operations.
-            let tmp_path = format!("{}.flopha.tmp", output_path);
-            std::fs::write(&tmp_path, format!("{}\n{}", content, existing))?;
-            std::fs::rename(&tmp_path, output_path)?;
-        } else {
-            std::fs::write(output_path, &content)?;
-        }
-    } else {
-        print!("{}", content);
-    }
-
-    Ok(())
+    })
 }
 
 struct ChangelogEntry {
@@ -425,7 +477,7 @@ fn format_changelog_json(
     obj.to_string() + "\n"
 }
 
-fn try_fetch_from_origin(repo: &git2::Repository) {
+pub(crate) fn try_fetch_from_origin(repo: &git2::Repository) {
     match gitutils::get_remote(repo, "origin") {
         Ok(mut remote) => {
             if let Err(e) = gitutils::fetch_all(&mut remote) {
@@ -474,7 +526,7 @@ fn is_leap(year: u32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
-fn build_rules(raw_rules: &[String]) -> Result<Vec<BumpRule>, FlophaError> {
+pub(crate) fn build_rules(raw_rules: &[String]) -> Result<Vec<BumpRule>, FlophaError> {
     if raw_rules.is_empty() {
         return Ok(versioning::conventional_bump_rules());
     }

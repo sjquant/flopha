@@ -24,4 +24,10 @@ pub enum FlophaError {
     Io(#[from] std::io::Error),
     #[error("invalid argument: {0}")]
     InvalidArgs(String),
+    #[error("configuration error: {0}")]
+    Config(String),
+    #[error("command failed: {0}")]
+    CommandFailed(String),
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
 }
