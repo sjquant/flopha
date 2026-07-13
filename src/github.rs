@@ -77,9 +77,12 @@ pub fn create_release(req: &ReleaseRequest) -> Result<String, FlophaError> {
         }
     }
 
-    let output = cmd
-        .output()
-        .map_err(|e| FlophaError::CommandFailed(format!("failed to run 'gh': {}", e)))?;
+    let output = cmd.output().map_err(|e| {
+        FlophaError::CommandFailed(format!(
+            "failed to run 'gh' (is the GitHub CLI installed and on PATH?): {}",
+            e
+        ))
+    })?;
 
     if !output.status.success() {
         return Err(FlophaError::CommandFailed(format!(
@@ -94,40 +97,60 @@ pub fn create_release(req: &ReleaseRequest) -> Result<String, FlophaError> {
 mod tests {
     use super::*;
 
+    /// It extracts owner/repo from an HTTPS URL with a `.git` suffix.
     #[test]
     fn test_parses_https_url() {
+        // Given a standard HTTPS clone URL
+        // When parsing it
+        // Then the owner/repo slug is extracted
         assert_eq!(
             parse_github_slug("https://github.com/sjquant/flopha.git"),
             Some("sjquant/flopha".to_string())
         );
     }
 
+    /// It extracts owner/repo from an HTTPS URL without a `.git` suffix.
     #[test]
     fn test_parses_https_url_without_git_suffix() {
+        // Given an HTTPS URL with no .git suffix
+        // When parsing it
+        // Then the owner/repo slug is extracted
         assert_eq!(
             parse_github_slug("https://github.com/sjquant/flopha"),
             Some("sjquant/flopha".to_string())
         );
     }
 
+    /// It extracts owner/repo from the `git@github.com:owner/repo.git` shorthand.
     #[test]
     fn test_parses_ssh_shorthand_url() {
+        // Given an SSH shorthand URL
+        // When parsing it
+        // Then the owner/repo slug is extracted
         assert_eq!(
             parse_github_slug("git@github.com:sjquant/flopha.git"),
             Some("sjquant/flopha".to_string())
         );
     }
 
+    /// It extracts owner/repo from a full `ssh://` URL.
     #[test]
     fn test_parses_ssh_url() {
+        // Given a full ssh:// URL
+        // When parsing it
+        // Then the owner/repo slug is extracted
         assert_eq!(
             parse_github_slug("ssh://git@github.com/sjquant/flopha.git"),
             Some("sjquant/flopha".to_string())
         );
     }
 
+    /// It returns `None` for remotes that aren't hosted on github.com.
     #[test]
     fn test_non_github_remote_returns_none() {
+        // Given a non-GitHub remote URL
+        // When parsing it
+        // Then no slug is extracted
         assert_eq!(
             parse_github_slug("https://gitlab.com/sjquant/flopha.git"),
             None

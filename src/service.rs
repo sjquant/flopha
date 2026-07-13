@@ -137,8 +137,15 @@ pub(crate) fn resolve_increment(
 ///
 /// Always scans the repo's actual git tags (not the version-source list, which
 /// can be branch names when --source=branch is used) so the counter is correct
-/// regardless of which version source drives the base version.
-fn pre_release_tag(base_version: &str, channel: &str, repo: &git2::Repository) -> String {
+/// regardless of which version source drives the base version. Shared by
+/// `next-version --pre` and the `release` pipeline (applied once to the tag,
+/// once to the bare manifest version) so the `-{channel}.{n}` format lives in
+/// exactly one place.
+pub(crate) fn pre_release_tag(
+    base_version: &str,
+    channel: &str,
+    repo: &git2::Repository,
+) -> String {
     let n = next_pre_release_number(repo, base_version, channel);
     format!("{}-{}.{}", base_version, channel, n)
 }

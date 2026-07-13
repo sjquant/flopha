@@ -240,6 +240,10 @@ replacement = "version={version}"     # {version} is substituted with the new ve
 
 `version.source = "branch"` is not supported by `release` — manifest sync, commits, and GitHub Releases all assume tag-based versioning.
 
+`type = "npm"` re-serializes `package.json` as pretty-printed JSON (2-space indent), which normalizes whitespace if the file used a different style. `type = "cargo"` and `type = "pyproject"` edit the TOML document in place instead, preserving comments and formatting exactly.
+
+Manifest sync requires an attached branch (not a detached HEAD) whenever `[[manifest]]` targets are configured, since the version-bump commit needs somewhere to push to. This is the default in most CI checkouts of a branch, but tools that check out a bare SHA (a detached HEAD) will need to check out a branch first.
+
 ### Global Options
 
 - `-v`, `--verbose`: Enable verbose output for detailed information.

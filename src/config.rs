@@ -102,6 +102,14 @@ pub struct ReleaseConfig {
     pub repo: Option<String>,
 }
 
+impl ReleaseConfig {
+    /// Whether the GitHub Release should be marked as a pre-release: an explicit
+    /// `release.prerelease` always wins, otherwise it follows `version.pre`.
+    pub(crate) fn is_prerelease(&self, has_pre_channel: bool) -> bool {
+        self.prerelease.unwrap_or(has_pre_channel)
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct ManifestTarget {
@@ -129,10 +137,23 @@ pub enum ManifestKind {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
 
+    fn load(content: &str) -> Result<FlophaConfig, FlophaError> {
+        let td = TempDir::new().unwrap();
+        let path = td.path().join("flopha.toml");
+        std::fs::write(&path, content).unwrap();
+        FlophaConfig::load(&path)
+    }
+
+    /// It falls back to documented defaults when every section is omitted.
     #[test]
     fn test_defaults_when_all_sections_omitted() {
-        let config: FlophaConfig = toml::from_str("").unwrap();
+        // Given an empty config file
+        // When loading it
+        let config = load("").unwrap();
+
+        // Then every field takes its documented default
         assert_eq!(config.version.pattern, "v{major}.{minor}.{patch}");
         assert_eq!(config.version.source, VersionSourceName::Tag);
         assert!(config.version.auto);
@@ -141,8 +162,10 @@ mod tests {
         assert!(config.manifests.is_empty());
     }
 
+    /// It parses every section and manifest kind.
     #[test]
     fn test_parses_full_config() {
+        // Given a config exercising every section
         let toml_str = r#"
             [version]
             pattern = "v{major}.{minor}.{patch}"
@@ -169,8 +192,11 @@ mod tests {
             pattern = "^version=.*$"
             replacement = "version={version}"
         "#;
-        let config: FlophaConfig = toml::from_str(toml_str).unwrap();
 
+        // When loading it
+        let config = load(toml_str).unwrap();
+
+        // Then every configured value is reflected, including manifest targets
         assert!(!config.version.auto);
         assert!(matches!(config.version.increment, Increment::Minor));
         assert_eq!(config.version.pre.as_deref(), Some("beta"));
@@ -183,40 +209,47 @@ mod tests {
         assert_eq!(config.manifests[1].kind, ManifestKind::Regex);
     }
 
+    /// It rejects `version.source = "branch"` since release assumes tag-based versioning.
     #[test]
     fn test_branch_source_rejected() {
+        // Given a config that sets version.source to "branch"
         let toml_str = r#"
             [version]
             source = "branch"
         "#;
-        let err = FlophaConfig::load_from_str_for_test(toml_str).unwrap_err();
+
+        // When loading it
+        let err = load(toml_str).unwrap_err();
+
+        // Then it's rejected with a message naming the offending setting
         assert!(err.to_string().contains("version.source"));
     }
 
+    /// It rejects a `type = "regex"` manifest target missing `pattern`/`replacement`.
     #[test]
     fn test_regex_manifest_without_pattern_rejected() {
+        // Given a regex manifest target with no pattern or replacement
         let toml_str = r#"
             [[manifest]]
             path = "VERSION"
             type = "regex"
         "#;
-        let err = FlophaConfig::load_from_str_for_test(toml_str).unwrap_err();
+
+        // When loading it
+        let err = load(toml_str).unwrap_err();
+
+        // Then it's rejected explaining both fields are required
         assert!(err.to_string().contains("requires both 'pattern'"));
     }
 
+    /// It rejects unknown top-level keys instead of silently ignoring typos.
     #[test]
     fn test_unknown_field_rejected() {
+        // Given a config with a misspelled/unknown field
+        // When parsing it
         let result: Result<FlophaConfig, _> = toml::from_str("typo_field = true");
-        assert!(result.is_err());
-    }
 
-    impl FlophaConfig {
-        /// Test-only helper mirroring `load` without touching the filesystem.
-        fn load_from_str_for_test(s: &str) -> Result<Self, FlophaError> {
-            let config: FlophaConfig = toml::from_str(s)
-                .map_err(|e| FlophaError::Config(format!("failed to parse: {}", e)))?;
-            config.validate()?;
-            Ok(config)
-        }
+        // Then it's rejected
+        assert!(result.is_err());
     }
 }
