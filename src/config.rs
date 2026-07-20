@@ -22,9 +22,8 @@ impl FlophaConfig {
         let content = std::fs::read_to_string(path).map_err(|e| {
             FlophaError::Config(format!("failed to read '{}': {}", path.display(), e))
         })?;
-        let config: FlophaConfig = toml::from_str(&content).map_err(|e| {
-            FlophaError::Config(format!("failed to parse '{}': {}", path.display(), e))
-        })?;
+        let config: FlophaConfig =
+            toml::from_str(&content).map_err(|e| FlophaError::parse(path, e))?;
         config.validate()?;
         Ok(config)
     }
@@ -48,6 +47,16 @@ impl FlophaConfig {
             }
         }
         Ok(())
+    }
+
+    /// Whether the GitHub Release should be marked as a pre-release: an explicit
+    /// `release.prerelease` always wins, otherwise it follows whether a
+    /// `version.pre` channel is configured. Lives here (not on `ReleaseConfig`)
+    /// since both fields are only in scope together at this level.
+    pub(crate) fn is_prerelease(&self) -> bool {
+        self.release
+            .prerelease
+            .unwrap_or(self.version.pre.is_some())
     }
 }
 
@@ -100,14 +109,6 @@ pub struct ReleaseConfig {
     pub generate_notes: bool,
     /// `owner/repo` override. Defaults to parsing the `origin` remote URL.
     pub repo: Option<String>,
-}
-
-impl ReleaseConfig {
-    /// Whether the GitHub Release should be marked as a pre-release: an explicit
-    /// `release.prerelease` always wins, otherwise it follows `version.pre`.
-    pub(crate) fn is_prerelease(&self, has_pre_channel: bool) -> bool {
-        self.prerelease.unwrap_or(has_pre_channel)
-    }
 }
 
 #[derive(Debug, Deserialize, Clone)]

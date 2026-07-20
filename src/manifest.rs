@@ -20,7 +20,7 @@ pub fn compute(
     let content = std::fs::read_to_string(&path)?;
 
     let updated = match target.kind {
-        ManifestKind::Cargo => set_toml_field(&content, &path, "package", "version", version)?,
+        ManifestKind::Cargo => set_toml_field(&content, &path, &["package"], "version", version)?,
         ManifestKind::Pyproject => set_pyproject_version(&content, &path, version)?,
         ManifestKind::Npm => set_json_version(&content, &path, version)?,
         ManifestKind::Regex => set_regex_version(&content, target, version)?,
@@ -49,40 +49,55 @@ pub fn sync(
     }
 }
 
+fn parse_toml_document(content: &str, path: &Path) -> Result<toml_edit::DocumentMut, FlophaError> {
+    content
+        .parse::<toml_edit::DocumentMut>()
+        .map_err(|e| FlophaError::parse(path, e))
+}
+
+/// Sets `key` inside the table at `table_path` (e.g. `&["tool", "poetry"]`),
+/// erroring if the table or key doesn't exist. Shared by every TOML manifest
+/// kind so "locate a nested field, error if missing, assign, stringify" lives
+/// in exactly one place.
 fn set_toml_field(
     content: &str,
     path: &Path,
-    table: &str,
+    table_path: &[&str],
     key: &str,
     version: &str,
 ) -> Result<String, FlophaError> {
-    let mut doc = content
-        .parse::<toml_edit::DocumentMut>()
-        .map_err(|e| FlophaError::Config(format!("failed to parse '{}': {}", path.display(), e)))?;
+    let mut doc = parse_toml_document(content, path)?;
 
-    let tbl = doc[table].as_table_mut().ok_or_else(|| {
-        FlophaError::Config(format!("'{}': missing [{}] table", path.display(), table))
-    })?;
-    if !tbl.contains_key(key) {
+    let mut table: &mut dyn toml_edit::TableLike = doc.as_table_mut();
+    for t in table_path {
+        table = table
+            .get_mut(t)
+            .and_then(|item| item.as_table_like_mut())
+            .ok_or_else(|| {
+                FlophaError::Config(format!(
+                    "'{}': missing [{}] table",
+                    path.display(),
+                    table_path.join(".")
+                ))
+            })?;
+    }
+    if !table.contains_key(key) {
         return Err(FlophaError::Config(format!(
             "'{}': no '{}' field in [{}]",
             path.display(),
             key,
-            table
+            table_path.join(".")
         )));
     }
-    tbl[key] = toml_edit::value(version);
+    table.insert(key, toml_edit::value(version));
     Ok(doc.to_string())
 }
 
 fn set_pyproject_version(content: &str, path: &Path, version: &str) -> Result<String, FlophaError> {
-    let mut doc = content
-        .parse::<toml_edit::DocumentMut>()
-        .map_err(|e| FlophaError::Config(format!("failed to parse '{}': {}", path.display(), e)))?;
+    let doc = parse_toml_document(content, path)?;
 
     if doc.get("project").and_then(|t| t.get("version")).is_some() {
-        doc["project"]["version"] = toml_edit::value(version);
-        return Ok(doc.to_string());
+        return set_toml_field(content, path, &["project"], "version", version);
     }
     if doc
         .get("tool")
@@ -90,8 +105,7 @@ fn set_pyproject_version(content: &str, path: &Path, version: &str) -> Result<St
         .and_then(|t| t.get("version"))
         .is_some()
     {
-        doc["tool"]["poetry"]["version"] = toml_edit::value(version);
-        return Ok(doc.to_string());
+        return set_toml_field(content, path, &["tool", "poetry"], "version", version);
     }
     Err(FlophaError::Config(format!(
         "'{}': no [project].version or [tool.poetry].version field found",
@@ -100,8 +114,8 @@ fn set_pyproject_version(content: &str, path: &Path, version: &str) -> Result<St
 }
 
 fn set_json_version(content: &str, path: &Path, version: &str) -> Result<String, FlophaError> {
-    let mut value: serde_json::Value = serde_json::from_str(content)
-        .map_err(|e| FlophaError::Config(format!("failed to parse '{}': {}", path.display(), e)))?;
+    let mut value: serde_json::Value =
+        serde_json::from_str(content).map_err(|e| FlophaError::parse(path, e))?;
     let obj = value.as_object_mut().ok_or_else(|| {
         FlophaError::Config(format!("'{}': expected a JSON object", path.display()))
     })?;

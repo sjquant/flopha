@@ -6,7 +6,7 @@ use crate::error::FlophaError;
 use crate::github::{self, ReleaseRequest};
 use crate::gitutils;
 use crate::manifest;
-use crate::service;
+use crate::service::{self, ChangelogRequest};
 use crate::version_source::{TagVersionSource, VersionSource};
 use crate::versioning::{Version, Versioner};
 
@@ -24,11 +24,12 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
         TagVersionSource.fetch_all(&repo),
         config.version.pattern.clone(),
     );
-    let from_tag = versioner.last_version().map(|v| v.tag);
+    let last = versioner.last_version();
+    let from_tag = last.as_ref().map(|v| v.tag.clone());
 
     let increment = service::resolve_increment(
         &repo,
-        &versioner,
+        last.as_ref(),
         config.version.auto,
         &config.version.rules,
         config.version.increment.clone(),
@@ -41,11 +42,19 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     })?;
     let version_core = bare_version(&next)?;
 
+    // Both the tag and the bare manifest version get the same `-{channel}.{n}`
+    // suffix, so the counter is computed once and applied to each — computing
+    // it twice via two `pre_release_tag` calls (one keyed on `next.tag`, one on
+    // `version_core`) would look up the counter against two different prefixes
+    // and could silently return different numbers for the tag vs. the manifest.
     let (tag, version_core) = match &config.version.pre {
-        Some(channel) => (
-            service::pre_release_tag(&next.tag, channel, &repo),
-            service::pre_release_tag(&version_core, channel, &repo),
-        ),
+        Some(channel) => {
+            let n = service::next_pre_release_number(&repo, &next.tag, channel);
+            (
+                format!("{}-{}.{}", next.tag, channel, n),
+                format!("{}-{}.{}", version_core, channel, n),
+            )
+        }
         None => (next.tag.clone(), version_core),
     };
 
@@ -87,10 +96,9 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     for (rel, content) in &updates {
         std::fs::write(path.join(rel), content)?;
     }
-    let touched: Vec<PathBuf> = updates.into_iter().map(|(rel, _)| rel).collect();
 
-    if !touched.is_empty() {
-        for rel in &touched {
+    if !updates.is_empty() {
+        for (rel, _) in &updates {
             gitutils::stage_path(&repo, rel)?;
         }
         gitutils::commit(&repo, &format!("chore(release): {}", tag))?;
@@ -104,7 +112,7 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     TagVersionSource.create(&repo, &tag, Some(&tag_message))?;
 
     let mut remote = gitutils::get_remote(&repo, "origin")?;
-    if !touched.is_empty() {
+    if !updates.is_empty() {
         let mut branch = gitutils::get_head_branch(&repo)?;
         gitutils::push_branch(&mut remote, &mut branch)?;
     }
@@ -168,12 +176,14 @@ fn build_release_changelog(
 
     service::build_changelog(
         repo,
-        from_tag,
-        None,
-        &config.changelog.groups,
-        config.changelog.other.as_deref(),
-        Some(&title_template),
-        &OutputFormat::Text,
+        &ChangelogRequest {
+            from_tag,
+            to: None,
+            raw_groups: &config.changelog.groups,
+            other: config.changelog.other.as_deref(),
+            title_template: Some(&title_template),
+            format: &OutputFormat::Text,
+        },
     )
 }
 
@@ -203,7 +213,7 @@ fn create_github_release(
         title: &title,
         body: body.as_deref(),
         draft: config.release.draft,
-        prerelease: config.release.is_prerelease(config.version.pre.is_some()),
+        prerelease: config.is_prerelease(),
         generate_notes: config.release.generate_notes,
     })
 }
@@ -421,6 +431,56 @@ mod tests {
         // up to the not-yet-existing tag and always failed with "not found")
         assert_eq!(result.unwrap(), Some("v1.1.0".to_string()));
         assert!(repo.revparse_single("refs/tags/v1.1.0").is_ok());
+    }
+
+    /// It uses the same pre-release counter for the git tag and the manifest
+    /// version on the *second* pre-release of a given base version — a prior bug
+    /// derived the counter from two different base strings (the full tag vs. the
+    /// bare version), which only diverged once a `-{channel}.2` tag already existed.
+    #[test]
+    fn test_release_pre_release_tag_and_manifest_version_share_the_same_counter() {
+        // Given a repo already on v1.0.1-beta.1 and a Cargo.toml manifest target
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, mut remote) = testutils::init_remote(&repo);
+
+        std::fs::write(
+            td.path().join("Cargo.toml"),
+            "[package]\nname = \"app\"\nversion = \"1.0.1-beta.1\"\n",
+        )
+        .unwrap();
+        gitutils::stage_path(&repo, Path::new("Cargo.toml")).unwrap();
+        gitutils::commit(&repo, "chore: add manifest").unwrap();
+        let commit_id = repo.head().unwrap().peel_to_commit().unwrap().id();
+        gitutils::tag_oid(&repo, commit_id, "v1.0.0").unwrap();
+        gitutils::tag_oid(&repo, commit_id, "v1.0.1-beta.1").unwrap();
+        remote
+            .push(&["refs/tags/v1.0.0", "refs/tags/v1.0.1-beta.1"], None)
+            .unwrap();
+        gitutils::commit(&repo, "fix: something").unwrap();
+
+        write_config(
+            td.path(),
+            r#"
+                [version]
+                pre = "beta"
+
+                [[manifest]]
+                path = "Cargo.toml"
+                type = "cargo"
+            "#,
+        );
+
+        // When releasing a second beta pre-release
+        let result = release(td.path(), &release_args()).unwrap();
+
+        // Then the tag and the manifest version both carry counter 2, not one
+        // counter 2 and the other silently stuck at 1
+        assert_eq!(result, Some("v1.0.1-beta.2".to_string()));
+        let content = std::fs::read_to_string(td.path().join("Cargo.toml")).unwrap();
+        assert!(
+            content.contains("version = \"1.0.1-beta.2\""),
+            "manifest version should match the pushed tag's counter, got: {content}"
+        );
     }
 
     /// It rejects `version.source = "branch"` up front.

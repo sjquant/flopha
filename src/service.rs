@@ -8,7 +8,7 @@ use crate::cli::{
 use crate::error::FlophaError;
 use crate::gitutils;
 use crate::version_source::{BranchVersionSource, TagVersionSource, VersionSource};
-use crate::versioning::{self, BumpRule, Increment, Versioner};
+use crate::versioning::{self, BumpRule, Increment, Version, Versioner};
 
 pub fn last_version(path: &Path, args: &LastVersionArgs) -> Result<Option<String>, FlophaError> {
     let repo = gitutils::get_repo(path)?;
@@ -60,7 +60,7 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
 
     let increment = resolve_increment(
         &repo,
-        &versioner,
+        versioner.last_version().as_ref(),
         args.auto,
         &args.rule,
         args.increment.clone(),
@@ -107,12 +107,15 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
 }
 
 /// Determines the [`Increment`] to apply: auto-detects from commit messages
-/// since the last matching version when `auto` is set, otherwise returns
-/// `fallback` unchanged. Shared by `next-version` and the `release` pipeline
-/// so bump-detection logic lives in exactly one place.
+/// since `last` when `auto` is set, otherwise returns `fallback` unchanged.
+/// Shared by `next-version` and the `release` pipeline so bump-detection logic
+/// lives in exactly one place. Takes an already-resolved `last` version (rather
+/// than a `&Versioner` to call `.last_version()` on internally) so callers that
+/// already need the last version for their own purposes — `release()` also
+/// uses it for `from_tag` — don't pay for computing it twice.
 pub(crate) fn resolve_increment(
     repo: &git2::Repository,
-    versioner: &Versioner,
+    last: Option<&Version>,
     auto: bool,
     raw_rules: &[String],
     fallback: Increment,
@@ -121,7 +124,7 @@ pub(crate) fn resolve_increment(
         return Ok(fallback);
     }
     let rules = build_rules(raw_rules)?;
-    Ok(match versioner.last_version() {
+    Ok(match last {
         Some(last) => {
             let messages = gitutils::commits_since_tag(repo, &last.tag).unwrap_or_default();
             versioning::detect_increment(&messages, &rules)
@@ -279,12 +282,14 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
 
     let content = build_changelog(
         &repo,
-        from_tag.as_deref(),
-        args.to.as_deref(),
-        &args.group,
-        args.other.as_deref(),
-        args.title.as_deref(),
-        &args.format,
+        &ChangelogRequest {
+            from_tag: from_tag.as_deref(),
+            to: args.to.as_deref(),
+            raw_groups: &args.group,
+            other: args.other.as_deref(),
+            title_template: args.title.as_deref(),
+            format: &args.format,
+        },
     )?;
 
     if let Some(ref output_path) = args.output {
@@ -305,19 +310,37 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
     Ok(())
 }
 
+/// Parameters for [`build_changelog`], bundled into a struct (rather than passed
+/// positionally) so call sites read as named fields instead of relying on
+/// argument order to convey meaning.
+#[derive(Clone, Copy)]
+pub(crate) struct ChangelogRequest<'a> {
+    pub from_tag: Option<&'a str>,
+    /// Upper bound for the commit range (inclusive); HEAD when `None`. Must be
+    /// a resolvable ref/tag when set.
+    pub to: Option<&'a str>,
+    pub raw_groups: &'a [String],
+    pub other: Option<&'a str>,
+    pub title_template: Option<&'a str>,
+    pub format: &'a OutputFormat,
+}
+
 /// Builds changelog content (grouped, formatted) for commits between `from_tag`
 /// (exclusive) and `to` (inclusive; HEAD when `None`). Shared by the `changelog`
 /// command and the `release` pipeline so grouping/formatting logic lives in one place.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_changelog(
     repo: &git2::Repository,
-    from_tag: Option<&str>,
-    to: Option<&str>,
-    raw_groups: &[String],
-    other: Option<&str>,
-    title_template: Option<&str>,
-    format: &OutputFormat,
+    req: &ChangelogRequest,
 ) -> Result<String, FlophaError> {
+    let ChangelogRequest {
+        from_tag,
+        to,
+        raw_groups,
+        other,
+        title_template,
+        format,
+    } = *req;
+
     let group_rules = build_group_rules(raw_groups)?;
     let commits = match from_tag {
         Some(tag) => gitutils::commits_since_tag_with_info(repo, tag, to)?,
