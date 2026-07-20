@@ -43,6 +43,13 @@ pub enum Commands {
         alias = "cl"
     )]
     Changelog(ChangelogArgs),
+    #[clap(
+        about = "Runs the full config-driven release pipeline: bump, manifest sync, commit, \
+                 tag, push, changelog, and GitHub Release, as configured in flopha.toml. \
+                 (alias: rel)",
+        alias = "rel"
+    )]
+    Release(ReleaseArgs),
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -270,8 +277,35 @@ pub struct ChangelogArgs {
     pub format: OutputFormat,
 }
 
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Clone, PartialEq, ValueEnum, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum VersionSourceName {
     Tag,
     Branch,
+}
+
+#[derive(Args, Debug)]
+pub struct ReleaseArgs {
+    #[clap(
+        help = "Path to the flopha release config file",
+        long,
+        short = 'c',
+        default_value = "flopha.toml"
+    )]
+    pub config: String,
+    #[clap(
+        help = "Print the release plan (bump, files touched, changelog preview) without \
+                making any changes",
+        long,
+        action
+    )]
+    pub dry_run: bool,
+    #[clap(
+        help = "Output format: text (default) or json",
+        long,
+        short = 'f',
+        value_enum,
+        default_value = "text"
+    )]
+    pub format: OutputFormat,
 }

@@ -57,6 +57,14 @@ pub fn commit(repo: &Repository, message: &str) -> Result<git2::Oid, git2::Error
     )
 }
 
+/// Stages `path` (repo-relative) into the index so a subsequent [`commit`] includes it.
+pub fn stage_path(repo: &Repository, path: &Path) -> Result<(), git2::Error> {
+    let mut index = repo.index()?;
+    index.add_path(path)?;
+    index.write()?;
+    Ok(())
+}
+
 pub fn checkout_branch(repo: &Repository, name: &str, force: bool) -> Result<(), git2::Error> {
     let branch = repo.find_branch(name, git2::BranchType::Local);
     if force && branch.is_err() {

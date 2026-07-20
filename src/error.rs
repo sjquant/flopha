@@ -24,4 +24,19 @@ pub enum FlophaError {
     Io(#[from] std::io::Error),
     #[error("invalid argument: {0}")]
     InvalidArgs(String),
+    #[error("configuration error: {0}")]
+    Config(String),
+    #[error("command failed: {0}")]
+    CommandFailed(String),
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
+}
+
+impl FlophaError {
+    /// Builds a `Config` error for a file that failed to parse, in the
+    /// "failed to parse '<path>': <cause>" shape shared by flopha.toml and
+    /// every manifest kind (TOML and JSON alike).
+    pub(crate) fn parse(path: &std::path::Path, cause: impl std::fmt::Display) -> Self {
+        FlophaError::Config(format!("failed to parse '{}': {}", path.display(), cause))
+    }
 }
