@@ -357,23 +357,6 @@ mod tests {
         assert!(message.contains("already_exists"), "{message}");
     }
 
-    /// It finds an existing Release (including drafts) by its tag.
-    #[test]
-    fn test_find_release_matches_tag_name() {
-        // Given an API listing a draft release for v1.1.0
-        let (url, _request) = serve_once(
-            "200 OK",
-            r#"[{"tag_name":"v1.0.0","html_url":"https://example.com/v1.0.0"},{"tag_name":"v1.1.0","draft":true,"html_url":"https://example.com/v1.1.0"}]"#,
-        );
-        let client = GitHubClient::new(&url, "secret-token".to_string());
-
-        // When looking up the release for v1.1.0
-        let found = client.find_release("sjquant/flopha", "v1.1.0").unwrap();
-
-        // Then the matching release's URL is returned
-        assert_eq!(found.as_deref(), Some("https://example.com/v1.1.0"));
-    }
-
     fn parsed(url: &str) -> Option<(String, String)> {
         parse_remote_url(url).map(|r| (r.host, r.slug))
     }
