@@ -238,42 +238,11 @@ pattern = "(?m)^version=.*$"
 replacement = "version={version}"     # {version} is substituted with the new version
 ```
 
-`version.source = "branch"` is not supported by `release`: a release needs a fixed point (GitHub Releases require a tag, and the changelog range and next bump are computed from it), while release branches keep moving and are often missing from CI clones. For branch-based versioning, use `flopha next-version --source branch --create`.
+- If there are no commits since the last version tag, `release` exits successfully without doing anything.
+- `release.create` uses the [GitHub CLI](https://cli.github.com/) (`gh`), which must be installed and authenticated.
+- `version.source = "branch"` is not supported. For branch-based versioning, use `flopha next-version --source branch --create`.
 
-If there are no commits since the last version tag, `release` prints `Nothing to release` (or `null` with `--format json`) and exits successfully without tagging, so it is safe to run on every push and to re-run failed jobs.
-
-`release.create = true` creates the GitHub Release with the [GitHub CLI](https://cli.github.com/) (`gh`), which must be installed and authenticated (e.g. `GH_TOKEN`). It is preinstalled on GitHub-hosted runners.
-
-#### Running in CI
-
-Release automatically on every push to `main`:
-
-```yaml
-on:
-  push:
-    branches: [main]
-
-concurrency: release # serialize runs so back-to-back pushes don't race for the same tag
-
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # push the tag (and version-bump commit) and create the Release
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # full history and tags, needed to detect the bump since the last tag
-      - run: flopha release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-Pushes made with the default `GITHUB_TOKEN` don't trigger new workflow runs, so the version-bump commit won't start another release. If `main` requires pull requests, the bump commit from `[[manifest]]` targets will be rejected: either allow the workflow's token to bypass the rule, or drop `[[manifest]]` so `release` only pushes a tag.
-
-`type = "npm"` re-serializes `package.json` as pretty-printed JSON (2-space indent), which normalizes whitespace if the file used a different style. `type = "cargo"` and `type = "pyproject"` edit the TOML document in place instead, preserving comments and formatting exactly.
-
-Manifest sync requires an attached branch (not a detached HEAD) whenever `[[manifest]]` targets are configured, since the version-bump commit needs somewhere to push to. This is the default in most CI checkouts of a branch, but tools that check out a bare SHA (a detached HEAD) will need to check out a branch first.
+See [Release Workflows](https://flopha.solaqua.dev/docs/release-workflows#flopha-release-in-github-actions) for running `release` in CI.
 
 ### Global Options
 
