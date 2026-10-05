@@ -57,6 +57,14 @@ pub fn commit(repo: &Repository, message: &str) -> Result<git2::Oid, git2::Error
     )
 }
 
+/// Stages `path` (repo-relative) into the index so a subsequent [`commit`] includes it.
+pub fn stage_path(repo: &Repository, path: &Path) -> Result<(), git2::Error> {
+    let mut index = repo.index()?;
+    index.add_path(path)?;
+    index.write()?;
+    Ok(())
+}
+
 pub fn checkout_branch(repo: &Repository, name: &str, force: bool) -> Result<(), git2::Error> {
     let branch = repo.find_branch(name, git2::BranchType::Local);
     if force && branch.is_err() {
@@ -99,12 +107,75 @@ pub fn get_last_tag_name(repo: &Repository) -> Result<String, git2::Error> {
     describe.format(Some(DescribeFormatOptions::new().abbreviated_size(0)))
 }
 
-pub fn fetch_all(remote: &mut git2::Remote) -> Result<(), git2::Error> {
+/// Best-effort fetch from `origin` that mirrors remote branches into local ones,
+/// so branch-based version sources see branches created elsewhere.
+pub fn try_fetch_origin(repo: &Repository) {
+    try_fetch(repo, fetch_all);
+}
+
+/// Best-effort fetch from `origin` of tags and `origin/*` tracking refs. Never
+/// moves local branches: moving the checked-out branch would leave its working
+/// files stale, so a commit made afterwards would revert the fetched changes.
+pub fn try_fetch_origin_tracking(repo: &Repository) {
+    try_fetch(repo, fetch_tags_and_remote_branches);
+}
+
+fn try_fetch(repo: &Repository, fetch: fn(&mut git2::Remote) -> Result<(), git2::Error>) {
+    match get_remote(repo, "origin") {
+        Ok(mut remote) => {
+            if let Err(e) = fetch(&mut remote) {
+                log::warn!("Failed to fetch from origin: {}", e);
+            }
+        }
+        Err(_) => log::debug!("No remote 'origin' found, using local data only"),
+    }
+}
+
+fn fetch_all(remote: &mut git2::Remote) -> Result<(), git2::Error> {
     log::debug!("Fetching all branches and tags from remote...");
     let mut fo = fetch_options();
     remote.fetch(&["refs/heads/*:refs/heads/*"], Some(&mut fo), None)?;
     log::debug!("Successfully fetched all branches and tags from remote.");
     Ok(())
+}
+
+/// Fetches tags and updates `refs/remotes/<remote>/*` without moving local
+/// branches, so the checked-out branch never drifts from its working files.
+fn fetch_tags_and_remote_branches(remote: &mut git2::Remote) -> Result<(), git2::Error> {
+    let name = remote.name().unwrap_or("origin").to_string();
+    let refspec = format!("+refs/heads/*:refs/remotes/{}/*", name);
+    let mut fo = fetch_options();
+    remote.fetch(&[&refspec], Some(&mut fo), None)
+}
+
+/// Whether the remote currently has `refname` (e.g. `refs/tags/v1.0.0`).
+pub fn remote_has_ref(remote: &mut git2::Remote, refname: &str) -> Result<bool, git2::Error> {
+    let connection = remote.connect_auth(git2::Direction::Fetch, Some(git_callbacks()), None)?;
+    Ok(connection.list()?.iter().any(|head| head.name() == refname))
+}
+
+/// Number of commits on `refs/remotes/<remote>/<branch>` that HEAD doesn't have
+/// (0 when that remote-tracking branch doesn't exist).
+pub fn commits_behind_remote(
+    repo: &Repository,
+    remote_name: &str,
+    branch_name: &str,
+) -> Result<usize, git2::Error> {
+    let Ok(tracking) =
+        repo.find_reference(&format!("refs/remotes/{}/{}", remote_name, branch_name))
+    else {
+        return Ok(0);
+    };
+    let head = repo.head()?.peel_to_commit()?.id();
+    let (_, behind) = repo.graph_ahead_behind(head, tracking.peel_to_commit()?.id())?;
+    Ok(behind)
+}
+
+/// Whether the index or any tracked file differs from HEAD. Untracked files are ignored.
+pub fn has_uncommitted_changes(repo: &Repository) -> Result<bool, git2::Error> {
+    let mut opts = git2::StatusOptions::new();
+    opts.include_untracked(false).include_ignored(false);
+    Ok(!repo.statuses(Some(&mut opts))?.is_empty())
 }
 
 fn fetch_options() -> git2::FetchOptions<'static> {
@@ -144,7 +215,16 @@ pub fn push_branch(remote: &mut git2::Remote, branch: &mut Branch) -> Result<(),
 
 fn push_options() -> git2::PushOptions<'static> {
     let mut po = git2::PushOptions::new();
-    let cb = git_callbacks();
+    let mut cb = git_callbacks();
+    // `Remote::push` succeeds even when the server refuses a ref (protected branch,
+    // lost race, hook); the refusal is only reported per ref through this callback.
+    cb.push_update_reference(|refname, status| match status {
+        Some(reason) => Err(git2::Error::from_str(&format!(
+            "remote rejected '{}': {}",
+            refname, reason
+        ))),
+        None => Ok(()),
+    });
     po.remote_callbacks(cb);
     po
 }
@@ -318,6 +398,14 @@ fn push_revwalk_start(
         },
         None => revwalk.push_head(),
     }
+}
+
+/// Whether HEAD has any commit that `tag_name` doesn't, stopping at the first one.
+pub fn has_commits_since_tag(repo: &Repository, tag_name: &str) -> Result<bool, git2::Error> {
+    let mut revwalk = repo.revwalk()?;
+    revwalk.push_head()?;
+    revwalk.hide(tag_commit_oid(repo, tag_name)?)?;
+    Ok(revwalk.next().transpose()?.is_some())
 }
 
 /// Returns commit messages for every commit reachable from HEAD that was made

@@ -3,6 +3,7 @@ use regex::Regex;
 
 use crate::error::FlophaError;
 
+pub const DEFAULT_PATTERN: &str = "v{major}.{minor}.{patch}";
 const SEMVER_ALIAS: &str = "{semver}";
 const SEMVER_PATTERN: &str = "{major}.{minor}.{patch}";
 
@@ -37,6 +38,37 @@ pub fn conventional_bump_rules() -> Vec<BumpRule> {
     ]
 }
 
+/// Parses `<level>:<pattern>` rule strings, falling back to the conventional
+/// commit rules when none are given.
+pub fn build_rules(raw_rules: &[String]) -> Result<Vec<BumpRule>, FlophaError> {
+    if raw_rules.is_empty() {
+        return Ok(conventional_bump_rules());
+    }
+    raw_rules.iter().map(|s| parse_bump_rule(s)).collect()
+}
+
+fn parse_bump_rule(s: &str) -> Result<BumpRule, FlophaError> {
+    let (level, pattern) = s.split_once(':').ok_or_else(|| FlophaError::InvalidRule {
+        input: s.to_string(),
+        reason: "expected format '<level>:<pattern>'".to_string(),
+    })?;
+    let increment = match level {
+        "major" => Increment::Major,
+        "minor" => Increment::Minor,
+        "patch" => Increment::Patch,
+        other => {
+            return Err(FlophaError::InvalidRule {
+                input: s.to_string(),
+                reason: format!("unknown level '{}', expected major, minor, or patch", other),
+            })
+        }
+    };
+    BumpRule::new(pattern, increment).map_err(|e| FlophaError::InvalidRule {
+        input: s.to_string(),
+        reason: format!("invalid regex: {}", e),
+    })
+}
+
 /// Infers the highest-priority [`Increment`] from `messages` using `rules`.
 ///
 /// Every rule is tested against every message independently; the highest-priority
@@ -61,6 +93,7 @@ pub fn detect_increment(messages: &[String], rules: &[BumpRule]) -> Increment {
 pub struct Versioner {
     tags: Vec<String>,
     pattern: String,
+    regex: Regex,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -80,9 +113,36 @@ impl Version {
             patch,
         }
     }
+
+    /// The bare `major.minor.patch` string. Errors instead of defaulting to `0`
+    /// when the pattern doesn't capture every component, e.g. `v1.{minor}.{patch}`.
+    pub fn core(&self) -> Result<String, FlophaError> {
+        let component = |value: Option<u32>, name: &str| {
+            value.ok_or_else(|| FlophaError::MissingVersionComponent(name.to_string()))
+        };
+        Ok(format!(
+            "{}.{}.{}",
+            component(self.major, "major")?,
+            component(self.minor, "minor")?,
+            component(self.patch, "patch")?
+        ))
+    }
 }
 
-#[derive(Debug, Clone, ValueEnum)]
+/// `{base}-{channel}.{n}`: the pre-release form shared by tags and manifest versions.
+pub fn pre_release(base: &str, channel: &str, n: u32) -> String {
+    format!("{}-{}.{}", base, channel, n)
+}
+
+/// The `n` of a `{base}-{channel}.{n}` tag, if `tag` has that form.
+pub fn pre_release_number(tag: &str, base: &str, channel: &str) -> Option<u32> {
+    tag.strip_prefix(&format!("{}-{}.", base, channel))?
+        .parse()
+        .ok()
+}
+
+#[derive(Debug, Clone, PartialEq, ValueEnum, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Increment {
     Major,
     Minor,
@@ -92,7 +152,17 @@ pub enum Increment {
 impl Versioner {
     pub fn new(tags: Vec<String>, pattern: String) -> Self {
         let pattern = pattern.replace(SEMVER_ALIAS, SEMVER_PATTERN);
-        Self { tags, pattern }
+        // Compiled once here rather than per-call: a `Versioner` is immutable after
+        // construction, but `last_version`/`all_versions`/`next_version` are commonly
+        // called more than once against the same instance (e.g. `release()` needs the
+        // last version both for its own bookkeeping and to resolve the bump), and
+        // recompiling the same pattern regex on every call added up.
+        let regex = build_regex(&pattern);
+        Self {
+            tags,
+            pattern,
+            regex,
+        }
     }
 
     pub fn last_version(&self) -> Option<Version> {
@@ -105,12 +175,11 @@ impl Versioner {
     }
 
     fn sorted_versions(&self) -> Vec<Version> {
-        let regex = self.get_regex();
         let mut versions: Vec<Version> = self
             .tags
             .iter()
             .filter_map(|tag| {
-                let caps = regex.captures(tag)?;
+                let caps = self.regex.captures(tag)?;
                 let major = parse_version(&caps, "major");
                 let minor = parse_version(&caps, "minor");
                 let patch = parse_version(&caps, "patch");
@@ -178,31 +247,31 @@ impl Versioner {
             Some(patch),
         )))
     }
+}
 
-    fn get_regex(&self) -> Regex {
-        // Replace placeholders with unique sentinels BEFORE escaping, so
-        // regex::escape never touches the placeholder text.  The sentinels
-        // use \x01 delimiters which are not regex metacharacters and will
-        // survive escape unchanged.
-        const SENTINELS: &[(&str, &str, &str)] = &[
-            ("{major}", "\x01MAJOR\x01", "(?P<major>\\d+)"),
-            ("{minor}", "\x01MINOR\x01", "(?P<minor>\\d+)"),
-            ("{patch}", "\x01PATCH\x01", "(?P<patch>\\d+)"),
-        ];
+fn build_regex(pattern: &str) -> Regex {
+    // Replace placeholders with unique sentinels BEFORE escaping, so
+    // regex::escape never touches the placeholder text.  The sentinels
+    // use \x01 delimiters which are not regex metacharacters and will
+    // survive escape unchanged.
+    const SENTINELS: &[(&str, &str, &str)] = &[
+        ("{major}", "\x01MAJOR\x01", "(?P<major>\\d+)"),
+        ("{minor}", "\x01MINOR\x01", "(?P<minor>\\d+)"),
+        ("{patch}", "\x01PATCH\x01", "(?P<patch>\\d+)"),
+    ];
 
-        let mut marked = self.pattern.clone();
-        for (placeholder, sentinel, _) in SENTINELS {
-            marked = marked.replace(placeholder, sentinel);
-        }
-
-        let mut expr = regex::escape(&marked);
-        for (_, sentinel, group) in SENTINELS {
-            expr = expr.replace(sentinel, group);
-        }
-
-        Regex::new(&format!("^{}$", expr))
-            .unwrap_or_else(|e| panic!("invalid pattern {:?}: {}", self.pattern, e))
+    let mut marked = pattern.to_string();
+    for (placeholder, sentinel, _) in SENTINELS {
+        marked = marked.replace(placeholder, sentinel);
     }
+
+    let mut expr = regex::escape(&marked);
+    for (_, sentinel, group) in SENTINELS {
+        expr = expr.replace(sentinel, group);
+    }
+
+    Regex::new(&format!("^{}$", expr))
+        .unwrap_or_else(|e| panic!("invalid pattern {:?}: {}", pattern, e))
 }
 
 fn parse_version(caps: &regex::Captures, name: &str) -> Option<u32> {
