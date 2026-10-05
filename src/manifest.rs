@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use regex::{NoExpand, Regex};
 
-use crate::config::{ManifestKind, ManifestTarget};
+use crate::config::ManifestTarget;
 use crate::error::FlophaError;
 
 /// Pending file edits for one release. Reads see earlier edits to the same file
@@ -53,12 +53,12 @@ impl Edits {
 /// the matching entries of the nearest `Cargo.lock`, so the tagged tree still
 /// builds with `--locked`.
 pub fn apply(edits: &mut Edits, target: &ManifestTarget, version: &str) -> Result<(), FlophaError> {
-    let rel = PathBuf::from(&target.path);
+    let rel = PathBuf::from(target.path());
     let path = edits.base_dir.join(&rel);
     let content = edits.read(&rel)?;
 
-    match target.kind {
-        ManifestKind::Cargo => {
+    match target {
+        ManifestTarget::Cargo { .. } => {
             let (updated, bumped) = set_cargo_version(&content, &path, version)?;
             edits.write(&rel, updated);
             if let Some(lock_rel) = find_cargo_lock(&edits.base_dir, &rel) {
@@ -68,11 +68,20 @@ pub fn apply(edits: &mut Edits, target: &ManifestTarget, version: &str) -> Resul
                 edits.write(&lock_rel, updated);
             }
         }
-        ManifestKind::Pyproject => {
+        ManifestTarget::Pyproject { .. } => {
             edits.write(&rel, set_pyproject_version(&content, &path, version)?)
         }
-        ManifestKind::Npm => edits.write(&rel, set_json_version(&content, &path, version)?),
-        ManifestKind::Regex => edits.write(&rel, set_regex_version(&content, target, version)?),
+        ManifestTarget::Npm { .. } => {
+            edits.write(&rel, set_json_version(&content, &path, version)?)
+        }
+        ManifestTarget::Regex {
+            pattern,
+            replacement,
+            ..
+        } => edits.write(
+            &rel,
+            set_regex_version(&content, &path, pattern, replacement, version)?,
+        ),
     }
     Ok(())
 }
@@ -93,49 +102,37 @@ fn set_cargo_version(
     path: &Path,
     version: &str,
 ) -> Result<(String, LockMatch), FlophaError> {
-    let doc = parse_toml_document(content, path)?;
-    let package_version = doc.get("package").and_then(|p| p.get("version"));
+    let mut doc = parse_toml_document(content, path)?;
 
-    if let Some(old) = package_version.and_then(|v| v.as_str()) {
-        let name = doc["package"]
-            .get("name")
-            .and_then(|n| n.as_str())
-            .map(str::to_string);
-        let updated = set_toml_field(content, path, &["package"], "version", version)?;
-        return Ok((
-            updated,
-            LockMatch {
-                name,
-                old_version: old.to_string(),
-            },
-        ));
-    }
-    let workspace_version = doc
-        .get("workspace")
-        .and_then(|w| w.get("package"))
-        .and_then(|p| p.get("version"))
-        .and_then(|v| v.as_str());
-    if let Some(old) = workspace_version {
-        let updated = set_toml_field(content, path, &["workspace", "package"], "version", version)?;
-        return Ok((
-            updated,
-            LockMatch {
-                name: None,
-                old_version: old.to_string(),
-            },
-        ));
-    }
-    if package_version.is_some() {
-        return Err(FlophaError::Config(format!(
-            "'{}': [package].version is inherited from the workspace; point this target at \
-             the workspace root Cargo.toml instead",
-            path.display()
-        )));
-    }
-    Err(FlophaError::Config(format!(
-        "'{}': no [package].version or [workspace.package].version field found",
-        path.display()
-    )))
+    let (table_path, bumped): (&[&str], LockMatch) =
+        if let Some(old) = toml_str(&doc, &["package"], "version") {
+            let name = toml_str(&doc, &["package"], "name").map(str::to_string);
+            let old_version = old.to_string();
+            (&["package"], LockMatch { name, old_version })
+        } else if let Some(old) = toml_str(&doc, &["workspace", "package"], "version") {
+            let old_version = old.to_string();
+            (
+                &["workspace", "package"],
+                LockMatch {
+                    name: None,
+                    old_version,
+                },
+            )
+        } else if doc.get("package").and_then(|p| p.get("version")).is_some() {
+            return Err(FlophaError::Config(format!(
+                "'{}': [package].version is inherited from the workspace; point this target \
+                 at the workspace root Cargo.toml instead",
+                path.display()
+            )));
+        } else {
+            return Err(FlophaError::Config(format!(
+                "'{}': no [package].version or [workspace.package].version field found",
+                path.display()
+            )));
+        };
+
+    set_toml_str(&mut doc, table_path, "version", version);
+    Ok((doc.to_string(), bumped))
 }
 
 /// Finds the `Cargo.lock` governing `manifest`: the nearest one in its directory
@@ -181,76 +178,52 @@ fn parse_toml_document(content: &str, path: &Path) -> Result<toml_edit::Document
         .map_err(|e| FlophaError::parse(path, e))
 }
 
-/// Sets the string `key` inside the table at `table_path` (e.g. `&["tool", "poetry"]`),
-/// erroring if the table or a string value for `key` doesn't exist.
-fn set_toml_field(
-    content: &str,
-    path: &Path,
+/// The string at `key` inside the table at `table_path` (e.g. `&["tool", "poetry"]`).
+fn toml_str<'a>(
+    doc: &'a toml_edit::DocumentMut,
     table_path: &[&str],
     key: &str,
-    version: &str,
-) -> Result<String, FlophaError> {
-    let mut doc = parse_toml_document(content, path)?;
+) -> Option<&'a str> {
+    let mut item = doc.as_item();
+    for table in table_path {
+        item = item.get(table)?;
+    }
+    item.get(key)?.as_str()
+}
 
-    let mut table: &mut dyn toml_edit::TableLike = doc.as_table_mut();
-    for t in table_path {
-        table = table
-            .get_mut(t)
-            .and_then(|item| item.as_table_like_mut())
-            .ok_or_else(|| {
-                FlophaError::Config(format!(
-                    "'{}': missing [{}] table",
-                    path.display(),
-                    table_path.join(".")
-                ))
-            })?;
+/// Overwrites the value at `key` in the table at `table_path`, keeping the
+/// document's comments and formatting. Callers check it exists via [`toml_str`].
+fn set_toml_str(doc: &mut toml_edit::DocumentMut, table_path: &[&str], key: &str, value: &str) {
+    let mut item = doc.as_item_mut();
+    for table in table_path {
+        item = &mut item[*table];
     }
-    if table.get(key).and_then(|item| item.as_str()).is_none() {
-        return Err(FlophaError::Config(format!(
-            "'{}': no string '{}' field in [{}]",
-            path.display(),
-            key,
-            table_path.join(".")
-        )));
-    }
-    table.insert(key, toml_edit::value(version));
-    Ok(doc.to_string())
+    item[key] = toml_edit::value(value);
 }
 
 fn set_pyproject_version(content: &str, path: &Path, version: &str) -> Result<String, FlophaError> {
-    let doc = parse_toml_document(content, path)?;
-
-    if doc.get("project").and_then(|t| t.get("version")).is_some() {
-        return set_toml_field(content, path, &["project"], "version", version);
-    }
-    if doc
-        .get("tool")
-        .and_then(|t| t.get("poetry"))
-        .and_then(|t| t.get("version"))
-        .is_some()
-    {
-        return set_toml_field(content, path, &["tool", "poetry"], "version", version);
-    }
-    Err(FlophaError::Config(format!(
-        "'{}': no [project].version or [tool.poetry].version field found",
-        path.display()
-    )))
+    let mut doc = parse_toml_document(content, path)?;
+    let table_path: &[&str] = if toml_str(&doc, &["project"], "version").is_some() {
+        &["project"]
+    } else if toml_str(&doc, &["tool", "poetry"], "version").is_some() {
+        &["tool", "poetry"]
+    } else {
+        return Err(FlophaError::Config(format!(
+            "'{}': no [project].version or [tool.poetry].version field found",
+            path.display()
+        )));
+    };
+    set_toml_str(&mut doc, table_path, "version", version);
+    Ok(doc.to_string())
 }
 
 /// Replaces only the top-level `"version"` string in place, so the file's
 /// indentation and key order stay exactly as they were.
 fn set_json_version(content: &str, path: &Path, version: &str) -> Result<String, FlophaError> {
-    let value: serde_json::Value =
-        serde_json::from_str(content).map_err(|e| FlophaError::parse(path, e))?;
-    if value.get("version").and_then(|v| v.as_str()).is_none() {
-        return Err(FlophaError::Config(format!(
-            "'{}': no top-level string 'version' field",
-            path.display()
-        )));
-    }
+    serde_json::from_str::<serde_json::Value>(content).map_err(|e| FlophaError::parse(path, e))?;
     let span = top_level_string_value_span(content, "version").ok_or_else(|| {
         FlophaError::Config(format!(
-            "'{}': could not locate the top-level 'version' field",
+            "'{}': no top-level string 'version' field",
             path.display()
         ))
     })?;
@@ -314,19 +287,18 @@ fn skip_whitespace(bytes: &[u8], mut i: usize) -> usize {
 
 fn set_regex_version(
     content: &str,
-    target: &ManifestTarget,
+    path: &Path,
+    pattern: &str,
+    replacement: &str,
     version: &str,
 ) -> Result<String, FlophaError> {
-    // Validated by `FlophaConfig::load` — regex targets always carry both fields.
-    let pattern = target.pattern.as_deref().unwrap();
-    let replacement = target.replacement.as_deref().unwrap();
-
     let regex = Regex::new(pattern)
         .map_err(|e| FlophaError::Config(format!("invalid regex '{}': {}", pattern, e)))?;
     if !regex.is_match(content) {
         return Err(FlophaError::Config(format!(
             "pattern '{}' did not match any content in '{}'",
-            pattern, target.path
+            pattern,
+            path.display()
         )));
     }
     let replacement = replacement.replace("{version}", version);
@@ -364,12 +336,17 @@ mod tests {
         Ok(changes.into_iter().map(|(rel, _)| rel).collect())
     }
 
-    fn target(path: &str, kind: ManifestKind) -> ManifestTarget {
-        ManifestTarget {
+    fn cargo(path: &str) -> ManifestTarget {
+        ManifestTarget::Cargo {
             path: path.to_string(),
-            kind,
-            pattern: None,
-            replacement: None,
+        }
+    }
+
+    fn regex(pattern: &str, replacement: &str) -> ManifestTarget {
+        ManifestTarget::Regex {
+            path: "VERSION".to_string(),
+            pattern: pattern.to_string(),
+            replacement: replacement.to_string(),
         }
     }
 
@@ -385,12 +362,7 @@ mod tests {
         );
 
         // When syncing the new version
-        let touched = sync(
-            td.path(),
-            &target("Cargo.toml", ManifestKind::Cargo),
-            "0.5.0",
-        )
-        .unwrap();
+        let touched = sync(td.path(), &cargo("Cargo.toml"), "0.5.0").unwrap();
 
         // Then only the version field changes; everything else is preserved
         assert_eq!(touched, vec![PathBuf::from("Cargo.toml")]);
@@ -414,12 +386,7 @@ mod tests {
         write(&td, "Cargo.toml", "[package]\nversion = \"0.5.0\"\n");
 
         // When syncing the same version
-        let touched = sync(
-            td.path(),
-            &target("Cargo.toml", ManifestKind::Cargo),
-            "0.5.0",
-        )
-        .unwrap();
+        let touched = sync(td.path(), &cargo("Cargo.toml"), "0.5.0").unwrap();
 
         // Then nothing is reported as touched
         assert!(touched.is_empty());
@@ -439,7 +406,9 @@ mod tests {
         // When syncing the new version
         sync(
             td.path(),
-            &target("package.json", ManifestKind::Npm),
+            &ManifestTarget::Npm {
+                path: "package.json".to_string(),
+            },
             "1.1.0",
         )
         .unwrap();
@@ -465,7 +434,9 @@ mod tests {
         // When syncing the new version
         sync(
             td.path(),
-            &target("pyproject.toml", ManifestKind::Pyproject),
+            &ManifestTarget::Pyproject {
+                path: "pyproject.toml".to_string(),
+            },
             "1.2.0",
         )
         .unwrap();
@@ -489,7 +460,9 @@ mod tests {
         // When syncing the new version
         sync(
             td.path(),
-            &target("pyproject.toml", ManifestKind::Pyproject),
+            &ManifestTarget::Pyproject {
+                path: "pyproject.toml".to_string(),
+            },
             "1.2.0",
         )
         .unwrap();
@@ -505,9 +478,7 @@ mod tests {
         // Given a regex target matching a "version=" line
         let td = TempDir::new().unwrap();
         write(&td, "VERSION", "version=0.1.0\n");
-        let mut t = target("VERSION", ManifestKind::Regex);
-        t.pattern = Some(r"(?m)^version=.*$".to_string());
-        t.replacement = Some("version={version}".to_string());
+        let t = regex(r"(?m)^version=.*$", "version={version}");
 
         // When syncing the new version
         sync(td.path(), &t, "0.2.0").unwrap();
@@ -528,9 +499,7 @@ mod tests {
             "VERSION",
             "version=0.1.0\nversion=0.1.0\nversion=0.1.0\n",
         );
-        let mut t = target("VERSION", ManifestKind::Regex);
-        t.pattern = Some(r"(?m)^version=.*$".to_string());
-        t.replacement = Some("version={version}".to_string());
+        let t = regex(r"(?m)^version=.*$", "version={version}");
 
         // When syncing the new version
         sync(td.path(), &t, "0.2.0").unwrap();
@@ -548,9 +517,7 @@ mod tests {
         // Given a replacement template containing a literal `$` character
         let td = TempDir::new().unwrap();
         write(&td, "VERSION", "version=0.1.0\n");
-        let mut t = target("VERSION", ManifestKind::Regex);
-        t.pattern = Some(r"(?m)^version=.*$".to_string());
-        t.replacement = Some("version={version}-$1-build".to_string());
+        let t = regex(r"(?m)^version=.*$", "version={version}-$1-build");
 
         // When syncing the new version
         sync(td.path(), &t, "0.2.0").unwrap();
@@ -566,9 +533,7 @@ mod tests {
         // Given a file that doesn't contain anything matching the configured pattern
         let td = TempDir::new().unwrap();
         write(&td, "VERSION", "no version here\n");
-        let mut t = target("VERSION", ManifestKind::Regex);
-        t.pattern = Some(r"(?m)^version=.*$".to_string());
-        t.replacement = Some("version={version}".to_string());
+        let t = regex(r"(?m)^version=.*$", "version={version}");
 
         // When syncing the new version
         let result = sync(td.path(), &t, "0.2.0");
@@ -585,11 +550,7 @@ mod tests {
         write(&td, "Cargo.toml", "[package]\nname = \"flopha\"\n");
 
         // When syncing a new version
-        let result = sync(
-            td.path(),
-            &target("Cargo.toml", ManifestKind::Cargo),
-            "0.5.0",
-        );
+        let result = sync(td.path(), &cargo("Cargo.toml"), "0.5.0");
 
         // Then it errors
         assert!(result.is_err());
@@ -612,12 +573,7 @@ mod tests {
         );
 
         // When syncing the new version
-        let touched = sync(
-            td.path(),
-            &target("Cargo.toml", ManifestKind::Cargo),
-            "0.5.0",
-        )
-        .unwrap();
+        let touched = sync(td.path(), &cargo("Cargo.toml"), "0.5.0").unwrap();
 
         // Then the crate's lock entry moves with it, but the registry crate is untouched
         assert_eq!(touched.len(), 2);
@@ -644,12 +600,7 @@ mod tests {
         );
 
         // When syncing the new version
-        sync(
-            td.path(),
-            &target("Cargo.toml", ManifestKind::Cargo),
-            "0.5.0",
-        )
-        .unwrap();
+        sync(td.path(), &cargo("Cargo.toml"), "0.5.0").unwrap();
 
         // Then the workspace version is bumped and the package keeps inheriting it
         let content = std::fs::read_to_string(td.path().join("Cargo.toml")).unwrap();
@@ -672,12 +623,7 @@ mod tests {
         );
 
         // When syncing a new version
-        let err = sync(
-            td.path(),
-            &target("Cargo.toml", ManifestKind::Cargo),
-            "0.5.0",
-        )
-        .unwrap_err();
+        let err = sync(td.path(), &cargo("Cargo.toml"), "0.5.0").unwrap_err();
 
         // Then it errors, pointing at the workspace root, and leaves the file alone
         assert!(err.to_string().contains("workspace root"), "{err}");
@@ -696,7 +642,9 @@ mod tests {
         // When syncing the new version
         sync(
             td.path(),
-            &target("package.json", ManifestKind::Npm),
+            &ManifestTarget::Npm {
+                path: "package.json".to_string(),
+            },
             "1.1.0",
         )
         .unwrap();

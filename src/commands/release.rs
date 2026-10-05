@@ -1,22 +1,14 @@
 use std::path::{Path, PathBuf};
 
 use crate::changelog::{build_changelog, ChangelogRequest};
-
-use crate::cli::{OutputFormat, ReleaseArgs};
-
+use crate::cli::{OutputFormat, ReleaseArgs, VersionSourceName};
 use crate::config::FlophaConfig;
-
 use crate::error::FlophaError;
-
 use crate::github::{self, GitHubClient, ReleaseRequest};
-
 use crate::gitutils;
-
 use crate::manifest;
-
 use crate::version_source::{TagVersionSource, VersionSource};
-
-use crate::versioning::{Version, Versioner};
+use crate::versioning::{self, Version, Versioner};
 
 /// Runs the full config-driven release pipeline described by `flopha.toml`:
 /// compute bump -> sync manifests -> commit -> annotated tag -> push ->
@@ -28,9 +20,10 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     let repo = gitutils::get_repo(path)?;
     gitutils::try_fetch_origin_tracking(&repo);
 
-    let versioner = Versioner::new(
-        TagVersionSource.fetch_all(&repo),
+    let versioner = super::versioner_factory(
+        &repo,
         config.version.pattern.clone(),
+        &VersionSourceName::Tag,
     );
     let last = versioner.last_version();
 
@@ -47,13 +40,13 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
             "no version tag matches version.pattern; nothing to bump from".to_string(),
         )
     })?;
-    let version_core = bare_version(&next)?;
+    let version_core = next.core()?;
 
     if let Some(tagged) = release_at_head(&repo, &config, &versioner, &next, &version_core)? {
         return finish_release(&repo, &config, args, tagged);
     }
     if let Some(last) = &last {
-        if gitutils::commits_since_tag(&repo, &last.tag)?.is_empty() {
+        if !gitutils::has_commits_since_tag(&repo, &last.tag)? {
             print_nothing_to_release(&args.format, &format!("no commits since {}", last.tag));
             return Ok(None);
         }
@@ -66,16 +59,7 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
         check_can_commit(&repo)?;
     }
 
-    let changelog = if config.changelog.enabled {
-        Some(build_release_changelog(
-            &repo,
-            &config,
-            from_tag.as_deref(),
-            &tag,
-        )?)
-    } else {
-        None
-    };
+    let changelog = build_release_changelog(&repo, &config, from_tag.as_deref(), &tag)?;
 
     if args.dry_run {
         print_plan(&args.format, &from_tag, &tag, &config, &changelog);
@@ -99,22 +83,6 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     Ok(Some(tag))
 }
 
-/// Extracts the bare `major.minor.patch` string manifest files are synced with.
-/// Errors (rather than silently defaulting to `0`) when `version.pattern` is
-/// scoped and doesn't capture every component, e.g. `v1.{minor}.{patch}`.
-fn bare_version(version: &Version) -> Result<String, FlophaError> {
-    let major = version
-        .major
-        .ok_or_else(|| FlophaError::MissingVersionComponent("major".to_string()))?;
-    let minor = version
-        .minor
-        .ok_or_else(|| FlophaError::MissingVersionComponent("minor".to_string()))?;
-    let patch = version
-        .patch
-        .ok_or_else(|| FlophaError::MissingVersionComponent("patch".to_string()))?;
-    Ok(format!("{}.{}.{}", major, minor, patch))
-}
-
 /// Finds the release tag at HEAD: the latest stable tag, or with `version.pre`
 /// set, a `-{channel}.{n}` tag of the upcoming version (which the stable
 /// pattern alone doesn't match).
@@ -125,25 +93,29 @@ fn release_at_head(
     next: &Version,
     version_core: &str,
 ) -> Result<Option<TaggedRelease>, FlophaError> {
-    let head_tags = gitutils::tags_at_head(repo)?;
+    let head = repo.head()?.peel_to_commit()?.id();
+    let at_head = |tag: &str| gitutils::tag_commit_oid(repo, tag).ok() == Some(head);
     let versions = versioner.all_versions();
 
     if let Some(channel) = &config.version.pre {
-        let prefix = format!("{}-{}.", next.tag, channel);
-        return Ok(head_tags.iter().find_map(|tag| {
-            let n: u32 = tag.strip_prefix(&prefix)?.parse().ok()?;
+        let tags = repo.tag_names(None)?;
+        return Ok(tags.iter().flatten().find_map(|tag| {
+            let n = versioning::pre_release_number(tag, &next.tag, channel)?;
+            if !at_head(tag) {
+                return None;
+            }
             Some(TaggedRelease {
-                tag: tag.clone(),
-                version: format!("{}-{}.{}", version_core, channel, n),
+                tag: tag.to_string(),
+                version: versioning::pre_release(version_core, channel, n),
                 from_tag: versions.last().map(|v| v.tag.clone()),
             })
         }));
     }
 
     match versions.split_last() {
-        Some((last, earlier)) if head_tags.contains(&last.tag) => Ok(Some(TaggedRelease {
+        Some((last, earlier)) if at_head(&last.tag) => Ok(Some(TaggedRelease {
             tag: last.tag.clone(),
-            version: bare_version(last)?,
+            version: last.core()?,
             from_tag: earlier.last().map(|v| v.tag.clone()),
         })),
         _ => Ok(None),
@@ -186,16 +158,8 @@ fn finish_release(
     let mut created_release = false;
     if let Some((client, repo_slug)) = &github {
         if client.find_release(repo_slug, &tagged.tag)?.is_none() {
-            let changelog = if config.changelog.enabled {
-                Some(build_release_changelog(
-                    repo,
-                    config,
-                    tagged.from_tag.as_deref(),
-                    &tagged.tag,
-                )?)
-            } else {
-                None
-            };
+            let changelog =
+                build_release_changelog(repo, config, tagged.from_tag.as_deref(), &tagged.tag)?;
             let url = create_github_release(
                 client,
                 repo_slug,
@@ -218,10 +182,7 @@ fn finish_release(
 }
 
 fn print_nothing_to_release(format: &OutputFormat, reason: &str) {
-    match format {
-        OutputFormat::Json => println!("null"),
-        OutputFormat::Text => println!("Nothing to release: {}", reason),
-    }
+    super::print_none(format, &format!("Nothing to release: {}", reason));
 }
 
 /// The tag and the bare manifest version, both with the same `-{channel}.{n}`
@@ -237,8 +198,8 @@ fn release_tag_and_version(
         Some(channel) => {
             let n = super::next_pre_release_number(repo, &next.tag, channel);
             (
-                format!("{}-{}.{}", next.tag, channel, n),
-                format!("{}-{}.{}", version_core, channel, n),
+                versioning::pre_release(&next.tag, channel, n),
+                versioning::pre_release(&version_core, channel, n),
             )
         }
         None => (next.tag.clone(), version_core),
@@ -277,35 +238,30 @@ fn check_can_commit(repo: &git2::Repository) -> Result<(), FlophaError> {
     Ok(())
 }
 
-/// Builds the changelog for the upcoming release. Commits are gathered up to
-/// HEAD (`to: None`) rather than the new `tag`, since the tag doesn't exist yet
-/// at this point in the pipeline — `build_changelog` would otherwise fail
-/// trying to resolve it. The `{to}` placeholder in the title is filled in with
-/// `tag` before delegating, so config-level title templates still work.
+/// The changelog for `tag` when `changelog.enabled`. Commits are gathered up
+/// to HEAD, since the tag may not exist yet; `tag` only labels the title.
 fn build_release_changelog(
     repo: &git2::Repository,
     config: &FlophaConfig,
     from_tag: Option<&str>,
     tag: &str,
-) -> Result<String, FlophaError> {
-    let title_template = config
-        .changelog
-        .title
-        .clone()
-        .unwrap_or_else(|| "Changes in {to}".to_string())
-        .replace("{to}", tag);
-
+) -> Result<Option<String>, FlophaError> {
+    if !config.changelog.enabled {
+        return Ok(None);
+    }
     build_changelog(
         repo,
         &ChangelogRequest {
             from_tag,
             to: None,
+            to_label: Some(tag),
             raw_groups: &config.changelog.groups,
             other: config.changelog.other.as_deref(),
-            title_template: Some(&title_template),
+            title_template: config.changelog.title.as_deref(),
             format: &OutputFormat::Text,
         },
     )
+    .map(Some)
 }
 
 fn print_plan(
@@ -315,7 +271,7 @@ fn print_plan(
     config: &FlophaConfig,
     changelog: &Option<String>,
 ) {
-    let manifest_paths: Vec<&str> = config.manifests.iter().map(|m| m.path.as_str()).collect();
+    let manifest_paths: Vec<&str> = config.manifests.iter().map(|m| m.path()).collect();
 
     match format {
         OutputFormat::Json => {
@@ -419,13 +375,15 @@ fn commit_and_tag(
         gitutils::commit(repo, &format!("chore(release): {}", tag))?;
     }
 
-    let tag_message = config
-        .version
-        .tag_message
-        .as_deref()
-        .unwrap_or("Release {tag}")
-        .replace("{tag}", tag)
-        .replace("{version}", version);
+    let tag_message = render(
+        config
+            .version
+            .tag_message
+            .as_deref()
+            .unwrap_or("Release {tag}"),
+        tag,
+        version,
+    );
     TagVersionSource.create(repo, tag, Some(&tag_message))?;
     Ok(())
 }
@@ -462,6 +420,11 @@ fn push_release(
     })
 }
 
+/// Fills the `{tag}` and `{version}` placeholders of a config template.
+fn render(template: &str, tag: &str, version: &str) -> String {
+    template.replace("{tag}", tag).replace("{version}", version)
+}
+
 fn create_github_release(
     client: &GitHubClient,
     repo_slug: &str,
@@ -470,13 +433,11 @@ fn create_github_release(
     version_core: &str,
     changelog: &Option<String>,
 ) -> Result<String, FlophaError> {
-    let title = config
-        .release
-        .title
-        .clone()
-        .unwrap_or_else(|| tag.to_string())
-        .replace("{tag}", tag)
-        .replace("{version}", version_core);
+    let title = render(
+        config.release.title.as_deref().unwrap_or("{tag}"),
+        tag,
+        version_core,
+    );
     let body = config.release.body.clone().or_else(|| changelog.clone());
 
     client.create_release(&ReleaseRequest {
@@ -520,32 +481,7 @@ mod tests {
     #[test]
     fn test_release_syncs_manifest_commits_tags_and_pushes() {
         // Given a repo with a Cargo.toml manifest target configured and a tagged v1.0.0
-        let (td, repo) = testutils::init_repo();
-        let (remote_td, _remote) = testutils::init_remote(&repo);
-
-        std::fs::write(
-            td.path().join("Cargo.toml"),
-            "[package]\nname = \"app\"\nversion = \"1.0.0\"\n",
-        )
-        .unwrap();
-        gitutils::stage_path(&repo, Path::new("Cargo.toml")).unwrap();
-        gitutils::commit(&repo, "chore: add manifest").unwrap();
-        gitutils::tag_oid(
-            &repo,
-            repo.head().unwrap().peel_to_commit().unwrap().id(),
-            "v1.0.0",
-        )
-        .unwrap();
-        gitutils::commit(&repo, "fix: something").unwrap();
-
-        write_config(
-            td.path(),
-            r#"
-                [[manifest]]
-                path = "Cargo.toml"
-                type = "cargo"
-            "#,
-        );
+        let (td, repo, remote_td) = repo_with_manifest("");
 
         // When running the release pipeline
         let result = release(td.path(), &release_args()).unwrap();
@@ -574,12 +510,7 @@ mod tests {
         let (td, repo) = testutils::init_repo();
         let (_remote_td, _remote) = testutils::init_remote(&repo);
 
-        gitutils::tag_oid(
-            &repo,
-            repo.head().unwrap().peel_to_commit().unwrap().id(),
-            "v1.0.0",
-        )
-        .unwrap();
+        testutils::tag_head(&repo, "v1.0.0");
         gitutils::commit(&repo, "fix: something").unwrap();
 
         write_config(td.path(), "");
@@ -606,12 +537,7 @@ mod tests {
         let (td, repo) = testutils::init_repo();
         let (remote_td, _remote) = testutils::init_remote(&repo);
 
-        gitutils::tag_oid(
-            &repo,
-            repo.head().unwrap().peel_to_commit().unwrap().id(),
-            "v1.0.0",
-        )
-        .unwrap();
+        testutils::tag_head(&repo, "v1.0.0");
         gitutils::commit(&repo, "fix: something").unwrap();
 
         write_config(td.path(), "");
@@ -637,12 +563,7 @@ mod tests {
         let (td, repo) = testutils::init_repo();
         let (_remote_td, _remote) = testutils::init_remote(&repo);
 
-        gitutils::tag_oid(
-            &repo,
-            repo.head().unwrap().peel_to_commit().unwrap().id(),
-            "v1.0.0",
-        )
-        .unwrap();
+        testutils::tag_head(&repo, "v1.0.0");
         gitutils::commit(&repo, "feat: add search").unwrap();
 
         write_config(
@@ -719,12 +640,7 @@ mod tests {
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
 
-        gitutils::tag_oid(
-            &repo,
-            repo.head().unwrap().peel_to_commit().unwrap().id(),
-            "v1.0.0",
-        )
-        .unwrap();
+        testutils::tag_head(&repo, "v1.0.0");
         remote.push(&["refs/tags/v1.0.0"], None).unwrap();
 
         write_config(td.path(), "");
@@ -744,12 +660,7 @@ mod tests {
         let (td, repo) = testutils::init_repo();
         let (remote_td, _remote) = testutils::init_remote(&repo);
 
-        gitutils::tag_oid(
-            &repo,
-            repo.head().unwrap().peel_to_commit().unwrap().id(),
-            "v1.0.0",
-        )
-        .unwrap();
+        testutils::tag_head(&repo, "v1.0.0");
 
         write_config(td.path(), "");
 
@@ -920,32 +831,8 @@ mod tests {
     #[test]
     fn test_release_create_fails_before_any_side_effect_when_github_is_unresolvable() {
         // Given release.create = true, a manifest target, and an origin that isn't on GitHub
-        let (td, repo) = testutils::init_repo();
-        let (_remote_td, _remote) = testutils::init_remote(&repo);
-
-        let manifest = "[package]\nname = \"app\"\nversion = \"1.0.0\"\n";
-        std::fs::write(td.path().join("Cargo.toml"), manifest).unwrap();
-        gitutils::stage_path(&repo, Path::new("Cargo.toml")).unwrap();
-        gitutils::commit(&repo, "chore: add manifest").unwrap();
-        gitutils::tag_oid(
-            &repo,
-            repo.head().unwrap().peel_to_commit().unwrap().id(),
-            "v1.0.0",
-        )
-        .unwrap();
-        gitutils::commit(&repo, "fix: something").unwrap();
-
-        write_config(
-            td.path(),
-            r#"
-                [release]
-                create = true
-
-                [[manifest]]
-                path = "Cargo.toml"
-                type = "cargo"
-            "#,
-        );
+        let (td, repo, _remote_td) = repo_with_manifest("[release]\ncreate = true\n");
+        let manifest = std::fs::read_to_string(td.path().join("Cargo.toml")).unwrap();
 
         // When running the release pipeline
         let err = release(td.path(), &release_args()).unwrap_err();

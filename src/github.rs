@@ -124,6 +124,20 @@ impl GitHubClient {
 
     /// Returns the HTML URL of the Release (draft or published) for `tag`, if any.
     pub fn find_release(&self, repo_slug: &str, tag: &str) -> Result<Option<String>, FlophaError> {
+        let path = format!(
+            "/repos/{}/releases/tags/{}",
+            repo_slug,
+            encode_path_segment(tag)
+        );
+        let (status, json) = self.get(&path)?;
+        if status.is_success() {
+            return Ok(json["html_url"].as_str().map(str::to_string));
+        }
+        if status != StatusCode::NOT_FOUND {
+            let action = format!("looking up release '{}' in {}", tag, repo_slug);
+            return Err(api_error(&action, status, &json));
+        }
+        // Drafts aren't served by the by-tag endpoint, so check the latest releases.
         let path = format!("/repos/{}/releases?per_page=100", repo_slug);
         let (status, json) = self.get(&path)?;
         if !status.is_success() {
@@ -170,13 +184,7 @@ impl GitHubClient {
 
     fn get(&self, path: &str) -> Result<(StatusCode, serde_json::Value), FlophaError> {
         let url = format!("{}{}", self.api_url, path);
-        let result = self
-            .agent
-            .get(&url)
-            .header("Authorization", format!("Bearer {}", self.token))
-            .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2022-11-28")
-            .call();
+        let result = self.authorized(self.agent.get(&url)).call();
         read_response(result, &url)
     }
 
@@ -187,15 +195,29 @@ impl GitHubClient {
     ) -> Result<(StatusCode, serde_json::Value), FlophaError> {
         let url = format!("{}{}", self.api_url, path);
         let result = self
-            .agent
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.token))
-            .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2022-11-28")
+            .authorized(self.agent.post(&url))
             .content_type("application/json")
             .send(body);
         read_response(result, &url)
     }
+
+    fn authorized<B>(&self, request: ureq::RequestBuilder<B>) -> ureq::RequestBuilder<B> {
+        request
+            .header("Authorization", format!("Bearer {}", self.token))
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+    }
+}
+
+/// Percent-encodes the characters that would otherwise change a URL path
+/// segment's meaning, so tags like `mobile/1.0.0` stay one segment.
+fn encode_path_segment(segment: &str) -> String {
+    segment
+        .replace('%', "%25")
+        .replace('/', "%2F")
+        .replace('?', "%3F")
+        .replace('#', "%23")
+        .replace(' ', "%20")
 }
 
 fn read_response(

@@ -60,3 +60,9 @@ pub fn create_new_remote_branch(repo: &git2::Repository, remote: &mut git2::Remo
     let mut branch = repo.find_branch(branch, git2::BranchType::Local).unwrap();
     gitutils::push_branch(remote, &mut branch).unwrap();
 }
+
+/// Creates a lightweight `tag` on the current HEAD commit.
+pub fn tag_head(repo: &Repository, tag: &str) {
+    let head = repo.head().unwrap().peel_to_commit().unwrap().id();
+    gitutils::tag_oid(repo, head, tag).unwrap();
+}

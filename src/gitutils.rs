@@ -178,18 +178,6 @@ pub fn has_uncommitted_changes(repo: &Repository) -> Result<bool, git2::Error> {
     Ok(!repo.statuses(Some(&mut opts))?.is_empty())
 }
 
-/// Tags whose target commit is HEAD.
-pub fn tags_at_head(repo: &Repository) -> Result<Vec<String>, git2::Error> {
-    let head = repo.head()?.peel_to_commit()?.id();
-    Ok(repo
-        .tag_names(None)?
-        .iter()
-        .flatten()
-        .filter(|tag| tag_commit_oid(repo, tag).ok() == Some(head))
-        .map(str::to_string)
-        .collect())
-}
-
 fn fetch_options() -> git2::FetchOptions<'static> {
     let mut fo = git2::FetchOptions::new();
     fo.download_tags(git2::AutotagOption::All);
@@ -410,6 +398,14 @@ fn push_revwalk_start(
         },
         None => revwalk.push_head(),
     }
+}
+
+/// Whether HEAD has any commit that `tag_name` doesn't, stopping at the first one.
+pub fn has_commits_since_tag(repo: &Repository, tag_name: &str) -> Result<bool, git2::Error> {
+    let mut revwalk = repo.revwalk()?;
+    revwalk.push_head()?;
+    revwalk.hide(tag_commit_oid(repo, tag_name)?)?;
+    Ok(revwalk.next().transpose()?.is_some())
 }
 
 /// Returns commit messages for every commit reachable from HEAD that was made

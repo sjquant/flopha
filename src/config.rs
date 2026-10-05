@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::cli::VersionSourceName;
 use crate::error::FlophaError;
-use crate::versioning::Increment;
+use crate::versioning::{Increment, DEFAULT_PATTERN};
 
 /// The checked-in `flopha.toml` schema driving `flopha release`.
 #[derive(Debug, Deserialize, Default)]
@@ -36,16 +36,6 @@ impl FlophaConfig {
                     .to_string(),
             ));
         }
-        for target in &self.manifests {
-            if target.kind == ManifestKind::Regex
-                && (target.pattern.is_none() || target.replacement.is_none())
-            {
-                return Err(FlophaError::Config(format!(
-                    "manifest '{}': type \"regex\" requires both 'pattern' and 'replacement'",
-                    target.path
-                )));
-            }
-        }
         Ok(())
     }
 
@@ -75,7 +65,7 @@ pub struct VersionConfig {
 impl Default for VersionConfig {
     fn default() -> Self {
         Self {
-            pattern: "v{major}.{minor}.{patch}".to_string(),
+            pattern: DEFAULT_PATTERN.to_string(),
             source: VersionSourceName::Tag,
             auto: true,
             increment: Increment::Patch,
@@ -111,28 +101,37 @@ pub struct ReleaseConfig {
     pub repo: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
-#[serde(deny_unknown_fields)]
-pub struct ManifestTarget {
-    /// Path to the manifest file, relative to the repository root.
-    pub path: String,
-    #[serde(rename = "type")]
-    pub kind: ManifestKind,
-    /// `regex` targets only: pattern matched against the file content.
-    #[serde(default)]
-    pub pattern: Option<String>,
-    /// `regex` targets only: replacement text; `{version}` is substituted with the new version.
-    #[serde(default)]
-    pub replacement: Option<String>,
+/// A file `release` writes the new version into. `path` is relative to the
+/// repository root; `type` selects how the version is located.
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[serde(tag = "type", rename_all = "lowercase", deny_unknown_fields)]
+pub enum ManifestTarget {
+    Cargo {
+        path: String,
+    },
+    Npm {
+        path: String,
+    },
+    Pyproject {
+        path: String,
+    },
+    /// Replaces every match of `pattern`; `{version}` in `replacement` is the new version.
+    Regex {
+        path: String,
+        pattern: String,
+        replacement: String,
+    },
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum ManifestKind {
-    Cargo,
-    Npm,
-    Pyproject,
-    Regex,
+impl ManifestTarget {
+    pub fn path(&self) -> &str {
+        match self {
+            Self::Cargo { path }
+            | Self::Npm { path }
+            | Self::Pyproject { path }
+            | Self::Regex { path, .. } => path,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -206,8 +205,8 @@ mod tests {
         assert!(config.release.create);
         assert!(config.release.draft);
         assert_eq!(config.manifests.len(), 2);
-        assert_eq!(config.manifests[0].kind, ManifestKind::Cargo);
-        assert_eq!(config.manifests[1].kind, ManifestKind::Regex);
+        assert!(matches!(config.manifests[0], ManifestTarget::Cargo { .. }));
+        assert!(matches!(config.manifests[1], ManifestTarget::Regex { .. }));
     }
 
     /// It rejects `version.source = "branch"` since release assumes tag-based versioning.
@@ -239,8 +238,26 @@ mod tests {
         // When loading it
         let err = load(toml_str).unwrap_err();
 
-        // Then it's rejected explaining both fields are required
-        assert!(err.to_string().contains("requires both 'pattern'"));
+        // Then it's rejected naming the missing field
+        assert!(err.to_string().contains("missing field `pattern`"), "{err}");
+    }
+
+    /// It rejects unknown keys in a manifest target instead of ignoring typos.
+    #[test]
+    fn test_unknown_manifest_field_rejected() {
+        // Given a cargo manifest target with a misspelled key
+        let toml_str = r#"
+            [[manifest]]
+            path = "Cargo.toml"
+            type = "cargo"
+            pattren = "x"
+        "#;
+
+        // When loading it
+        let err = load(toml_str).unwrap_err();
+
+        // Then it's rejected naming the unknown key
+        assert!(err.to_string().contains("pattren"), "{err}");
     }
 
     /// It rejects unknown top-level keys instead of silently ignoring typos.

@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use crate::cli::OutputFormat;
-
 use crate::error::FlophaError;
-
 use crate::gitutils::{self, CommitInfo};
 
 /// Parameters for [`build_changelog`], bundled into a struct (rather than passed
@@ -14,6 +12,9 @@ pub(crate) struct ChangelogRequest<'a> {
     /// Upper bound for the commit range (inclusive); HEAD when `None`. Must be
     /// a resolvable ref/tag when set.
     pub to: Option<&'a str>,
+    /// Name for the range end in the title and JSON output; defaults to `to`.
+    /// Lets `release` label the changelog with a tag that doesn't exist yet.
+    pub to_label: Option<&'a str>,
     pub raw_groups: &'a [String],
     pub other: Option<&'a str>,
     pub title_template: Option<&'a str>,
@@ -33,10 +34,11 @@ pub(crate) fn build_changelog(
         None => gitutils::all_commits_with_info(repo, req.to)?,
     };
     let groups = group_commits(&commits, &group_rules, req.other);
-    let title = changelog_title(req.title_template, req.from_tag, req.to);
+    let to_label = req.to_label.or(req.to);
+    let title = changelog_title(req.title_template, req.from_tag, to_label);
 
     Ok(match req.format {
-        OutputFormat::Json => format_changelog_json(&title, req.from_tag, req.to, &groups),
+        OutputFormat::Json => format_changelog_json(&title, req.from_tag, to_label, &groups),
         OutputFormat::Text => format_changelog_text(&title, &groups),
     })
 }

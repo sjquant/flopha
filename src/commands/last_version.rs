@@ -22,10 +22,7 @@ pub fn last_version(path: &Path, args: &LastVersionArgs) -> Result<Option<String
 
         Ok(Some(version.tag))
     } else {
-        match args.format {
-            OutputFormat::Json => println!("null"),
-            OutputFormat::Text => println!("No version found"),
-        }
+        super::print_none(&args.format, "No version found");
         Ok(None)
     }
 }

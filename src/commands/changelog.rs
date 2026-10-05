@@ -23,6 +23,7 @@ pub fn changelog(path: &Path, args: &ChangelogArgs) -> Result<(), FlophaError> {
         &ChangelogRequest {
             from_tag: from_tag.as_deref(),
             to: args.to.as_deref(),
+            to_label: None,
             raw_groups: &args.group,
             other: args.other.as_deref(),
             title_template: args.title.as_deref(),

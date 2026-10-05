@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::cli::{NextVersionArgs, OutputFormat, VersionSourceName};
 use crate::error::FlophaError;
 use crate::gitutils;
-use crate::versioning::Versioner;
+use crate::versioning::{self, Versioner};
 
 pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String>, FlophaError> {
     if args.tag_message.is_some() {
@@ -32,17 +32,14 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
     let next = match versioner.next_version(increment)? {
         Some(v) => v,
         None => {
-            match args.format {
-                OutputFormat::Json => println!("null"),
-                OutputFormat::Text => println!("No version found"),
-            }
+            super::print_none(&args.format, "No version found");
             return Ok(None);
         }
     };
 
     let final_tag = if let Some(channel) = &args.pre {
         let n = super::next_pre_release_number(&repo, &next.tag, channel);
-        format!("{}-{}.{}", next.tag, channel, n)
+        versioning::pre_release(&next.tag, channel, n)
     } else {
         next.tag.clone()
     };

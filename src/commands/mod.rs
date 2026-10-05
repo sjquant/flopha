@@ -6,22 +6,29 @@ mod log;
 mod next_version;
 mod release;
 
+use crate::cli::{OutputFormat, VersionSourceName};
+use crate::error::FlophaError;
+use crate::gitutils;
+use crate::version_source::{BranchVersionSource, TagVersionSource, VersionSource};
+use crate::versioning::{self, Increment, Version, Versioner};
 pub use changelog::changelog;
 pub use last_version::last_version;
 pub use log::log_versions;
 pub use next_version::next_version;
 pub use release::release;
 
-use crate::cli::VersionSourceName;
-use crate::error::FlophaError;
-use crate::gitutils;
-use crate::version_source::{BranchVersionSource, TagVersionSource, VersionSource};
-use crate::versioning::{self, Increment, Version, Versioner};
-
 fn pattern_or_default(pattern: &Option<String>) -> String {
     pattern
         .clone()
-        .unwrap_or_else(|| "v{major}.{minor}.{patch}".to_string())
+        .unwrap_or_else(|| versioning::DEFAULT_PATTERN.to_string())
+}
+
+/// Prints `null` for JSON output, or `message` for text, when a command has no result.
+fn print_none(format: &OutputFormat, message: &str) {
+    match format {
+        OutputFormat::Json => println!("null"),
+        OutputFormat::Text => println!("{}", message),
+    }
 }
 
 fn version_source_factory(source: &VersionSourceName) -> Box<dyn VersionSource> {
@@ -71,15 +78,13 @@ fn resolve_increment(
 /// Returns the next available pre-release counter for `base_version` on `channel`
 /// (i.e. one greater than the highest existing `{base_version}-{channel}.N` tag).
 fn next_pre_release_number(repo: &git2::Repository, base_version: &str, channel: &str) -> u32 {
-    let prefix = format!("{}-{}.", base_version, channel);
     let max_pre = repo
         .tag_names(None)
         .map(|names| {
             names
                 .iter()
                 .flatten()
-                .filter_map(|t| t.strip_prefix(&prefix))
-                .filter_map(|s| s.parse::<u32>().ok())
+                .filter_map(|t| versioning::pre_release_number(t, base_version, channel))
                 .max()
                 .unwrap_or(0)
         })

@@ -3,6 +3,7 @@ use regex::Regex;
 
 use crate::error::FlophaError;
 
+pub const DEFAULT_PATTERN: &str = "v{major}.{minor}.{patch}";
 const SEMVER_ALIAS: &str = "{semver}";
 const SEMVER_PATTERN: &str = "{major}.{minor}.{patch}";
 
@@ -112,6 +113,32 @@ impl Version {
             patch,
         }
     }
+
+    /// The bare `major.minor.patch` string. Errors instead of defaulting to `0`
+    /// when the pattern doesn't capture every component, e.g. `v1.{minor}.{patch}`.
+    pub fn core(&self) -> Result<String, FlophaError> {
+        let component = |value: Option<u32>, name: &str| {
+            value.ok_or_else(|| FlophaError::MissingVersionComponent(name.to_string()))
+        };
+        Ok(format!(
+            "{}.{}.{}",
+            component(self.major, "major")?,
+            component(self.minor, "minor")?,
+            component(self.patch, "patch")?
+        ))
+    }
+}
+
+/// `{base}-{channel}.{n}`: the pre-release form shared by tags and manifest versions.
+pub fn pre_release(base: &str, channel: &str, n: u32) -> String {
+    format!("{}-{}.{}", base, channel, n)
+}
+
+/// The `n` of a `{base}-{channel}.{n}` tag, if `tag` has that form.
+pub fn pre_release_number(tag: &str, base: &str, channel: &str) -> Option<u32> {
+    tag.strip_prefix(&format!("{}-{}.", base, channel))?
+        .parse()
+        .ok()
 }
 
 #[derive(Debug, Clone, PartialEq, ValueEnum, serde::Deserialize)]

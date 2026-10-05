@@ -1,11 +1,8 @@
 use std::path::Path;
 
 use crate::cli::{LogArgs, OutputFormat};
-
 use crate::error::FlophaError;
-
 use crate::gitutils;
-
 use crate::versioning::Version;
 
 pub fn log_versions(path: &Path, args: &LogArgs) -> Result<(), FlophaError> {
