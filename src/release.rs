@@ -25,6 +25,19 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
         config.version.pattern.clone(),
     );
     let last = versioner.last_version();
+
+    // Lets CI run `release` on every push (and re-run failed jobs) without cutting
+    // empty releases from an already-released HEAD.
+    if let Some(last) = &last {
+        if gitutils::commits_since_tag(&repo, &last.tag)?.is_empty() {
+            match args.format {
+                OutputFormat::Json => println!("null"),
+                OutputFormat::Text => println!("Nothing to release: no commits since {}", last.tag),
+            }
+            return Ok(None);
+        }
+    }
+
     let from_tag = last.as_ref().map(|v| v.tag.clone());
 
     let increment = service::resolve_increment(
@@ -481,6 +494,30 @@ mod tests {
             content.contains("version = \"1.0.1-beta.2\""),
             "manifest version should match the pushed tag's counter, got: {content}"
         );
+    }
+
+    /// It exits successfully without tagging when HEAD has no commits since the last release.
+    #[test]
+    fn test_release_with_no_new_commits_is_a_no_op() {
+        // Given a repo whose HEAD is already tagged v1.0.0
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, _remote) = testutils::init_remote(&repo);
+
+        gitutils::tag_oid(
+            &repo,
+            repo.head().unwrap().peel_to_commit().unwrap().id(),
+            "v1.0.0",
+        )
+        .unwrap();
+
+        write_config(td.path(), "");
+
+        // When running the release pipeline
+        let result = release(td.path(), &release_args());
+
+        // Then it succeeds with nothing released and no new tag is created
+        assert_eq!(result.unwrap(), None);
+        assert!(repo.revparse_single("refs/tags/v1.0.1").is_err());
     }
 
     /// It rejects `version.source = "branch"` up front.
