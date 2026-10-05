@@ -192,7 +192,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           flopha release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # used by gh to create the GitHub Release
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # used to create the GitHub Release
 ```
 
 - Pushes made with the default `GITHUB_TOKEN` don't trigger new workflow runs, so the version-bump commit won't start another release.

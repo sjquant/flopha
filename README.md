@@ -239,7 +239,7 @@ replacement = "version={version}"     # {version} is substituted with the new ve
 ```
 
 - If there are no commits since the last version tag, `release` exits successfully without doing anything.
-- `release.create` uses the [GitHub CLI](https://cli.github.com/) (`gh`), which must be installed and authenticated.
+- `release.create` needs a GitHub token in `GH_TOKEN` or `GITHUB_TOKEN`. Locally, an existing `gh auth login` also works.
 - `version.source = "branch"` is not supported. For branch-based versioning, use `flopha next-version --source branch --create`.
 
 See [Release Workflows](https://flopha.solaqua.dev/docs/release-workflows#flopha-release-in-github-actions) for running `release` in CI.

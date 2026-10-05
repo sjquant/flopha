@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::cli::{OutputFormat, ReleaseArgs};
 use crate::config::FlophaConfig;
 use crate::error::FlophaError;
-use crate::github::{self, ReleaseRequest};
+use crate::github::{self, GitHubClient, ReleaseRequest};
 use crate::gitutils;
 use crate::manifest;
 use crate::service::{self, ChangelogRequest};
@@ -100,6 +100,18 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
         return Ok(Some(tag));
     }
 
+    // Resolved before anything is written or pushed, so a missing token or a
+    // non-GitHub remote fails here instead of after the tag is already public.
+    let github = if config.release.create {
+        let repo_slug = match &config.release.repo {
+            Some(slug) => slug.clone(),
+            None => github::repo_slug_from_remote(&repo, "origin")?,
+        };
+        Some((GitHubClient::from_env()?, repo_slug))
+    } else {
+        None
+    };
+
     let mut updates: Vec<(PathBuf, String)> = Vec::new();
     for target in &config.manifests {
         if let Some(update) = manifest::compute(path, target, &version_core)? {
@@ -131,18 +143,17 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     }
     gitutils::push_tag(&mut remote, &tag)?;
 
-    let release_url = if config.release.create {
-        let url = create_github_release(&repo, &config, &tag, &version_core, &changelog).map_err(
-            |e| {
-                FlophaError::Config(format!(
-                    "tag '{}' was created and pushed, but creating the GitHub Release failed: {}",
-                    tag, e
-                ))
-            },
-        )?;
-        Some(url)
-    } else {
-        None
+    let release_url = match &github {
+        Some((client, repo_slug)) => Some(
+            create_github_release(client, repo_slug, &config, &tag, &version_core, &changelog)
+                .map_err(|e| {
+                    FlophaError::Config(format!(
+                        "tag '{}' was created and pushed, but creating the GitHub Release failed: {}",
+                        tag, e
+                    ))
+                })?,
+        ),
+        None => None,
     };
 
     println!("Released {}", tag);
@@ -201,16 +212,13 @@ fn build_release_changelog(
 }
 
 fn create_github_release(
-    repo: &git2::Repository,
+    client: &GitHubClient,
+    repo_slug: &str,
     config: &FlophaConfig,
     tag: &str,
     version_core: &str,
     changelog: &Option<String>,
 ) -> Result<String, FlophaError> {
-    let repo_slug = match &config.release.repo {
-        Some(slug) => slug.clone(),
-        None => github::repo_slug_from_remote(repo, "origin")?,
-    };
     let title = config
         .release
         .title
@@ -220,8 +228,8 @@ fn create_github_release(
         .replace("{version}", version_core);
     let body = config.release.body.clone().or_else(|| changelog.clone());
 
-    github::create_release(&ReleaseRequest {
-        repo_slug: &repo_slug,
+    client.create_release(&ReleaseRequest {
+        repo_slug,
         tag,
         title: &title,
         body: body.as_deref(),
@@ -518,6 +526,49 @@ mod tests {
         // Then it succeeds with nothing released and no new tag is created
         assert_eq!(result.unwrap(), None);
         assert!(repo.revparse_single("refs/tags/v1.0.1").is_err());
+    }
+
+    /// It fails before tagging or touching manifests when the GitHub Release can't be created.
+    #[test]
+    fn test_release_create_fails_before_any_side_effect_when_github_is_unresolvable() {
+        // Given release.create = true, a manifest target, and an origin that isn't on GitHub
+        let (td, repo) = testutils::init_repo();
+        let (_remote_td, _remote) = testutils::init_remote(&repo);
+
+        let manifest = "[package]\nname = \"app\"\nversion = \"1.0.0\"\n";
+        std::fs::write(td.path().join("Cargo.toml"), manifest).unwrap();
+        gitutils::stage_path(&repo, Path::new("Cargo.toml")).unwrap();
+        gitutils::commit(&repo, "chore: add manifest").unwrap();
+        gitutils::tag_oid(
+            &repo,
+            repo.head().unwrap().peel_to_commit().unwrap().id(),
+            "v1.0.0",
+        )
+        .unwrap();
+        gitutils::commit(&repo, "fix: something").unwrap();
+
+        write_config(
+            td.path(),
+            r#"
+                [release]
+                create = true
+
+                [[manifest]]
+                path = "Cargo.toml"
+                type = "cargo"
+            "#,
+        );
+
+        // When running the release pipeline
+        let err = release(td.path(), &release_args()).unwrap_err();
+
+        // Then it errors without creating the tag or rewriting the manifest
+        assert!(err.to_string().contains("GitHub owner/repo"), "{err}");
+        assert!(repo.revparse_single("refs/tags/v1.0.1").is_err());
+        assert_eq!(
+            std::fs::read_to_string(td.path().join("Cargo.toml")).unwrap(),
+            manifest
+        );
     }
 
     /// It rejects `version.source = "branch"` up front.

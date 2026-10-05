@@ -26,8 +26,8 @@ pub enum FlophaError {
     InvalidArgs(String),
     #[error("configuration error: {0}")]
     Config(String),
-    #[error("command failed: {0}")]
-    CommandFailed(String),
+    #[error("GitHub API error: {0}")]
+    GitHub(String),
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 }
