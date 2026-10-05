@@ -37,6 +37,37 @@ pub fn conventional_bump_rules() -> Vec<BumpRule> {
     ]
 }
 
+/// Parses `<level>:<pattern>` rule strings, falling back to the conventional
+/// commit rules when none are given.
+pub fn build_rules(raw_rules: &[String]) -> Result<Vec<BumpRule>, FlophaError> {
+    if raw_rules.is_empty() {
+        return Ok(conventional_bump_rules());
+    }
+    raw_rules.iter().map(|s| parse_bump_rule(s)).collect()
+}
+
+fn parse_bump_rule(s: &str) -> Result<BumpRule, FlophaError> {
+    let (level, pattern) = s.split_once(':').ok_or_else(|| FlophaError::InvalidRule {
+        input: s.to_string(),
+        reason: "expected format '<level>:<pattern>'".to_string(),
+    })?;
+    let increment = match level {
+        "major" => Increment::Major,
+        "minor" => Increment::Minor,
+        "patch" => Increment::Patch,
+        other => {
+            return Err(FlophaError::InvalidRule {
+                input: s.to_string(),
+                reason: format!("unknown level '{}', expected major, minor, or patch", other),
+            })
+        }
+    };
+    BumpRule::new(pattern, increment).map_err(|e| FlophaError::InvalidRule {
+        input: s.to_string(),
+        reason: format!("invalid regex: {}", e),
+    })
+}
+
 /// Infers the highest-priority [`Increment`] from `messages` using `rules`.
 ///
 /// Every rule is tested against every message independently; the highest-priority

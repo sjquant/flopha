@@ -2,8 +2,7 @@ use std::path::Path;
 
 use clap::{CommandFactory, Parser};
 use flopha::cli::{Cli, Commands};
-use flopha::release::release;
-use flopha::service::{changelog, last_version, log_versions, next_version};
+use flopha::commands::{changelog, last_version, log_versions, next_version, release};
 
 fn main() {
     let cli = Cli::parse();

@@ -1,13 +1,21 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+use crate::changelog::{build_changelog, ChangelogRequest};
 
 use crate::cli::{OutputFormat, ReleaseArgs};
+
 use crate::config::FlophaConfig;
+
 use crate::error::FlophaError;
+
 use crate::github::{self, GitHubClient, ReleaseRequest};
+
 use crate::gitutils;
+
 use crate::manifest;
-use crate::service::{self, ChangelogRequest};
+
 use crate::version_source::{TagVersionSource, VersionSource};
+
 use crate::versioning::{Version, Versioner};
 
 /// Runs the full config-driven release pipeline described by `flopha.toml`:
@@ -18,7 +26,7 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     let config = FlophaConfig::load(&path.join(&args.config))?;
 
     let repo = gitutils::get_repo(path)?;
-    fetch_origin(&repo);
+    gitutils::try_fetch_origin_tracking(&repo);
 
     let versioner = Versioner::new(
         TagVersionSource.fetch_all(&repo),
@@ -26,7 +34,7 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     );
     let last = versioner.last_version();
 
-    let increment = service::resolve_increment(
+    let increment = super::resolve_increment(
         &repo,
         last.as_ref(),
         config.version.auto,
@@ -52,22 +60,7 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     }
 
     let from_tag = last.map(|v| v.tag);
-
-    // Both the tag and the bare manifest version get the same `-{channel}.{n}`
-    // suffix, so the counter is computed once and applied to each — computing
-    // it twice via two `pre_release_tag` calls (one keyed on `next.tag`, one on
-    // `version_core`) would look up the counter against two different prefixes
-    // and could silently return different numbers for the tag vs. the manifest.
-    let (tag, version_core) = match &config.version.pre {
-        Some(channel) => {
-            let n = service::next_pre_release_number(&repo, &next.tag, channel);
-            (
-                format!("{}-{}.{}", next.tag, channel, n),
-                format!("{}-{}.{}", version_core, channel, n),
-            )
-        }
-        None => (next.tag.clone(), version_core),
-    };
+    let (tag, version) = release_tag_and_version(&repo, &config, &next, version_core);
 
     if !config.manifests.is_empty() && !args.dry_run {
         check_can_commit(&repo)?;
@@ -90,85 +83,36 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     }
 
     let github = connect_github(&repo, &config)?;
-
-    let mut edits = manifest::Edits::new(path);
-    for target in &config.manifests {
-        manifest::apply(&mut edits, target, &version_core)?;
-    }
-    let updates = edits.changes();
+    let updates = manifest_updates(path, &config, &version)?;
 
     let original_head = repo.head()?.peel_to_commit()?;
-    if !updates.is_empty() {
-        for (rel, content) in &updates {
-            std::fs::write(path.join(rel), content)?;
-            gitutils::stage_path(&repo, rel)?;
-        }
-        gitutils::commit(&repo, &format!("chore(release): {}", tag))?;
-    }
-
-    let tag_message = config
-        .version
-        .tag_message
-        .as_deref()
-        .unwrap_or("Release {tag}")
-        .replace("{tag}", &tag)
-        .replace("{version}", &version_core);
-    TagVersionSource.create(&repo, &tag, Some(&tag_message))?;
-
-    let mut remote = gitutils::get_remote(&repo, "origin")?;
-    if !updates.is_empty() {
-        let mut branch = gitutils::get_head_branch(&repo)?;
-        if let Err(e) = gitutils::push_branch(&mut remote, &mut branch) {
-            // Nothing has reached origin yet, so undo the local commit and tag and
-            // let a rerun start over. The hard reset only discards the release
-            // commit's own edits: `check_can_commit` required a clean tree.
-            repo.tag_delete(&tag)?;
-            repo.reset(original_head.as_object(), git2::ResetType::Hard, None)?;
-            return Err(FlophaError::Config(format!(
-                "pushing the release commit failed, so the local commit and tag '{}' were \
-                 undone: {}",
-                tag, e
-            )));
-        }
-    }
-    gitutils::push_tag(&mut remote, &tag).map_err(|e| {
-        FlophaError::Config(format!(
-            "tag '{}' was created but pushing it failed: {}. Re-run `flopha release` to retry.",
-            tag, e
-        ))
-    })?;
+    commit_and_tag(&repo, path, &config, &updates, &tag, &version)?;
+    push_release(&repo, &tag, !updates.is_empty(), &original_head)?;
 
     println!("Released {}", tag);
     if let Some((client, repo_slug)) = &github {
-        let url =
-            create_github_release(client, repo_slug, &config, &tag, &version_core, &changelog)
-                .map_err(|e| release_failed(&tag, e))?;
+        let url = create_github_release(client, repo_slug, &config, &tag, &version, &changelog)
+            .map_err(|e| release_failed(&tag, e))?;
         println!("GitHub Release: {}", url);
     }
 
     Ok(Some(tag))
 }
 
-/// Updates tags and `origin/*` tracking refs. Unlike `service::try_fetch_from_origin`,
-/// this never moves local branches: moving the checked-out branch would leave its
-/// working files stale, and the release commit would then revert upstream changes.
-fn fetch_origin(repo: &git2::Repository) {
-    match gitutils::get_remote(repo, "origin") {
-        Ok(mut remote) => {
-            if let Err(e) = gitutils::fetch_tags_and_remote_branches(&mut remote) {
-                log::warn!("Failed to fetch from origin: {}", e);
-            }
-        }
-        Err(_) => log::debug!("No remote 'origin' found, using local data only"),
-    }
-}
-
-/// A release whose tag already points at HEAD, possibly left unfinished by an
-/// interrupted run (tag not pushed, or GitHub Release not created).
-struct TaggedRelease {
-    tag: String,
-    version: String,
-    from_tag: Option<String>,
+/// Extracts the bare `major.minor.patch` string manifest files are synced with.
+/// Errors (rather than silently defaulting to `0`) when `version.pattern` is
+/// scoped and doesn't capture every component, e.g. `v1.{minor}.{patch}`.
+fn bare_version(version: &Version) -> Result<String, FlophaError> {
+    let major = version
+        .major
+        .ok_or_else(|| FlophaError::MissingVersionComponent("major".to_string()))?;
+    let minor = version
+        .minor
+        .ok_or_else(|| FlophaError::MissingVersionComponent("minor".to_string()))?;
+    let patch = version
+        .patch
+        .ok_or_else(|| FlophaError::MissingVersionComponent("patch".to_string()))?;
+    Ok(format!("{}.{}.{}", major, minor, patch))
 }
 
 /// Finds the release tag at HEAD: the latest stable tag, or with `version.pre`
@@ -204,6 +148,14 @@ fn release_at_head(
         })),
         _ => Ok(None),
     }
+}
+
+/// A release whose tag already points at HEAD, possibly left unfinished by an
+/// interrupted run (tag not pushed, or GitHub Release not created).
+struct TaggedRelease {
+    tag: String,
+    version: String,
+    from_tag: Option<String>,
 }
 
 /// Completes a release that is already tagged at HEAD: pushes the tag if origin
@@ -272,6 +224,27 @@ fn print_nothing_to_release(format: &OutputFormat, reason: &str) {
     }
 }
 
+/// The tag and the bare manifest version, both with the same `-{channel}.{n}`
+/// suffix when `version.pre` is set. The counter is computed once from the tag
+/// prefix and applied to both, so the tag and manifests can't disagree.
+fn release_tag_and_version(
+    repo: &git2::Repository,
+    config: &FlophaConfig,
+    next: &Version,
+    version_core: String,
+) -> (String, String) {
+    match &config.version.pre {
+        Some(channel) => {
+            let n = super::next_pre_release_number(repo, &next.tag, channel);
+            (
+                format!("{}-{}.{}", next.tag, channel, n),
+                format!("{}-{}.{}", version_core, channel, n),
+            )
+        }
+        None => (next.tag.clone(), version_core),
+    }
+}
+
 /// Refuses to build a release commit that couldn't be pushed cleanly or would
 /// carry unrelated work: it must land on a branch, contain only the version
 /// bump, and sit on top of everything already on origin.
@@ -304,58 +277,6 @@ fn check_can_commit(repo: &git2::Repository) -> Result<(), FlophaError> {
     Ok(())
 }
 
-/// Resolves the GitHub repo and token and confirms access, before anything is
-/// written or pushed, so a missing token or wrong repo can't leave a pushed tag
-/// without its Release.
-fn connect_github(
-    repo: &git2::Repository,
-    config: &FlophaConfig,
-) -> Result<Option<(GitHubClient, String)>, FlophaError> {
-    if !config.release.create {
-        return Ok(None);
-    }
-    let remote = github::remote_repo(repo, "origin");
-    let (host, repo_slug) = match &config.release.repo {
-        Some(slug) => (
-            remote
-                .map(|r| r.host)
-                .unwrap_or_else(|_| "github.com".to_string()),
-            slug.clone(),
-        ),
-        None => {
-            let remote = remote?;
-            (remote.host, remote.slug)
-        }
-    };
-    let client = GitHubClient::from_env(&host)?;
-    client.check_access(&repo_slug)?;
-    Ok(Some((client, repo_slug)))
-}
-
-fn release_failed(tag: &str, e: FlophaError) -> FlophaError {
-    FlophaError::Config(format!(
-        "tag '{}' was pushed, but creating the GitHub Release failed: {}. Re-run \
-         `flopha release` to retry.",
-        tag, e
-    ))
-}
-
-/// Extracts the bare `major.minor.patch` string manifest files are synced with.
-/// Errors (rather than silently defaulting to `0`) when `version.pattern` is
-/// scoped and doesn't capture every component, e.g. `v1.{minor}.{patch}`.
-fn bare_version(version: &Version) -> Result<String, FlophaError> {
-    let major = version
-        .major
-        .ok_or_else(|| FlophaError::MissingVersionComponent("major".to_string()))?;
-    let minor = version
-        .minor
-        .ok_or_else(|| FlophaError::MissingVersionComponent("minor".to_string()))?;
-    let patch = version
-        .patch
-        .ok_or_else(|| FlophaError::MissingVersionComponent("patch".to_string()))?;
-    Ok(format!("{}.{}.{}", major, minor, patch))
-}
-
 /// Builds the changelog for the upcoming release. Commits are gathered up to
 /// HEAD (`to: None`) rather than the new `tag`, since the tag doesn't exist yet
 /// at this point in the pipeline — `build_changelog` would otherwise fail
@@ -374,7 +295,7 @@ fn build_release_changelog(
         .unwrap_or_else(|| "Changes in {to}".to_string())
         .replace("{to}", tag);
 
-    service::build_changelog(
+    build_changelog(
         repo,
         &ChangelogRequest {
             from_tag,
@@ -385,34 +306,6 @@ fn build_release_changelog(
             format: &OutputFormat::Text,
         },
     )
-}
-
-fn create_github_release(
-    client: &GitHubClient,
-    repo_slug: &str,
-    config: &FlophaConfig,
-    tag: &str,
-    version_core: &str,
-    changelog: &Option<String>,
-) -> Result<String, FlophaError> {
-    let title = config
-        .release
-        .title
-        .clone()
-        .unwrap_or_else(|| tag.to_string())
-        .replace("{tag}", tag)
-        .replace("{version}", version_core);
-    let body = config.release.body.clone().or_else(|| changelog.clone());
-
-    client.create_release(&ReleaseRequest {
-        repo_slug,
-        tag,
-        title: &title,
-        body: body.as_deref(),
-        draft: config.release.draft,
-        prerelease: config.is_prerelease(),
-        generate_notes: config.release.generate_notes,
-    })
 }
 
 fn print_plan(
@@ -465,6 +358,144 @@ fn print_plan(
             }
         }
     }
+}
+
+/// Resolves the GitHub repo and token and confirms access, before anything is
+/// written or pushed, so a missing token or wrong repo can't leave a pushed tag
+/// without its Release.
+fn connect_github(
+    repo: &git2::Repository,
+    config: &FlophaConfig,
+) -> Result<Option<(GitHubClient, String)>, FlophaError> {
+    if !config.release.create {
+        return Ok(None);
+    }
+    let remote = github::remote_repo(repo, "origin");
+    let (host, repo_slug) = match &config.release.repo {
+        Some(slug) => (
+            remote
+                .map(|r| r.host)
+                .unwrap_or_else(|_| "github.com".to_string()),
+            slug.clone(),
+        ),
+        None => {
+            let remote = remote?;
+            (remote.host, remote.slug)
+        }
+    };
+    let client = GitHubClient::from_env(&host)?;
+    client.check_access(&repo_slug)?;
+    Ok(Some((client, repo_slug)))
+}
+
+/// Computes every manifest edit before any file is written, so a failing
+/// target leaves no partial edits.
+fn manifest_updates(
+    path: &Path,
+    config: &FlophaConfig,
+    version: &str,
+) -> Result<Vec<(PathBuf, String)>, FlophaError> {
+    let mut edits = manifest::Edits::new(path);
+    for target in &config.manifests {
+        manifest::apply(&mut edits, target, version)?;
+    }
+    Ok(edits.changes())
+}
+
+/// Writes and commits the manifest updates (if any), then creates the annotated tag.
+fn commit_and_tag(
+    repo: &git2::Repository,
+    path: &Path,
+    config: &FlophaConfig,
+    updates: &[(PathBuf, String)],
+    tag: &str,
+    version: &str,
+) -> Result<(), FlophaError> {
+    if !updates.is_empty() {
+        for (rel, content) in updates {
+            std::fs::write(path.join(rel), content)?;
+            gitutils::stage_path(repo, rel)?;
+        }
+        gitutils::commit(repo, &format!("chore(release): {}", tag))?;
+    }
+
+    let tag_message = config
+        .version
+        .tag_message
+        .as_deref()
+        .unwrap_or("Release {tag}")
+        .replace("{tag}", tag)
+        .replace("{version}", version);
+    TagVersionSource.create(repo, tag, Some(&tag_message))?;
+    Ok(())
+}
+
+/// Pushes the release commit (when there is one) and then the tag. If the
+/// commit can't be pushed, nothing has reached origin yet, so the local commit
+/// and tag are undone and a rerun starts over.
+fn push_release(
+    repo: &git2::Repository,
+    tag: &str,
+    has_commit: bool,
+    original_head: &git2::Commit,
+) -> Result<(), FlophaError> {
+    let mut remote = gitutils::get_remote(repo, "origin")?;
+    if has_commit {
+        let mut branch = gitutils::get_head_branch(repo)?;
+        if let Err(e) = gitutils::push_branch(&mut remote, &mut branch) {
+            // The hard reset only discards the release commit's own edits:
+            // `check_can_commit` required a clean tree.
+            repo.tag_delete(tag)?;
+            repo.reset(original_head.as_object(), git2::ResetType::Hard, None)?;
+            return Err(FlophaError::Config(format!(
+                "pushing the release commit failed, so the local commit and tag '{}' were \
+                 undone: {}",
+                tag, e
+            )));
+        }
+    }
+    gitutils::push_tag(&mut remote, tag).map_err(|e| {
+        FlophaError::Config(format!(
+            "tag '{}' was created but pushing it failed: {}. Re-run `flopha release` to retry.",
+            tag, e
+        ))
+    })
+}
+
+fn create_github_release(
+    client: &GitHubClient,
+    repo_slug: &str,
+    config: &FlophaConfig,
+    tag: &str,
+    version_core: &str,
+    changelog: &Option<String>,
+) -> Result<String, FlophaError> {
+    let title = config
+        .release
+        .title
+        .clone()
+        .unwrap_or_else(|| tag.to_string())
+        .replace("{tag}", tag)
+        .replace("{version}", version_core);
+    let body = config.release.body.clone().or_else(|| changelog.clone());
+
+    client.create_release(&ReleaseRequest {
+        repo_slug,
+        tag,
+        title: &title,
+        body: body.as_deref(),
+        draft: config.release.draft,
+        prerelease: config.is_prerelease(),
+        generate_notes: config.release.generate_notes,
+    })
+}
+
+fn release_failed(tag: &str, e: FlophaError) -> FlophaError {
+    FlophaError::Config(format!(
+        "tag '{}' was pushed, but creating the GitHub Release failed: {}. Re-run \
+         `flopha release` to retry.",
+        tag, e
+    ))
 }
 
 #[cfg(test)]

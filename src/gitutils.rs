@@ -107,7 +107,31 @@ pub fn get_last_tag_name(repo: &Repository) -> Result<String, git2::Error> {
     describe.format(Some(DescribeFormatOptions::new().abbreviated_size(0)))
 }
 
-pub fn fetch_all(remote: &mut git2::Remote) -> Result<(), git2::Error> {
+/// Best-effort fetch from `origin` that mirrors remote branches into local ones,
+/// so branch-based version sources see branches created elsewhere.
+pub fn try_fetch_origin(repo: &Repository) {
+    try_fetch(repo, fetch_all);
+}
+
+/// Best-effort fetch from `origin` of tags and `origin/*` tracking refs. Never
+/// moves local branches: moving the checked-out branch would leave its working
+/// files stale, so a commit made afterwards would revert the fetched changes.
+pub fn try_fetch_origin_tracking(repo: &Repository) {
+    try_fetch(repo, fetch_tags_and_remote_branches);
+}
+
+fn try_fetch(repo: &Repository, fetch: fn(&mut git2::Remote) -> Result<(), git2::Error>) {
+    match get_remote(repo, "origin") {
+        Ok(mut remote) => {
+            if let Err(e) = fetch(&mut remote) {
+                log::warn!("Failed to fetch from origin: {}", e);
+            }
+        }
+        Err(_) => log::debug!("No remote 'origin' found, using local data only"),
+    }
+}
+
+fn fetch_all(remote: &mut git2::Remote) -> Result<(), git2::Error> {
     log::debug!("Fetching all branches and tags from remote...");
     let mut fo = fetch_options();
     remote.fetch(&["refs/heads/*:refs/heads/*"], Some(&mut fo), None)?;
@@ -117,7 +141,7 @@ pub fn fetch_all(remote: &mut git2::Remote) -> Result<(), git2::Error> {
 
 /// Fetches tags and updates `refs/remotes/<remote>/*` without moving local
 /// branches, so the checked-out branch never drifts from its working files.
-pub fn fetch_tags_and_remote_branches(remote: &mut git2::Remote) -> Result<(), git2::Error> {
+fn fetch_tags_and_remote_branches(remote: &mut git2::Remote) -> Result<(), git2::Error> {
     let name = remote.name().unwrap_or("origin").to_string();
     let refspec = format!("+refs/heads/*:refs/remotes/{}/*", name);
     let mut fo = fetch_options();
