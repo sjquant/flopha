@@ -2,20 +2,27 @@ use std::process::Command;
 use std::time::Duration;
 
 use git2::Repository;
+use ureq::http::StatusCode;
 use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 
 use crate::error::FlophaError;
 use crate::gitutils;
 
-/// Resolves the `owner/repo` slug from a remote's URL, supporting the common
-/// GitHub URL shapes (`https://github.com/owner/repo(.git)`, `git@github.com:owner/repo.git`,
-/// `ssh://git@github.com/owner/repo.git`).
-pub fn repo_slug_from_remote(repo: &Repository, remote_name: &str) -> Result<String, FlophaError> {
+/// A repository on GitHub or GitHub Enterprise Server, as identified by a remote URL.
+pub struct RemoteRepo {
+    pub host: String,
+    pub slug: String,
+}
+
+/// Resolves the host and `owner/repo` slug from a remote's URL, supporting HTTPS
+/// (`https://host/owner/repo(.git)`), SCP-style SSH (`git@host:owner/repo.git`),
+/// and `ssh://` URLs.
+pub fn remote_repo(repo: &Repository, remote_name: &str) -> Result<RemoteRepo, FlophaError> {
     let remote = gitutils::get_remote(repo, remote_name)?;
     let url = remote
         .url()
         .ok_or_else(|| FlophaError::Config(format!("remote '{}' has no URL", remote_name)))?;
-    parse_github_slug(url).ok_or_else(|| {
+    parse_remote_url(url).ok_or_else(|| {
         FlophaError::Config(format!(
             "could not determine a GitHub owner/repo from remote URL '{}'",
             url
@@ -23,18 +30,23 @@ pub fn repo_slug_from_remote(repo: &Repository, remote_name: &str) -> Result<Str
     })
 }
 
-fn parse_github_slug(url: &str) -> Option<String> {
-    let trimmed = url.trim_end_matches('/').trim_end_matches(".git");
-    if let Some(rest) = trimmed.strip_prefix("git@github.com:") {
-        return Some(rest.to_string());
-    }
-    let idx = trimmed.find("github.com/")?;
-    let slug = &trimmed[idx + "github.com/".len()..];
-    if slug.is_empty() {
-        None
-    } else {
-        Some(slug.to_string())
-    }
+fn parse_remote_url(url: &str) -> Option<RemoteRepo> {
+    let (authority, path) = match url.split_once("://") {
+        Some((_scheme, rest)) => rest.split_once('/')?,
+        None => url.split_once(':')?,
+    };
+    let host = authority.rsplit('@').next()?;
+    let host = host.split(':').next()?;
+    let slug = path.trim_end_matches('/').trim_end_matches(".git");
+    let mut segments = slug.split('/');
+    let valid = matches!(
+        (segments.next(), segments.next(), segments.next()),
+        (Some(owner), Some(name), None) if !owner.is_empty() && !name.is_empty()
+    );
+    (valid && !host.is_empty()).then(|| RemoteRepo {
+        host: host.to_string(),
+        slug: slug.to_string(),
+    })
 }
 
 pub struct ReleaseRequest<'a> {
@@ -47,8 +59,6 @@ pub struct ReleaseRequest<'a> {
     pub generate_notes: bool,
 }
 
-const DEFAULT_API_URL: &str = "https://api.github.com";
-
 /// Creates GitHub Releases through the REST API, so `release` works without
 /// the GitHub CLI installed.
 pub struct GitHubClient {
@@ -59,13 +69,16 @@ pub struct GitHubClient {
 
 impl GitHubClient {
     /// Uses `GITHUB_API_URL` when set (GitHub Actions sets it, including on
-    /// GitHub Enterprise Server), otherwise api.github.com. Errors when no token
-    /// is available, so callers can fail before pushing anything.
-    pub fn from_env() -> Result<Self, FlophaError> {
+    /// GitHub Enterprise Server), otherwise the API of `host`. Errors when no
+    /// token is available, so callers can fail before pushing anything.
+    pub fn from_env(host: &str) -> Result<Self, FlophaError> {
         let api_url = std::env::var("GITHUB_API_URL")
             .ok()
             .filter(|url| !url.trim().is_empty())
-            .unwrap_or_else(|| DEFAULT_API_URL.to_string());
+            .unwrap_or_else(|| match host {
+                "github.com" => "https://api.github.com".to_string(),
+                _ => format!("https://{}/api/v3", host),
+            });
         let token = resolve_token().ok_or_else(|| {
             FlophaError::Config(
                 "release.create = true needs a GitHub token: set GH_TOKEN or GITHUB_TOKEN, \
@@ -95,6 +108,40 @@ impl GitHubClient {
         }
     }
 
+    /// Confirms the token can reach `repo_slug`, so a wrong host, repo, or token
+    /// is caught before anything is pushed.
+    pub fn check_access(&self, repo_slug: &str) -> Result<(), FlophaError> {
+        let (status, json) = self.get(&format!("/repos/{}", repo_slug))?;
+        if !status.is_success() {
+            return Err(api_error(
+                &format!("accessing {}", repo_slug),
+                status,
+                &json,
+            ));
+        }
+        Ok(())
+    }
+
+    /// Returns the HTML URL of the Release (draft or published) for `tag`, if any.
+    pub fn find_release(&self, repo_slug: &str, tag: &str) -> Result<Option<String>, FlophaError> {
+        let path = format!("/repos/{}/releases?per_page=100", repo_slug);
+        let (status, json) = self.get(&path)?;
+        if !status.is_success() {
+            return Err(api_error(
+                &format!("listing releases of {}", repo_slug),
+                status,
+                &json,
+            ));
+        }
+        Ok(json
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|release| release["tag_name"] == tag)
+            .and_then(|release| release["html_url"].as_str())
+            .map(str::to_string))
+    }
+
     /// Creates a Release for an already-pushed tag and returns its HTML URL.
     pub fn create_release(&self, req: &ReleaseRequest) -> Result<String, FlophaError> {
         let mut payload = serde_json::json!({
@@ -109,45 +156,75 @@ impl GitHubClient {
             None => {}
         }
 
-        let url = format!("{}/repos/{}/releases", self.api_url, req.repo_slug);
-        let mut response = self
+        let path = format!("/repos/{}/releases", req.repo_slug);
+        let (status, json) = self.post(&path, payload.to_string())?;
+        if !status.is_success() {
+            let action = format!("creating release '{}' in {}", req.tag, req.repo_slug);
+            return Err(api_error(&action, status, &json));
+        }
+        json["html_url"]
+            .as_str()
+            .map(str::to_string)
+            .ok_or_else(|| FlophaError::GitHub("response did not include html_url".to_string()))
+    }
+
+    fn get(&self, path: &str) -> Result<(StatusCode, serde_json::Value), FlophaError> {
+        let url = format!("{}{}", self.api_url, path);
+        let result = self
+            .agent
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", self.token))
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .call();
+        read_response(result, &url)
+    }
+
+    fn post(
+        &self,
+        path: &str,
+        body: String,
+    ) -> Result<(StatusCode, serde_json::Value), FlophaError> {
+        let url = format!("{}{}", self.api_url, path);
+        let result = self
             .agent
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
             .content_type("application/json")
-            .send(payload.to_string())
-            .map_err(|e| FlophaError::GitHub(format!("request to {} failed: {}", url, e)))?;
-
-        let status = response.status();
-        let text = response
-            .body_mut()
-            .read_to_string()
-            .map_err(|e| FlophaError::GitHub(format!("failed to read response: {}", e)))?;
-        let json: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
-
-        if !status.is_success() {
-            let mut message = json["message"].as_str().unwrap_or(text.trim()).to_string();
-            // "Validation Failed" alone is unhelpful; the details (e.g. the tag's
-            // release already exists) are in `errors`.
-            if let Some(errors) = json.get("errors") {
-                message = format!("{} {}", message, errors);
-            }
-            return Err(FlophaError::GitHub(format!(
-                "creating release '{}' in {} failed ({}): {}",
-                req.tag,
-                req.repo_slug,
-                status.as_u16(),
-                message
-            )));
-        }
-
-        json["html_url"]
-            .as_str()
-            .map(str::to_string)
-            .ok_or_else(|| FlophaError::GitHub("response did not include html_url".to_string()))
+            .send(body);
+        read_response(result, &url)
     }
+}
+
+fn read_response(
+    result: Result<ureq::http::Response<ureq::Body>, ureq::Error>,
+    url: &str,
+) -> Result<(StatusCode, serde_json::Value), FlophaError> {
+    let mut response =
+        result.map_err(|e| FlophaError::GitHub(format!("request to {} failed: {}", url, e)))?;
+    let status = response.status();
+    let text = response
+        .body_mut()
+        .read_to_string()
+        .map_err(|e| FlophaError::GitHub(format!("failed to read response: {}", e)))?;
+    Ok((status, serde_json::from_str(&text).unwrap_or_default()))
+}
+
+fn api_error(action: &str, status: StatusCode, json: &serde_json::Value) -> FlophaError {
+    let mut message = json["message"].as_str().unwrap_or("").to_string();
+    // "Validation Failed" alone is unhelpful; the details (e.g. the tag's release
+    // already exists) are in `errors`.
+    if let Some(errors) = json.get("errors") {
+        message = format!("{} {}", message, errors);
+    }
+    FlophaError::GitHub(format!(
+        "{} failed ({}): {}",
+        action,
+        status.as_u16(),
+        message.trim()
+    ))
 }
 
 fn resolve_token() -> Option<String> {
@@ -280,63 +357,82 @@ mod tests {
         assert!(message.contains("already_exists"), "{message}");
     }
 
-    /// It extracts owner/repo from an HTTPS URL with a `.git` suffix.
+    /// It finds an existing Release (including drafts) by its tag.
     #[test]
-    fn test_parses_https_url() {
-        // Given a standard HTTPS clone URL
-        // When parsing it
-        // Then the owner/repo slug is extracted
+    fn test_find_release_matches_tag_name() {
+        // Given an API listing a draft release for v1.1.0
+        let (url, _request) = serve_once(
+            "200 OK",
+            r#"[{"tag_name":"v1.0.0","html_url":"https://example.com/v1.0.0"},{"tag_name":"v1.1.0","draft":true,"html_url":"https://example.com/v1.1.0"}]"#,
+        );
+        let client = GitHubClient::new(&url, "secret-token".to_string());
+
+        // When looking up the release for v1.1.0
+        let found = client.find_release("sjquant/flopha", "v1.1.0").unwrap();
+
+        // Then the matching release's URL is returned
+        assert_eq!(found.as_deref(), Some("https://example.com/v1.1.0"));
+    }
+
+    fn parsed(url: &str) -> Option<(String, String)> {
+        parse_remote_url(url).map(|r| (r.host, r.slug))
+    }
+
+    fn pair(host: &str, slug: &str) -> Option<(String, String)> {
+        Some((host.to_string(), slug.to_string()))
+    }
+
+    /// It extracts host and owner/repo from HTTPS URLs, with or without `.git`.
+    #[test]
+    fn test_parses_https_urls() {
+        // Given HTTPS clone URLs
+        // When parsing them
+        // Then the host and owner/repo slug are extracted
         assert_eq!(
-            parse_github_slug("https://github.com/sjquant/flopha.git"),
-            Some("sjquant/flopha".to_string())
+            parsed("https://github.com/sjquant/flopha.git"),
+            pair("github.com", "sjquant/flopha")
+        );
+        assert_eq!(
+            parsed("https://x-access-token:abc@github.com/sjquant/flopha"),
+            pair("github.com", "sjquant/flopha")
         );
     }
 
-    /// It extracts owner/repo from an HTTPS URL without a `.git` suffix.
+    /// It extracts host and owner/repo from SCP-style and `ssh://` URLs.
     #[test]
-    fn test_parses_https_url_without_git_suffix() {
-        // Given an HTTPS URL with no .git suffix
-        // When parsing it
-        // Then the owner/repo slug is extracted
+    fn test_parses_ssh_urls() {
+        // Given SSH remote URLs
+        // When parsing them
+        // Then the host and owner/repo slug are extracted
         assert_eq!(
-            parse_github_slug("https://github.com/sjquant/flopha"),
-            Some("sjquant/flopha".to_string())
+            parsed("git@github.com:sjquant/flopha.git"),
+            pair("github.com", "sjquant/flopha")
+        );
+        assert_eq!(
+            parsed("ssh://git@github.com:22/sjquant/flopha.git"),
+            pair("github.com", "sjquant/flopha")
         );
     }
 
-    /// It extracts owner/repo from the `git@github.com:owner/repo.git` shorthand.
+    /// It keeps the host of GitHub Enterprise Server remotes so the right API is used.
     #[test]
-    fn test_parses_ssh_shorthand_url() {
-        // Given an SSH shorthand URL
+    fn test_parses_enterprise_host() {
+        // Given a GitHub Enterprise Server remote
         // When parsing it
-        // Then the owner/repo slug is extracted
+        // Then the enterprise host is kept
         assert_eq!(
-            parse_github_slug("git@github.com:sjquant/flopha.git"),
-            Some("sjquant/flopha".to_string())
+            parsed("https://github.example.com/team/app.git"),
+            pair("github.example.com", "team/app")
         );
     }
 
-    /// It extracts owner/repo from a full `ssh://` URL.
+    /// It rejects URLs that don't name exactly one owner and repo on a host.
     #[test]
-    fn test_parses_ssh_url() {
-        // Given a full ssh:// URL
-        // When parsing it
-        // Then the owner/repo slug is extracted
-        assert_eq!(
-            parse_github_slug("ssh://git@github.com/sjquant/flopha.git"),
-            Some("sjquant/flopha".to_string())
-        );
-    }
-
-    /// It returns `None` for remotes that aren't hosted on github.com.
-    #[test]
-    fn test_non_github_remote_returns_none() {
-        // Given a non-GitHub remote URL
-        // When parsing it
-        // Then no slug is extracted
-        assert_eq!(
-            parse_github_slug("https://gitlab.com/sjquant/flopha.git"),
-            None
-        );
+    fn test_rejects_urls_without_owner_and_repo() {
+        // Given a local path remote and a nested-group remote
+        // When parsing them
+        // Then no repository is extracted
+        assert_eq!(parsed("file:///tmp/remote"), None);
+        assert_eq!(parsed("https://gitlab.com/group/sub/app.git"), None);
     }
 }

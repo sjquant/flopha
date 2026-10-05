@@ -203,7 +203,7 @@ auto = true                            # detect bump level from conventional com
 # increment = "patch"                  # used instead of auto-detection when auto = false
 # rules = ["major:BREAKING CHANGE", "minor:^feat"]
 # pre = "beta"                         # pre-release channel, e.g. v1.2.3-beta.1
-# tag_message = "Release {tag}"        # annotated tag message; defaults to "Release <tag>"
+# tag_message = "Release {tag}"        # annotated tag message; supports {tag} and {version}
 
 [changelog]
 enabled = true
@@ -221,7 +221,7 @@ draft = false
 
 [[manifest]]
 path = "Cargo.toml"
-type = "cargo"                        # sets [package].version
+type = "cargo"                        # sets [package].version (or [workspace.package].version) and Cargo.lock
 
 [[manifest]]
 path = "package.json"
@@ -238,7 +238,8 @@ pattern = "(?m)^version=.*$"
 replacement = "version={version}"     # {version} is substituted with the new version
 ```
 
-- If there are no commits since the last version tag, `release` exits successfully without doing anything.
+- Safe to re-run: on a commit that is already tagged, `release` finishes that release (pushes the tag, creates a missing GitHub Release) instead of cutting a new one, and with no new commits it does nothing.
+- With `[[manifest]]` targets, the working tree must be clean and the branch up to date with `origin`. If pushing the release commit fails, the local commit and tag are undone.
 - `release.create` needs a GitHub token in `GH_TOKEN` or `GITHUB_TOKEN`. Locally, an existing `gh auth login` also works.
 - `version.source = "branch"` is not supported. For branch-based versioning, use `flopha next-version --source branch --create`.
 

@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use regex::{NoExpand, Regex};
@@ -5,48 +7,172 @@ use regex::{NoExpand, Regex};
 use crate::config::{ManifestKind, ManifestTarget};
 use crate::error::FlophaError;
 
-/// Computes `target`'s updated content for `version`, without writing to disk.
-/// Returns the target's repo-relative path and new content when it differs
-/// from what's on disk, or `None` when the file already contains the given
-/// version. Kept separate from [`sync`] so callers syncing several targets
-/// (see `release::release`) can validate every target before writing any of
-/// them, instead of leaving earlier targets rewritten if a later one fails.
-pub fn compute(
-    base_dir: &Path,
-    target: &ManifestTarget,
-    version: &str,
-) -> Result<Option<(PathBuf, String)>, FlophaError> {
-    let path = base_dir.join(&target.path);
-    let content = std::fs::read_to_string(&path)?;
-
-    let updated = match target.kind {
-        ManifestKind::Cargo => set_toml_field(&content, &path, &["package"], "version", version)?,
-        ManifestKind::Pyproject => set_pyproject_version(&content, &path, version)?,
-        ManifestKind::Npm => set_json_version(&content, &path, version)?,
-        ManifestKind::Regex => set_regex_version(&content, target, version)?,
-    };
-
-    if updated == content {
-        return Ok(None);
-    }
-    Ok(Some((PathBuf::from(&target.path), updated)))
+/// Pending file edits for one release. Reads see earlier edits to the same file
+/// (two Cargo targets can share one `Cargo.lock`), and nothing touches disk until
+/// the caller writes [`Edits::changes`], so a failing target leaves no partial edits.
+pub struct Edits {
+    base_dir: PathBuf,
+    files: BTreeMap<PathBuf, (String, String)>,
 }
 
-/// Computes and writes `version` into `target` under `base_dir`, if the file's
-/// contents change. Returns the target's repo-relative path when it was
-/// rewritten, or `None` when the file already contained the given version.
-pub fn sync(
-    base_dir: &Path,
-    target: &ManifestTarget,
-    version: &str,
-) -> Result<Option<PathBuf>, FlophaError> {
-    match compute(base_dir, target, version)? {
-        Some((rel, content)) => {
-            std::fs::write(base_dir.join(&rel), content)?;
-            Ok(Some(rel))
+impl Edits {
+    pub fn new(base_dir: &Path) -> Self {
+        Self {
+            base_dir: base_dir.to_path_buf(),
+            files: BTreeMap::new(),
         }
-        None => Ok(None),
     }
+
+    /// Repo-relative paths and new contents of the files whose content changed.
+    pub fn changes(self) -> Vec<(PathBuf, String)> {
+        self.files
+            .into_iter()
+            .filter(|(_, (original, current))| original != current)
+            .map(|(rel, (_, current))| (rel, current))
+            .collect()
+    }
+
+    fn read(&mut self, rel: &Path) -> Result<String, FlophaError> {
+        if let Some((_, current)) = self.files.get(rel) {
+            return Ok(current.clone());
+        }
+        let content = std::fs::read_to_string(self.base_dir.join(rel))?;
+        self.files
+            .insert(rel.to_path_buf(), (content.clone(), content.clone()));
+        Ok(content)
+    }
+
+    fn write(&mut self, rel: &Path, content: String) {
+        if let Some((_, current)) = self.files.get_mut(rel) {
+            *current = content;
+        }
+    }
+}
+
+/// Records `version` into `target` as pending edits. Cargo targets also update
+/// the matching entries of the nearest `Cargo.lock`, so the tagged tree still
+/// builds with `--locked`.
+pub fn apply(edits: &mut Edits, target: &ManifestTarget, version: &str) -> Result<(), FlophaError> {
+    let rel = PathBuf::from(&target.path);
+    let path = edits.base_dir.join(&rel);
+    let content = edits.read(&rel)?;
+
+    match target.kind {
+        ManifestKind::Cargo => {
+            let (updated, bumped) = set_cargo_version(&content, &path, version)?;
+            edits.write(&rel, updated);
+            if let Some(lock_rel) = find_cargo_lock(&edits.base_dir, &rel) {
+                let lock = edits.read(&lock_rel)?;
+                let updated =
+                    update_cargo_lock(&lock, &edits.base_dir.join(&lock_rel), &bumped, version)?;
+                edits.write(&lock_rel, updated);
+            }
+        }
+        ManifestKind::Pyproject => {
+            edits.write(&rel, set_pyproject_version(&content, &path, version)?)
+        }
+        ManifestKind::Npm => edits.write(&rel, set_json_version(&content, &path, version)?),
+        ManifestKind::Regex => edits.write(&rel, set_regex_version(&content, target, version)?),
+    }
+    Ok(())
+}
+
+/// Which `Cargo.lock` entries a Cargo.toml bump applies to: local (source-less)
+/// packages at the previous version, limited to `name` unless the whole
+/// workspace version moved.
+struct LockMatch {
+    name: Option<String>,
+    old_version: String,
+}
+
+/// Sets `[package].version`, or `[workspace.package].version` when the package
+/// inherits it (`version.workspace = true`), so inheritance isn't replaced by a
+/// fixed string.
+fn set_cargo_version(
+    content: &str,
+    path: &Path,
+    version: &str,
+) -> Result<(String, LockMatch), FlophaError> {
+    let doc = parse_toml_document(content, path)?;
+    let package_version = doc.get("package").and_then(|p| p.get("version"));
+
+    if let Some(old) = package_version.and_then(|v| v.as_str()) {
+        let name = doc["package"]
+            .get("name")
+            .and_then(|n| n.as_str())
+            .map(str::to_string);
+        let updated = set_toml_field(content, path, &["package"], "version", version)?;
+        return Ok((
+            updated,
+            LockMatch {
+                name,
+                old_version: old.to_string(),
+            },
+        ));
+    }
+    let workspace_version = doc
+        .get("workspace")
+        .and_then(|w| w.get("package"))
+        .and_then(|p| p.get("version"))
+        .and_then(|v| v.as_str());
+    if let Some(old) = workspace_version {
+        let updated = set_toml_field(content, path, &["workspace", "package"], "version", version)?;
+        return Ok((
+            updated,
+            LockMatch {
+                name: None,
+                old_version: old.to_string(),
+            },
+        ));
+    }
+    if package_version.is_some() {
+        return Err(FlophaError::Config(format!(
+            "'{}': [package].version is inherited from the workspace; point this target at \
+             the workspace root Cargo.toml instead",
+            path.display()
+        )));
+    }
+    Err(FlophaError::Config(format!(
+        "'{}': no [package].version or [workspace.package].version field found",
+        path.display()
+    )))
+}
+
+/// Finds the `Cargo.lock` governing `manifest`: the nearest one in its directory
+/// or an ancestor, within the repository.
+fn find_cargo_lock(base_dir: &Path, manifest: &Path) -> Option<PathBuf> {
+    manifest
+        .ancestors()
+        .skip(1)
+        .map(|dir| dir.join("Cargo.lock"))
+        .find(|lock| base_dir.join(lock).is_file())
+}
+
+fn update_cargo_lock(
+    content: &str,
+    path: &Path,
+    bumped: &LockMatch,
+    version: &str,
+) -> Result<String, FlophaError> {
+    let mut doc = parse_toml_document(content, path)?;
+    if let Some(packages) = doc
+        .get_mut("package")
+        .and_then(|p| p.as_array_of_tables_mut())
+    {
+        for package in packages.iter_mut() {
+            let is_local = !package.contains_key("source");
+            let at_old_version = package.get("version").and_then(|v| v.as_str())
+                == Some(bumped.old_version.as_str());
+            let name_matches = bumped
+                .name
+                .as_deref()
+                .is_none_or(|name| package.get("name").and_then(|v| v.as_str()) == Some(name));
+            if is_local && at_old_version && name_matches {
+                package["version"] = toml_edit::value(version);
+            }
+        }
+    }
+    Ok(doc.to_string())
 }
 
 fn parse_toml_document(content: &str, path: &Path) -> Result<toml_edit::DocumentMut, FlophaError> {
@@ -55,10 +181,8 @@ fn parse_toml_document(content: &str, path: &Path) -> Result<toml_edit::Document
         .map_err(|e| FlophaError::parse(path, e))
 }
 
-/// Sets `key` inside the table at `table_path` (e.g. `&["tool", "poetry"]`),
-/// erroring if the table or key doesn't exist. Shared by every TOML manifest
-/// kind so "locate a nested field, error if missing, assign, stringify" lives
-/// in exactly one place.
+/// Sets the string `key` inside the table at `table_path` (e.g. `&["tool", "poetry"]`),
+/// erroring if the table or a string value for `key` doesn't exist.
 fn set_toml_field(
     content: &str,
     path: &Path,
@@ -81,9 +205,9 @@ fn set_toml_field(
                 ))
             })?;
     }
-    if !table.contains_key(key) {
+    if table.get(key).and_then(|item| item.as_str()).is_none() {
         return Err(FlophaError::Config(format!(
-            "'{}': no '{}' field in [{}]",
+            "'{}': no string '{}' field in [{}]",
             path.display(),
             key,
             table_path.join(".")
@@ -113,25 +237,79 @@ fn set_pyproject_version(content: &str, path: &Path, version: &str) -> Result<St
     )))
 }
 
+/// Replaces only the top-level `"version"` string in place, so the file's
+/// indentation and key order stay exactly as they were.
 fn set_json_version(content: &str, path: &Path, version: &str) -> Result<String, FlophaError> {
-    let mut value: serde_json::Value =
+    let value: serde_json::Value =
         serde_json::from_str(content).map_err(|e| FlophaError::parse(path, e))?;
-    let obj = value.as_object_mut().ok_or_else(|| {
-        FlophaError::Config(format!("'{}': expected a JSON object", path.display()))
-    })?;
-    if !obj.contains_key("version") {
+    if value.get("version").and_then(|v| v.as_str()).is_none() {
         return Err(FlophaError::Config(format!(
-            "'{}': no top-level 'version' field",
+            "'{}': no top-level string 'version' field",
             path.display()
         )));
     }
-    obj.insert(
-        "version".to_string(),
-        serde_json::Value::String(version.to_string()),
-    );
-    let mut out = serde_json::to_string_pretty(&value)?;
-    out.push('\n');
-    Ok(out)
+    let span = top_level_string_value_span(content, "version").ok_or_else(|| {
+        FlophaError::Config(format!(
+            "'{}': could not locate the top-level 'version' field",
+            path.display()
+        ))
+    })?;
+    Ok(format!(
+        "{}{}{}",
+        &content[..span.start],
+        serde_json::to_string(version)?,
+        &content[span.end..]
+    ))
+}
+
+/// Byte range (quotes included) of the string value of top-level `key` in
+/// already-validated JSON.
+fn top_level_string_value_span(json: &str, key: &str) -> Option<Range<usize>> {
+    let bytes = json.as_bytes();
+    let mut depth = 0usize;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'{' | b'[' => depth += 1,
+            b'}' | b']' => depth -= 1,
+            b'"' => {
+                let end = string_end(bytes, i)?;
+                let after = skip_whitespace(bytes, end);
+                if depth == 1 && bytes.get(after) == Some(&b':') && &json[i + 1..end - 1] == key {
+                    let value_start = skip_whitespace(bytes, after + 1);
+                    if bytes.get(value_start) != Some(&b'"') {
+                        return None;
+                    }
+                    return Some(value_start..string_end(bytes, value_start)?);
+                }
+                i = end;
+                continue;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Index just past the closing quote of the JSON string starting at `start`.
+fn string_end(bytes: &[u8], start: usize) -> Option<usize> {
+    let mut i = start + 1;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' => i += 2,
+            b'"' => return Some(i + 1),
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+fn skip_whitespace(bytes: &[u8], mut i: usize) -> usize {
+    while bytes.get(i).is_some_and(u8::is_ascii_whitespace) {
+        i += 1;
+    }
+    i
 }
 
 fn set_regex_version(
@@ -171,6 +349,21 @@ mod tests {
         std::fs::write(td.path().join(name), content).unwrap();
     }
 
+    /// Applies `target` and writes the resulting edits, returning the touched paths.
+    fn sync(
+        base: &Path,
+        target: &ManifestTarget,
+        version: &str,
+    ) -> Result<Vec<PathBuf>, FlophaError> {
+        let mut edits = Edits::new(base);
+        apply(&mut edits, target, version)?;
+        let changes = edits.changes();
+        for (rel, content) in &changes {
+            std::fs::write(base.join(rel), content).unwrap();
+        }
+        Ok(changes.into_iter().map(|(rel, _)| rel).collect())
+    }
+
     fn target(path: &str, kind: ManifestKind) -> ManifestTarget {
         ManifestTarget {
             path: path.to_string(),
@@ -197,11 +390,10 @@ mod tests {
             &target("Cargo.toml", ManifestKind::Cargo),
             "0.5.0",
         )
-        .unwrap()
         .unwrap();
 
         // Then only the version field changes; everything else is preserved
-        assert_eq!(touched, PathBuf::from("Cargo.toml"));
+        assert_eq!(touched, vec![PathBuf::from("Cargo.toml")]);
         let content = std::fs::read_to_string(td.path().join("Cargo.toml")).unwrap();
         assert!(content.contains("version = \"0.5.0\""));
         assert!(
@@ -214,7 +406,7 @@ mod tests {
         );
     }
 
-    /// It returns `None` and leaves the file untouched when the version is already current.
+    /// It reports nothing touched when the version is already current.
     #[test]
     fn test_sync_cargo_toml_no_change_returns_none() {
         // Given a Cargo.toml already at the target version
@@ -230,7 +422,7 @@ mod tests {
         .unwrap();
 
         // Then nothing is reported as touched
-        assert!(touched.is_none());
+        assert!(touched.is_empty());
     }
 
     /// It sets the top-level "version" field in package.json.
@@ -401,5 +593,116 @@ mod tests {
 
         // Then it errors
         assert!(result.is_err());
+    }
+
+    /// It bumps the matching local package in Cargo.lock alongside Cargo.toml.
+    #[test]
+    fn test_sync_cargo_updates_cargo_lock() {
+        // Given a crate at 0.4.1 with a lockfile that also pins a registry crate at 0.4.1
+        let td = TempDir::new().unwrap();
+        write(
+            &td,
+            "Cargo.toml",
+            "[package]\nname = \"app\"\nversion = \"0.4.1\"\n",
+        );
+        write(
+            &td,
+            "Cargo.lock",
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.4.1\"\n\n[[package]]\nname = \"dep\"\nversion = \"0.4.1\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n",
+        );
+
+        // When syncing the new version
+        let touched = sync(
+            td.path(),
+            &target("Cargo.toml", ManifestKind::Cargo),
+            "0.5.0",
+        )
+        .unwrap();
+
+        // Then the crate's lock entry moves with it, but the registry crate is untouched
+        assert_eq!(touched.len(), 2);
+        let lock = std::fs::read_to_string(td.path().join("Cargo.lock")).unwrap();
+        assert!(
+            lock.contains("name = \"app\"\nversion = \"0.5.0\""),
+            "{lock}"
+        );
+        assert!(
+            lock.contains("name = \"dep\"\nversion = \"0.4.1\""),
+            "{lock}"
+        );
+    }
+
+    /// It bumps [workspace.package].version when the root package inherits it.
+    #[test]
+    fn test_sync_cargo_workspace_root_bumps_workspace_version() {
+        // Given a workspace root whose package inherits the workspace version
+        let td = TempDir::new().unwrap();
+        write(
+            &td,
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"crates/*\"]\n\n[workspace.package]\nversion = \"0.4.1\"\n\n[package]\nname = \"app\"\nversion.workspace = true\n",
+        );
+
+        // When syncing the new version
+        sync(
+            td.path(),
+            &target("Cargo.toml", ManifestKind::Cargo),
+            "0.5.0",
+        )
+        .unwrap();
+
+        // Then the workspace version is bumped and the package keeps inheriting it
+        let content = std::fs::read_to_string(td.path().join("Cargo.toml")).unwrap();
+        assert!(
+            content.contains("[workspace.package]\nversion = \"0.5.0\""),
+            "{content}"
+        );
+        assert!(content.contains("version.workspace = true"), "{content}");
+    }
+
+    /// It refuses to overwrite an inherited version in a workspace member.
+    #[test]
+    fn test_sync_cargo_member_with_inherited_version_errors() {
+        // Given a member crate that inherits its version from the workspace
+        let td = TempDir::new().unwrap();
+        write(
+            &td,
+            "Cargo.toml",
+            "[package]\nname = \"member\"\nversion = { workspace = true }\n",
+        );
+
+        // When syncing a new version
+        let err = sync(
+            td.path(),
+            &target("Cargo.toml", ManifestKind::Cargo),
+            "0.5.0",
+        )
+        .unwrap_err();
+
+        // Then it errors, pointing at the workspace root, and leaves the file alone
+        assert!(err.to_string().contains("workspace root"), "{err}");
+        let content = std::fs::read_to_string(td.path().join("Cargo.toml")).unwrap();
+        assert!(content.contains("version = { workspace = true }"));
+    }
+
+    /// It changes only the version in package.json, keeping tab indentation intact.
+    #[test]
+    fn test_sync_package_json_preserves_formatting() {
+        // Given a tab-indented package.json whose dependencies also have a "version"-like key
+        let td = TempDir::new().unwrap();
+        let original = "{\n\t\"name\": \"app\",\n\t\"config\": {\"version\": \"9.9.9\"},\n\t\"version\":   \"1.0.0\"\n}\n";
+        write(&td, "package.json", original);
+
+        // When syncing the new version
+        sync(
+            td.path(),
+            &target("package.json", ManifestKind::Npm),
+            "1.1.0",
+        )
+        .unwrap();
+
+        // Then only the top-level version text changes
+        let content = std::fs::read_to_string(td.path().join("package.json")).unwrap();
+        assert_eq!(content, original.replace("\"1.0.0\"", "\"1.1.0\""));
     }
 }

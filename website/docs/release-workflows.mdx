@@ -159,7 +159,7 @@ jobs:
 
 ### `flopha release` in GitHub Actions
 
-With a checked-in `flopha.toml`, `flopha release` handles the bump, manifest sync, tag, changelog, and GitHub Release in one step. It's safe to run on every push: with no new commits since the last tag it exits without doing anything.
+With a checked-in `flopha.toml`, `flopha release` handles the bump, manifest sync, tag, changelog, and GitHub Release in one step. It's safe to run on every push and to re-run: with no new commits it does nothing, and on an already-tagged commit it only finishes what an interrupted run left undone (pushing the tag, creating the GitHub Release).
 
 ```yaml
 name: Release
@@ -198,7 +198,6 @@ jobs:
 - Pushes made with the default `GITHUB_TOKEN` don't trigger new workflow runs, so the version-bump commit won't start another release.
 - If `main` requires pull requests, the version-bump commit from `[[manifest]]` targets is rejected. Either let the workflow's token bypass the rule, or drop `[[manifest]]` so `release` only pushes a tag.
 - With `[[manifest]]` targets, HEAD must be on a branch, not detached. `actions/checkout` does this for `push` events; for `pull_request` or SHA checkouts, run `git checkout -B <branch>` first.
-- `type = "npm"` rewrites `package.json` as 2-space-indented JSON. `cargo` and `pyproject` targets keep the file's formatting and comments.
 
 ### Scripting with JSON output
 
