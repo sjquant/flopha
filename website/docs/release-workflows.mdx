@@ -157,6 +157,25 @@ jobs:
           create-release: true
 ```
 
+### Prepare a release PR
+
+Separate version changes from publication when they need PR review:
+
+```bash
+flopha release --prepare
+# Review and commit the modified manifests, then open a PR.
+flopha release --require-version-match --dry-run   # validate the PR without publishing
+flopha release --require-version-match             # publish after merge
+```
+
+`--prepare` uses the rules in `flopha.toml` to update manifests, including the local Cargo package's lock entry. It leaves changes unstaged and does not commit, tag, push, or create a GitHub Release. `--prepare --dry-run` previews the plan without writing files. Both preparation and verification require at least one configured manifest target.
+
+`--require-version-match` fails if any manifest would need an update to match the calculated version. On success it releases the committed version without creating a version commit, including from a detached CI checkout. Add `--dry-run` for PR validation without credentials or publication. The two options cannot be combined.
+
+If new commits change the required bump after preparation, update the version branch from its base branch, run `--prepare` again, and commit the corrected versions. If the version PR already merged, use a follow-up PR. Use a neutral commit message for the version PR so it does not itself trigger a major or minor bump.
+
+This repository follows that flow: a version PR changes `Cargo.toml` and `Cargo.lock`; merge triggers a draft release only when the Cargo version is unpublished. Existing build jobs build the tag and upload binaries before publishing. Rerun the original failed workflow if a draft was created but the build or upload failed.
+
 ### `flopha release` in GitHub Actions
 
 With a checked-in `flopha.toml`, `flopha release` handles the bump, manifest sync, tag, changelog, and GitHub Release in one step. It's safe to run on every push and to re-run: with no new commits it does nothing, and on an already-tagged commit it only finishes what an interrupted run left undone (pushing the tag, creating the GitHub Release).

@@ -128,6 +128,22 @@ When no `--group` flags are provided, commits are classified as:
 
 `to` is only present when `--to` was supplied. Groups with no matching commits are omitted.
 
+## `flopha release`
+
+Prepare or publish a release using `flopha.toml`.
+
+```bash
+flopha release [--config <file>] [--prepare | --require-version-match] [--dry-run] [--format <text|json>]
+```
+
+- `--config`, `-c`: Config path relative to the repository root. Default: `flopha.toml`.
+- `--prepare`: Update configured manifests only, leaving changes unstaged for a release PR. No commit, tag, push, or GitHub Release is created.
+- `--require-version-match`: Fail if manifests differ from the calculated version; otherwise publish without a version commit. Actual releases require committed files. Cannot be combined with `--prepare`.
+- `--dry-run`: Preview without writing files or publishing. With `--require-version-match`, also validate the prepared files.
+- `--format`, `-f`: Text (default) or JSON for previews and preparation. Preparation JSON is `{"version":"<tag>"}`; a no-op returns `null`.
+
+Both `--prepare` and `--require-version-match` need at least one `[[manifest]]` target. Without either option, `release` updates and commits manifests before tagging and publishing. See [Release Workflows](./release-workflows) for the PR preparation and recovery process.
+
 ## Global behavior
 
 - `--verbose`, `-v` enables debug logging.

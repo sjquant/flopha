@@ -40,3 +40,44 @@ jobs:
 
       - name: cargo test
         run: cargo test
+
+  release-check:
+    name: Validate release PR
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect version PR
+        id: version
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          package_version() {
+            sed -n '/^\[package\]/,/^\[/s/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p'
+          }
+          previous=$(git show "${BASE_SHA}:Cargo.toml" | package_version)
+          current=$(package_version < Cargo.toml)
+          test -n "$previous"
+          test -n "$current"
+
+          if [[ "$previous" != "$current" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.version.outputs.changed == 'true'
+
+      - uses: Swatinem/rust-cache@v2
+        if: steps.version.outputs.changed == 'true'
+
+      - name: Verify prepared manifests
+        if: steps.version.outputs.changed == 'true'
+        run: cargo run --locked -- release --require-version-match --dry-run

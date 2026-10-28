@@ -1,0 +1,21 @@
+[version]
+rules = ["major:^💥", "minor:^✨"]
+
+[changelog]
+enabled = true
+groups = [
+  "Breaking Changes:^💥",
+  "New Features:^✨",
+  "Bug Fixes:^(🐛|🚑)",
+  "Performance:^⚡",
+  "Refactoring:^♻",
+  "Documentation:^📝",
+]
+
+[release]
+create = true
+draft = true
+
+[[manifest]]
+path = "Cargo.toml"
+type = "cargo"
