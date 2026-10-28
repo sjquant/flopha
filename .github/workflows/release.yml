@@ -4,9 +4,12 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 concurrency:
-  group: ${{ github.sha }}
-  cancel-in-progress: true
+  group: release
+  cancel-in-progress: false
 
 jobs:
   prepare-release:
@@ -14,7 +17,6 @@ jobs:
     outputs:
       should_release: ${{ steps.version_check.outputs.should_release }}
       new_version: ${{ steps.version_check.outputs.new_version }}
-      changelog: ${{ steps.changelog.outputs.changelog }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,54 +25,44 @@ jobs:
 
       - name: Check version
         id: version_check
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          cargo_version=$(grep -m1 '^version\s*=' Cargo.toml | awk -F '"' '{print $2}')
-          echo "new_version=$cargo_version" >> $GITHUB_OUTPUT
+          cargo_version=$(sed -n '/^\[package\]/,/^\[/s/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' Cargo.toml)
+          test -n "$cargo_version"
+          tag="v${cargo_version}"
+          echo "new_version=$cargo_version" >> "$GITHUB_OUTPUT"
 
-          git fetch --tags
-          if git tag --list "v${cargo_version}" | grep -q .; then
-            echo "Tag v${cargo_version} already published, skipping"
-            echo "should_release=false" >> $GITHUB_OUTPUT
-          else
-            echo "New version: $cargo_version"
-            echo "should_release=true" >> $GITHUB_OUTPUT
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            if [ "$(gh release view "$tag" --json isDraft --jq '.isDraft' || true)" = false ]; then
+              echo "Release $tag already published, skipping"
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$(git rev-parse "$tag^{commit}")" != "$(git rev-parse HEAD)" ]; then
+              echo "::error::Unfinished release $tag belongs to another commit; rerun its original workflow."
+              exit 1
+            fi
           fi
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
 
-      - name: Install flopha
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.version_check.outputs.should_release == 'true'
+
+      - uses: Swatinem/rust-cache@v2
+        if: steps.version_check.outputs.should_release == 'true'
+
+      # Build from source until the new release options are available in a published binary.
+      - name: Create or recover draft release
         if: steps.version_check.outputs.should_release == 'true'
         env:
-          FLOPHA_VERSION: latest
-        run: bash action/install.sh
-
-      - name: Generate changelog
-        id: changelog
-        if: steps.version_check.outputs.should_release == 'true'
-        shell: bash
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          prev_tag=$(flopha lv --pattern 'v{major}.{minor}.{patch}' --format json | jq -r '.version // empty')
-          CL_ARGS=(--title "Changes in v${{ steps.version_check.outputs.new_version }}")
-          [ -n "$prev_tag" ] && CL_ARGS+=(--from "$prev_tag")
-          CL_EOF="__FLOPHA_CL_${RANDOM}${RANDOM}__"
-          {
-            echo "changelog<<${CL_EOF}"
-            flopha changelog "${CL_ARGS[@]}" \
-              --group 'Breaking Changes:^💥' \
-              --group 'New Features:^✨' \
-              --group 'Bug Fixes:^(🐛|🚑)' \
-              --group 'Performance:^⚡' \
-              --group 'Refactoring:^♻' \
-              --group 'Documentation:^📝'
-            echo "${CL_EOF}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Create draft release
-        if: steps.version_check.outputs.should_release == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version_check.outputs.new_version }}
-          draft: true
-          body: ${{ steps.changelog.outputs.changelog }}
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cargo run --locked -- release --require-version-match
 
   build-release:
     needs: prepare-release
@@ -100,6 +92,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.prepare-release.outputs.new_version }}
 
       - name: Install packages (Ubuntu)
         if: matrix.os == 'ubuntu-22.04'

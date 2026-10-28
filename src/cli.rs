@@ -301,6 +301,18 @@ pub struct ReleaseArgs {
     )]
     pub dry_run: bool,
     #[clap(
+        help = "Update configured manifests for a release PR without committing, tagging, or pushing",
+        long,
+        conflicts_with = "require_version_match"
+    )]
+    pub prepare: bool,
+    #[clap(
+        help = "Verify manifest versions match the calculated release version; fail on mismatch and never create a version commit",
+        long
+    )]
+    pub require_version_match: bool,
+
+    #[clap(
         help = "Output format: text (default) or json",
         long,
         short = 'f',

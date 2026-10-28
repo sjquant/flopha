@@ -190,9 +190,13 @@ Aliases: `rel`
 
 - `-c`, `--config <FILE>`: Path to the config file. Default: `flopha.toml`.
 
+- `--prepare`: Update configured manifests only, leaving changes unstaged for a release PR. Does not commit, tag, push, or contact the GitHub Release API. Requires at least one `[[manifest]]` target.
+
+- `--require-version-match`: Verify that all configured manifests (including Cargo lock entries) match the calculated version. Fail without modifying files if they differ; otherwise release without a version commit. Requires committed changes for an actual release and cannot be combined with `--prepare`.
+
 - `--dry-run`: Print the release plan (bump, manifest files that would be touched, changelog preview) without making any changes.
 
-- `-f`, `--format <text|json>`: Output format for `--dry-run`. Default: `text`.
+- `-f`, `--format <text|json>`: Output format for `--dry-run` or `--prepare`. Default: `text`. Preparation returns `{"version":"<tag>"}` in JSON mode.
 
 #### flopha.toml
 
@@ -239,9 +243,26 @@ replacement = "version={version}"     # {version} is substituted with the new ve
 ```
 
 - Safe to re-run: on a commit that is already tagged, `release` finishes that release (pushes the tag, creates a missing GitHub Release) instead of cutting a new one, and with no new commits it does nothing.
-- With `[[manifest]]` targets, the working tree must be clean and the branch up to date with `origin`. If pushing the release commit fails, the local commit and tag are undone.
+- When releasing with automatic manifest commits, the working tree must be clean and the branch up to date with `origin`. If pushing the release commit fails, the local commit and tag are undone.
 - `release.create` needs a GitHub token in `GH_TOKEN` or `GITHUB_TOKEN`. Locally, an existing `gh auth login` also works.
+- Cargo workspace targets use `cargo metadata --no-deps --offline --locked` to identify packages inheriting the workspace version; Cargo must be installed. Fixed-version members are preserved.
 - `version.source = "branch"` is not supported. For branch-based versioning, use `flopha next-version --source branch --create`.
+
+#### This repository's release process
+
+Prepare a version PR from a branch containing the changes to release:
+
+```sh
+cargo run --locked -- release --prepare
+git add Cargo.toml Cargo.lock
+git commit -m "🔖 Prepare release"
+```
+
+Open a PR for those changes. `flopha.toml` derives major bumps from `💥`, minor bumps from `✨`, and patch bumps otherwise. CI verifies version PRs with `release --require-version-match --dry-run`. On merge to `main`, an unpublished Cargo version starts the release workflow: it verifies the prepared files, creates a tag and draft Release, builds the tagged source, uploads binaries, then publishes the Release. Published versions are skipped on ordinary pushes.
+
+If commits added since preparation change the calculated version, verification stops before tagging or publishing. Update the version branch from `main`, rerun `--prepare`, and commit the new versions. If the PR has already merged, open a follow-up version PR. Keep version PR titles neutral (`🔖`), since their commit messages also participate in bump detection. If a build or upload fails after creating the draft, rerun the original failed workflow to finish that same release.
+
+The workflow builds flopha from source so it can use these options before they appear in a published binary. It does not push version commits to `main`.
 
 See [Release Workflows](https://flopha.solaqua.dev/docs/release-workflows#flopha-release-in-github-actions) for running `release` in CI.
 

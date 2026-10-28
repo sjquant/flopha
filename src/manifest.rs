@@ -32,6 +32,24 @@ impl Edits {
             .collect()
     }
 
+    /// Requires every file read during verification to be present unchanged in HEAD.
+    pub(crate) fn require_committed(&self, repo: &git2::Repository) -> Result<(), FlophaError> {
+        let tree = repo.head()?.peel_to_tree()?;
+        for (rel, (original, _)) in &self.files {
+            let committed = tree
+                .get_path(rel)
+                .ok()
+                .and_then(|entry| repo.find_blob(entry.id()).ok());
+            if committed.as_ref().map(|blob| blob.content()) != Some(original.as_bytes()) {
+                return Err(FlophaError::Config(format!(
+                    "'{}' must be committed at its prepared contents before releasing; commit it in the release PR",
+                    rel.display()
+                )));
+            }
+        }
+        Ok(())
+    }
+
     fn read(&mut self, rel: &Path) -> Result<String, FlophaError> {
         if let Some((_, current)) = self.files.get(rel) {
             return Ok(current.clone());
@@ -87,10 +105,9 @@ pub fn apply(edits: &mut Edits, target: &ManifestTarget, version: &str) -> Resul
 }
 
 /// Which `Cargo.lock` entries a Cargo.toml bump applies to: local (source-less)
-/// packages at the previous version, limited to `name` unless the whole
-/// workspace version moved.
+/// packages identified by manifest names and their previous version.
 struct LockMatch {
-    name: Option<String>,
+    names: Vec<String>,
     old_version: String,
 }
 
@@ -106,15 +123,18 @@ fn set_cargo_version(
 
     let (table_path, bumped): (&[&str], LockMatch) =
         if let Some(old) = toml_str(&doc, &["package"], "version") {
-            let name = toml_str(&doc, &["package"], "name").map(str::to_string);
+            let names = toml_str(&doc, &["package"], "name")
+                .map(str::to_string)
+                .into_iter()
+                .collect();
             let old_version = old.to_string();
-            (&["package"], LockMatch { name, old_version })
+            (&["package"], LockMatch { names, old_version })
         } else if let Some(old) = toml_str(&doc, &["workspace", "package"], "version") {
             let old_version = old.to_string();
             (
                 &["workspace", "package"],
                 LockMatch {
-                    name: None,
+                    names: workspace_package_names(path)?,
                     old_version,
                 },
             )
@@ -135,6 +155,64 @@ fn set_cargo_version(
     Ok((doc.to_string(), bumped))
 }
 
+/// Cargo resolves member globs, excludes, and inherited versions without updating the lockfile.
+fn workspace_package_names(path: &Path) -> Result<Vec<String>, FlophaError> {
+    let output = std::process::Command::new("cargo")
+        .args([
+            "metadata",
+            "--no-deps",
+            "--offline",
+            "--locked",
+            "--format-version",
+            "1",
+            "--manifest-path",
+        ])
+        .arg(path)
+        .output()
+        .map_err(|e| {
+            FlophaError::Config(format!(
+                "Cargo workspace targets need `cargo metadata`: {}",
+                e
+            ))
+        })?;
+    if !output.status.success() {
+        return Err(FlophaError::Config(format!(
+            "cannot read Cargo workspace members: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    let metadata: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let members = metadata["workspace_members"].as_array().ok_or_else(|| {
+        FlophaError::Config("cargo metadata returned no workspace members".to_string())
+    })?;
+    let packages = metadata["packages"]
+        .as_array()
+        .ok_or_else(|| FlophaError::Config("cargo metadata returned no packages".to_string()))?;
+    let mut names = Vec::new();
+    for package in packages {
+        if !members.contains(&package["id"]) {
+            continue;
+        }
+        let manifest_path = package["manifest_path"].as_str().ok_or_else(|| {
+            FlophaError::Config("cargo metadata returned no manifest path".to_string())
+        })?;
+        let manifest_path = Path::new(manifest_path);
+        let doc = parse_toml_document(&std::fs::read_to_string(manifest_path)?, manifest_path)?;
+        let inherits = doc
+            .get("package")
+            .and_then(|p| p.get("version"))
+            .and_then(|v| v.get("workspace"))
+            .and_then(|v| v.as_bool())
+            == Some(true);
+        if inherits {
+            if let Some(name) = toml_str(&doc, &["package"], "name") {
+                names.push(name.to_string());
+            }
+        }
+    }
+    Ok(names)
+}
+
 /// Finds the `Cargo.lock` governing `manifest`: the nearest one in its directory
 /// or an ancestor, within the repository.
 fn find_cargo_lock(base_dir: &Path, manifest: &Path) -> Option<PathBuf> {
@@ -152,22 +230,36 @@ fn update_cargo_lock(
     version: &str,
 ) -> Result<String, FlophaError> {
     let mut doc = parse_toml_document(content, path)?;
-    if let Some(packages) = doc
+    let packages = doc
         .get_mut("package")
         .and_then(|p| p.as_array_of_tables_mut())
-    {
-        for package in packages.iter_mut() {
-            let is_local = !package.contains_key("source");
-            let at_old_version = package.get("version").and_then(|v| v.as_str())
-                == Some(bumped.old_version.as_str());
-            let name_matches = bumped
-                .name
-                .as_deref()
-                .is_none_or(|name| package.get("name").and_then(|v| v.as_str()) == Some(name));
-            if is_local && at_old_version && name_matches {
-                package["version"] = toml_edit::value(version);
-            }
-        }
+        .ok_or_else(|| {
+            FlophaError::Config(format!(
+                "'{}': Cargo.lock has no package entries",
+                path.display()
+            ))
+        })?;
+    // Name and previous version distinguish local packages sharing a name.
+    // Repair a sole stale entry, but never guess between multiple versions.
+    for name in &bumped.names {
+        let candidates: Vec<usize> = packages
+            .iter()
+            .enumerate()
+            .filter(|(_, package)| {
+                !package.contains_key("source")
+                    && package.get("name").and_then(|v| v.as_str()) == Some(name.as_str())
+            })
+            .map(|(i, _)| i)
+            .collect();
+        let selected = candidates.iter().copied().find(|i| {
+            packages.get(*i).and_then(|p| p.get("version")).and_then(|v| v.as_str()) == Some(bumped.old_version.as_str())
+        }).or(match candidates.as_slice() { [only] => Some(*only), _ => None }).ok_or_else(|| {
+            FlophaError::Config(format!(
+                "'{}': cannot identify local package '{}' at version {}; regenerate Cargo.lock before preparing the release",
+                path.display(), name, bumped.old_version
+            ))
+        })?;
+        packages.get_mut(selected).unwrap()["version"] = toml_edit::value(version);
     }
     Ok(doc.to_string())
 }
@@ -559,7 +651,7 @@ mod tests {
     /// It bumps the matching local package in Cargo.lock alongside Cargo.toml.
     #[test]
     fn test_sync_cargo_updates_cargo_lock() {
-        // Given a crate at 0.4.1 with a lockfile that also pins a registry crate at 0.4.1
+        // Given a crate, a registry dependency, and another local version sharing its name
         let td = TempDir::new().unwrap();
         write(
             &td,
@@ -569,17 +661,21 @@ mod tests {
         write(
             &td,
             "Cargo.lock",
-            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.4.1\"\n\n[[package]]\nname = \"dep\"\nversion = \"0.4.1\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n",
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.4.1\"\n\n[[package]]\nname = \"app\"\nversion = \"0.3.0\"\n\n[[package]]\nname = \"dep\"\nversion = \"0.4.1\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n",
         );
 
         // When syncing the new version
         let touched = sync(td.path(), &cargo("Cargo.toml"), "0.5.0").unwrap();
 
-        // Then the crate's lock entry moves with it, but the registry crate is untouched
+        // Then only the released package moves; other local versions and registry crates stay intact
         assert_eq!(touched.len(), 2);
         let lock = std::fs::read_to_string(td.path().join("Cargo.lock")).unwrap();
         assert!(
             lock.contains("name = \"app\"\nversion = \"0.5.0\""),
+            "{lock}"
+        );
+        assert!(
+            lock.contains("name = \"app\"\nversion = \"0.3.0\""),
             "{lock}"
         );
         assert!(
@@ -588,15 +684,26 @@ mod tests {
         );
     }
 
-    /// It bumps [workspace.package].version when the root package inherits it.
+    /// Workspace preparation updates inherited package lock versions and repairs stale entries while preserving fixed versions.
     #[test]
     fn test_sync_cargo_workspace_root_bumps_workspace_version() {
         // Given a workspace root whose package inherits the workspace version
         let td = TempDir::new().unwrap();
+        std::fs::create_dir(td.path().join("src")).unwrap();
+        write(&td, "src/lib.rs", "");
+        std::fs::create_dir_all(td.path().join("fixed/src")).unwrap();
+        write(&td, "fixed/src/lib.rs", "");
+        write(
+            &td,
+            "fixed/Cargo.toml",
+            "[package]\nname = \"fixed\"\nversion = \"0.4.1\"\n",
+        );
+        let lock = "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.4.1\"\n\n[[package]]\nname = \"fixed\"\nversion = \"0.4.1\"\n";
+        write(&td, "Cargo.lock", lock);
         write(
             &td,
             "Cargo.toml",
-            "[workspace]\nmembers = [\"crates/*\"]\n\n[workspace.package]\nversion = \"0.4.1\"\n\n[package]\nname = \"app\"\nversion.workspace = true\n",
+            "[workspace]\nmembers = [\".\", \"fixed\"]\n\n[workspace.package]\nversion = \"0.4.1\"\n\n[package]\nname = \"app\"\nversion.workspace = true\n",
         );
 
         // When syncing the new version
@@ -609,6 +716,26 @@ mod tests {
             "{content}"
         );
         assert!(content.contains("version.workspace = true"), "{content}");
+        let updated = std::fs::read_to_string(td.path().join("Cargo.lock")).unwrap();
+        assert!(
+            updated.contains("name = \"app\"\nversion = \"0.5.0\""),
+            "{updated}"
+        );
+        assert!(
+            updated.contains("name = \"fixed\"\nversion = \"0.4.1\""),
+            "{updated}"
+        );
+
+        // When the lock is stale after the manifest has already been prepared
+        write(&td, "Cargo.lock", lock);
+        let touched = sync(td.path(), &cargo("Cargo.toml"), "0.5.0").unwrap();
+
+        // Then the stale inherited member is detected and repaired without changing fixed versions
+        assert_eq!(touched, vec![PathBuf::from("Cargo.lock")]);
+        assert_eq!(
+            std::fs::read_to_string(td.path().join("Cargo.lock")).unwrap(),
+            updated
+        );
     }
 
     /// It refuses to overwrite an inherited version in a workspace member.

@@ -17,8 +17,21 @@ use crate::versioning::{self, Version, Versioner};
 pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, FlophaError> {
     let config = FlophaConfig::load(&path.join(&args.config))?;
 
+    if (args.prepare || args.require_version_match) && config.manifests.is_empty() {
+        return Err(FlophaError::Config(
+            "--prepare and --require-version-match need at least one [[manifest]] target"
+                .to_string(),
+        ));
+    }
+
     let repo = gitutils::get_repo(path)?;
     gitutils::try_fetch_origin_tracking(&repo);
+    if args.require_version_match && !args.dry_run && gitutils::has_uncommitted_changes(&repo)? {
+        return Err(FlophaError::Config(
+            "prepared manifests must be committed before releasing; commit the release PR first"
+                .to_string(),
+        ));
+    }
 
     let versioner = super::versioner_factory(
         &repo,
@@ -43,6 +56,16 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     let version_core = next.core()?;
 
     if let Some(tagged) = release_at_head(&repo, &config, &versioner, &next, &version_core)? {
+        if args.require_version_match {
+            require_version_match(&repo, path, &config, &tagged.version, !args.dry_run)?;
+        }
+        if args.prepare {
+            print_nothing_to_release(
+                &args.format,
+                &format!("{} is already tagged at HEAD", tagged.tag),
+            );
+            return Ok(None);
+        }
         return finish_release(&repo, &config, args, tagged);
     }
     if let Some(last) = &last {
@@ -55,19 +78,46 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     let from_tag = last.map(|v| v.tag);
     let (tag, version) = release_tag_and_version(&repo, &config, &next, version_core);
 
-    if !config.manifests.is_empty() && !args.dry_run {
-        check_can_commit(&repo)?;
-    }
-
+    // Validate prepared files even in a dry run, before credentials, tags, or pushes.
+    let updates = if args.require_version_match {
+        require_version_match(&repo, path, &config, &version, !args.dry_run)?;
+        Vec::new()
+    } else {
+        manifest_edits(path, &config, &version)?.changes()
+    };
     let changelog = build_release_changelog(&repo, &config, from_tag.as_deref(), &tag)?;
 
     if args.dry_run {
-        print_plan(&args.format, &from_tag, &tag, &config, &changelog);
+        print_plan(
+            &args.format,
+            &from_tag,
+            &tag,
+            &config,
+            &changelog,
+            args,
+            !updates.is_empty(),
+        );
         return Ok(Some(tag));
     }
 
+    if args.prepare {
+        for (rel, content) in &updates {
+            std::fs::write(path.join(rel), content)?;
+        }
+        match args.format {
+            OutputFormat::Json => println!("{}", serde_json::json!({"version": tag})),
+            OutputFormat::Text => println!(
+                "Prepared {}. Commit the manifest changes in a release PR.",
+                tag
+            ),
+        }
+        return Ok(Some(tag));
+    }
+
+    if !args.require_version_match && !config.manifests.is_empty() {
+        check_can_commit(&repo)?;
+    }
     let github = connect_github(&repo, &config)?;
-    let updates = manifest_updates(path, &config, &version)?;
 
     let original_head = repo.head()?.peel_to_commit()?;
     commit_and_tag(&repo, path, &config, &updates, &tag, &version)?;
@@ -83,7 +133,7 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
     Ok(Some(tag))
 }
 
-/// Finds the release tag at HEAD: the latest stable tag, or with `version.pre`
+/// Finds the release tag at HEAD: a matching stable tag, or with `version.pre`
 /// set, a `-{channel}.{n}` tag of the upcoming version (which the stable
 /// pattern alone doesn't match).
 fn release_at_head(
@@ -112,14 +162,16 @@ fn release_at_head(
         }));
     }
 
-    match versions.split_last() {
-        Some((last, earlier)) if at_head(&last.tag) => Ok(Some(TaggedRelease {
-            tag: last.tag.clone(),
-            version: last.core()?,
-            from_tag: earlier.last().map(|v| v.tag.clone()),
-        })),
-        _ => Ok(None),
-    }
+    Ok(versions.iter().enumerate().rev().find_map(|(i, version)| {
+        if !at_head(&version.tag) {
+            return None;
+        }
+        Some(TaggedRelease {
+            tag: version.tag.clone(),
+            version: version.core().ok()?,
+            from_tag: i.checked_sub(1).map(|prev| versions[prev].tag.clone()),
+        })
+    }))
 }
 
 /// A release whose tag already points at HEAD, possibly left unfinished by an
@@ -270,6 +322,8 @@ fn print_plan(
     tag: &str,
     config: &FlophaConfig,
     changelog: &Option<String>,
+    args: &ReleaseArgs,
+    has_updates: bool,
 ) {
     let manifest_paths: Vec<&str> = config.manifests.iter().map(|m| m.path()).collect();
 
@@ -279,9 +333,9 @@ fn print_plan(
                 "from": from_tag,
                 "to": tag,
                 "manifests": manifest_paths,
-                "commit": !manifest_paths.is_empty(),
-                "push": true,
-                "release": config.release.create,
+                "commit": has_updates && !args.prepare,
+                "push": !args.prepare,
+                "release": config.release.create && !args.prepare,
                 "draft": config.release.draft,
                 "changelog": changelog,
             });
@@ -302,9 +356,15 @@ fn print_plan(
                     println!("    - {}", p);
                 }
             }
-            println!("  tag:       {} (annotated)", tag);
-            println!("  push:      origin");
-            if config.release.create {
+            if args.prepare {
+                println!(
+                    "  prepare:   update manifests only; no commit, tag, push, or GitHub Release"
+                );
+            } else {
+                println!("  tag:       {} (annotated)", tag);
+                println!("  push:      origin");
+            }
+            if config.release.create && !args.prepare {
                 println!("  release:   yes (draft: {})", config.release.draft);
             } else {
                 println!("  release:   no");
@@ -346,16 +406,43 @@ fn connect_github(
 
 /// Computes every manifest edit before any file is written, so a failing
 /// target leaves no partial edits.
-fn manifest_updates(
+fn manifest_edits(
     path: &Path,
     config: &FlophaConfig,
     version: &str,
-) -> Result<Vec<(PathBuf, String)>, FlophaError> {
+) -> Result<manifest::Edits, FlophaError> {
     let mut edits = manifest::Edits::new(path);
     for target in &config.manifests {
         manifest::apply(&mut edits, target, version)?;
     }
-    Ok(edits.changes())
+    Ok(edits)
+}
+
+/// Checks pending edits without writing any of them, including during CI dry runs.
+fn require_version_match(
+    repo: &git2::Repository,
+    path: &Path,
+    config: &FlophaConfig,
+    version: &str,
+    committed: bool,
+) -> Result<(), FlophaError> {
+    let edits = manifest_edits(path, config, version)?;
+    if committed {
+        edits.require_committed(repo)?;
+    }
+    let updates = edits.changes();
+    if !updates.is_empty() {
+        let paths = updates
+            .iter()
+            .map(|(p, _)| p.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(FlophaError::Config(format!(
+            "release manifests do not match calculated version {}: {}. Update your branch from its base branch, run `flopha release --prepare`, and commit the changes in a release PR",
+            version, paths
+        )));
+    }
+    Ok(())
 }
 
 /// Writes and commits the manifest updates (if any), then creates the annotated tag.
@@ -473,8 +560,253 @@ mod tests {
         ReleaseArgs {
             config: "flopha.toml".to_string(),
             dry_run: false,
+            prepare: false,
+            require_version_match: false,
             format: OutputFormat::Text,
         }
+    }
+
+    /// Preparing a release updates Cargo files without staging, committing, tagging, or pushing.
+    #[test]
+    fn prepare_updates_files_only() {
+        // Given a Cargo release with one fix since v1.0.0 and no usable push destination
+        let (td, repo, remote_td) = repo_with_manifest("[release]\ncreate = true\n");
+        std::fs::write(
+            td.path().join("Cargo.lock"),
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"1.0.0\"\n",
+        )
+        .unwrap();
+        let head = repo.head().unwrap().target().unwrap();
+        repo.remote_set_pushurl("origin", Some("file:///nonexistent/flopha-remote"))
+            .unwrap();
+
+        // When preparing twice, including the already modified working tree
+        let args = ReleaseArgs {
+            prepare: true,
+            ..release_args()
+        };
+        assert_eq!(
+            release(td.path(), &args).unwrap().as_deref(),
+            Some("v1.0.1")
+        );
+        release(td.path(), &args).unwrap();
+
+        // Then both versions are prepared, HEAD and index are unchanged, and no tag exists anywhere
+        for file in ["Cargo.toml", "Cargo.lock"] {
+            assert!(std::fs::read_to_string(td.path().join(file))
+                .unwrap()
+                .contains("version = \"1.0.1\""));
+        }
+        assert_eq!(repo.head().unwrap().target().unwrap(), head);
+        assert_eq!(
+            repo.index().unwrap().write_tree().unwrap(),
+            repo.head().unwrap().peel_to_tree().unwrap().id()
+        );
+        assert!(repo.revparse_single("refs/tags/v1.0.1").is_err());
+        let remote = git2::Repository::open(remote_td.path()).unwrap();
+        assert!(remote.revparse_single("refs/tags/v1.0.1").is_err());
+    }
+
+    /// A feature added after preparation makes verification fail without rewriting or releasing files.
+    #[test]
+    fn prepared_version_drift_is_rejected() {
+        // Given a prepared patch followed by a new feature commit
+        let (td, repo, remote_td) = repo_with_manifest("[release]\ncreate = true\n");
+        release(
+            td.path(),
+            &ReleaseArgs {
+                prepare: true,
+                ..release_args()
+            },
+        )
+        .unwrap();
+        gitutils::stage_path(&repo, Path::new("Cargo.toml")).unwrap();
+        gitutils::commit(&repo, "chore: prepare release").unwrap();
+        gitutils::commit(&repo, "feat: new feature").unwrap();
+        let original = std::fs::read_to_string(td.path().join("Cargo.toml")).unwrap();
+        let head = repo.head().unwrap().target();
+
+        // When checking a PR or attempting a release
+        for dry_run in [true, false] {
+            let err = release(
+                td.path(),
+                &ReleaseArgs {
+                    require_version_match: true,
+                    dry_run,
+                    ..release_args()
+                },
+            )
+            .unwrap_err()
+            .to_string();
+
+            // Then failure identifies the needed version and recovery command before GitHub access
+            assert!(
+                err.contains("1.1.0") && err.contains("Cargo.toml") && err.contains("--prepare"),
+                "{err}"
+            );
+            assert_eq!(
+                std::fs::read_to_string(td.path().join("Cargo.toml")).unwrap(),
+                original
+            );
+            assert_eq!(repo.head().unwrap().target(), head);
+            assert!(repo.revparse_single("refs/tags/v1.1.0").is_err());
+        }
+        assert!(git2::Repository::open(remote_td.path())
+            .unwrap()
+            .revparse_single("refs/tags/v1.1.0")
+            .is_err());
+
+        // When preparing again on the latest commits
+        release(
+            td.path(),
+            &ReleaseArgs {
+                prepare: true,
+                ..release_args()
+            },
+        )
+        .unwrap();
+
+        // Then PR verification accepts the refreshed version without writing it again
+        release(
+            td.path(),
+            &ReleaseArgs {
+                require_version_match: true,
+                dry_run: true,
+                ..release_args()
+            },
+        )
+        .unwrap();
+        assert!(std::fs::read_to_string(td.path().join("Cargo.toml"))
+            .unwrap()
+            .contains("1.1.0"));
+    }
+
+    /// A committed prepared version can be released and retried from detached HEAD without a version commit.
+    #[test]
+    fn prepared_release_tags_reviewed_commit() {
+        // Given a version PR committed at its calculated version
+        let (td, repo, remote_td) = repo_with_manifest("");
+        release(
+            td.path(),
+            &ReleaseArgs {
+                prepare: true,
+                ..release_args()
+            },
+        )
+        .unwrap();
+        let err = release(
+            td.path(),
+            &ReleaseArgs {
+                require_version_match: true,
+                ..release_args()
+            },
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("must be committed"), "{err}");
+        assert!(repo.revparse_single("refs/tags/v1.0.1").is_err());
+        gitutils::stage_path(&repo, Path::new("Cargo.toml")).unwrap();
+        gitutils::commit(&repo, "chore: prepare release").unwrap();
+        // A newly introduced lockfile must also be in the reviewed commit.
+        std::fs::write(
+            td.path().join("Cargo.lock"),
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"1.0.1\"\n",
+        )
+        .unwrap();
+        let err = release(
+            td.path(),
+            &ReleaseArgs {
+                require_version_match: true,
+                ..release_args()
+            },
+        )
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("Cargo.lock") && err.to_string().contains("must be committed"),
+            "{err}"
+        );
+        assert!(repo.revparse_single("refs/tags/v1.0.1").is_err());
+        gitutils::stage_path(&repo, Path::new("Cargo.lock")).unwrap();
+        let head = gitutils::commit(&repo, "chore: include lockfile").unwrap();
+        repo.set_head_detached(head).unwrap();
+
+        // When releasing from a CI checkout and retrying the completed release
+        let args = ReleaseArgs {
+            require_version_match: true,
+            ..release_args()
+        };
+        assert_eq!(
+            release(td.path(), &args).unwrap().as_deref(),
+            Some("v1.0.1")
+        );
+        assert_eq!(release(td.path(), &args).unwrap(), None);
+
+        // A newer version tag must not prevent recovery of the tag at the reviewed commit.
+        repo.set_head("refs/heads/main").unwrap();
+        let newer = gitutils::commit(&repo, "fix: next change").unwrap();
+        gitutils::tag_oid(&repo, newer, "v1.0.2").unwrap();
+        repo.set_head_detached(head).unwrap();
+        let remote = git2::Repository::open(remote_td.path()).unwrap();
+        remote.tag_delete("v1.0.1").unwrap();
+        assert_eq!(
+            release(td.path(), &args).unwrap().as_deref(),
+            Some("v1.0.1")
+        );
+
+        // Then the remote tag points exactly at the reviewed commit, with no extra local commit
+        assert_eq!(repo.head().unwrap().target(), Some(head));
+        let remote = git2::Repository::open(remote_td.path()).unwrap();
+        assert_eq!(gitutils::tag_commit_oid(&remote, "v1.0.1").unwrap(), head);
+    }
+
+    /// Preparation previews do not change files, and verification detects a stale Cargo lock version.
+    #[test]
+    fn prepared_release_checks_lockfile() {
+        // Given a patch release candidate with a stale local package in Cargo.lock
+        let (td, repo, _remote_td) = repo_with_manifest("");
+        std::fs::write(
+            td.path().join("Cargo.lock"),
+            "version = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.9.0\"\n",
+        )
+        .unwrap();
+
+        // When previewing preparation
+        release(
+            td.path(),
+            &ReleaseArgs {
+                prepare: true,
+                dry_run: true,
+                ..release_args()
+            },
+        )
+        .unwrap();
+
+        // Then the preview leaves the manifest alone
+        assert!(std::fs::read_to_string(td.path().join("Cargo.toml"))
+            .unwrap()
+            .contains("1.0.0"));
+
+        // When only Cargo.toml has the calculated version
+        std::fs::write(
+            td.path().join("Cargo.toml"),
+            "[package]\nname = \"app\"\nversion = \"1.0.1\"\n",
+        )
+        .unwrap();
+        let err = release(
+            td.path(),
+            &ReleaseArgs {
+                require_version_match: true,
+                dry_run: true,
+                ..release_args()
+            },
+        )
+        .unwrap_err();
+
+        // Then verification rejects the lockfile without creating a tag
+        assert!(err.to_string().contains("Cargo.lock"), "{err}");
+        assert!(std::fs::read_to_string(td.path().join("Cargo.lock"))
+            .unwrap()
+            .contains("0.9.0"));
+        assert!(repo.revparse_single("refs/tags/v1.0.1").is_err());
     }
 
     /// It syncs the configured manifest, commits, tags, and pushes both to origin.
