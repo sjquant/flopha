@@ -147,6 +147,59 @@ flopha release [--config <file>] [--initial-version <MAJOR.MINOR.PATCH>] [--prep
 
 Both `--prepare` and `--require-version-match` need at least one `[[manifest]]` target. Without either option, `release` updates and commits manifests before tagging and publishing. See [Release Workflows](./release-workflows) for the PR preparation and recovery process.
 
+### `flopha.toml`
+
+Every key is optional. An empty file releases with the defaults below and creates no GitHub Release.
+
+```toml
+[version]
+# initial_version = "0.1.0"            # used directly only when no matching version tag exists
+pattern = "v{major}.{minor}.{patch}"   # default
+auto = true                            # detect bump level from conventional commits (default)
+# increment = "patch"                  # used instead of auto-detection when auto = false
+# rules = ["major:BREAKING CHANGE", "minor:^feat"]
+# pre = "beta"                         # pre-release channel, e.g. v1.2.3-beta.1
+# tag_message = "Release {tag}"        # annotated tag message; supports {tag} and {version}
+
+[changelog]
+enabled = true
+# groups = ["Breaking Changes:BREAKING CHANGE", "Features:^feat"]
+# other = "Other Changes"
+# title = "Changes in {to}"
+
+[release]
+create = true                         # default: false; publish a GitHub Release
+draft = false
+# title = "{tag}"                     # supports {tag} and {version}
+# body = "..."                        # falls back to the generated changelog, then generate_notes
+# generate_notes = false
+# repo = "owner/repo"                 # defaults to parsing the `origin` remote
+
+[[manifest]]
+path = "Cargo.toml"
+type = "cargo"                        # sets [package].version (or [workspace.package].version) and Cargo.lock
+
+[[manifest]]
+path = "package.json"
+type = "npm"                          # sets the top-level "version" field
+
+[[manifest]]
+path = "pyproject.toml"
+type = "pyproject"                    # sets [project].version, falling back to [tool.poetry].version
+
+[[manifest]]
+path = "docs/VERSION"
+type = "regex"
+pattern = "(?m)^version=.*$"
+replacement = "version={version}"     # {version} is substituted with the new version
+```
+
+- Safe to re-run: on a commit that is already tagged, `release` finishes that release (pushes the tag, creates a missing GitHub Release) instead of cutting a new one, and with no new commits it does nothing.
+- When releasing with automatic manifest commits, the working tree must be clean and the branch up to date with `origin`. If pushing the release commit fails, the local commit and tag are undone.
+- `release.create` needs a GitHub token in `GH_TOKEN` or `GITHUB_TOKEN`. Locally, an existing `gh auth login` also works.
+- Cargo workspace targets use `cargo metadata --no-deps --offline --locked` to identify packages inheriting the workspace version; Cargo must be installed. Fixed-version members are preserved.
+- `version.source = "branch"` is not supported. For branch-based versioning, use `flopha next-version --source branch --create`.
+
 ## Global behavior
 
 - `--verbose`, `-v` enables debug logging.

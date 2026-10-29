@@ -5,7 +5,9 @@ import {fileURLToPath} from 'node:url';
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDir, '..');
 const brandAssets = [
+  ['favicon.svg', 'favicon.svg'],
   ['flopha-icon.svg', 'flopha-icon.svg'],
+  ['flopha-icon-dark.svg', 'flopha-icon-dark.svg'],
   ['flopha-social-preview.png', 'flopha-social-preview.png'],
 ];
 

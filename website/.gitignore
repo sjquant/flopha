@@ -1,5 +1,7 @@
 /.docusaurus
 /build
 /node_modules
+/static/img/favicon.svg
 /static/img/flopha-icon.svg
+/static/img/flopha-icon-dark.svg
 /static/img/flopha-social-preview.png

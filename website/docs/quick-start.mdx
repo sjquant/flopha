@@ -5,44 +5,55 @@ title: Quick Start
 
 # Quick Start
 
-## Read the latest version
+Run these inside a Git repository with an `origin` remote. flopha reads tags like `v1.2.3`.
+
+## 1. Start from a tag
+
+If the repository has no version tags yet, choose the first one:
 
 ```bash
-flopha last-version
+flopha next-version --initial-version 0.1.0 --create --push
 ```
 
-## Calculate the next patch release
-
-```bash
-flopha next-version
-```
-
-## Auto-detect the bump from conventional commits
+## 2. Calculate the next version
 
 ```bash
 flopha next-version --auto
 ```
 
-Built-in rules treat breaking changes as `major`, `feat` commits as `minor`, and everything else as `patch`.
+Breaking changes (`feat!:` or `BREAKING CHANGE`) bump `major`, `feat` commits bump `minor`, and everything else bumps `patch`. After a `feat: ...` commit on top of `v0.1.0`, this prints `v0.2.0`.
 
-## Create a release candidate
-
-```bash
-flopha next-version --pre rc
-```
-
-If `v1.8.0` is the next stable version, the first pre-release becomes `v1.8.0-rc.1`.
-
-## Create the version in Git
+## 3. Create it
 
 ```bash
-flopha next-version --create
+flopha next-version --auto --create --push
 ```
 
-Use `--source branch` when the version should be created as a branch rather than a tag.
+This creates the tag and pushes it to `origin`.
 
-## Show recent release history
+## 4. Release with one command
+
+To also write the version into your manifests and publish a GitHub Release with a changelog, add a `flopha.toml`:
+
+```toml
+[release]
+create = true
+
+[[manifest]]
+path = "package.json"
+type = "npm"
+```
+
+Preview the plan, then release:
 
 ```bash
-flopha log --limit 10
+flopha release --dry-run
+flopha release
 ```
+
+Publishing the GitHub Release needs `GH_TOKEN` or `GITHUB_TOKEN`, or a local `gh auth login`. See the [`flopha.toml` reference](/docs/command-reference#flophatoml) for every option.
+
+## Next
+
+- [Version Patterns](/docs/version-patterns) for tags like `mobile@1.2.3` or release branches.
+- [Release Workflows](/docs/release-workflows) for CI, pre-releases, and version PRs.

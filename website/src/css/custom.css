@@ -1,111 +1,94 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 
 :root:not(#flopha-theme-override):not(#flopha-theme-override-2),
 html[data-theme="light"]:not(#flopha-theme-override):not(
         #flopha-theme-override-2
     ) {
-    --ifm-color-primary: #97514d;
-    --ifm-color-primary-dark: #874844;
-    --ifm-color-primary-darker: #7f443f;
-    --ifm-color-primary-darkest: #693733;
-    --ifm-color-primary-light: #a5615d;
-    --ifm-color-primary-lighter: #af6b66;
-    --ifm-color-primary-lightest: #c18881;
-    --ifm-background-color: #f2f4f5;
-    --ifm-background-surface-color: rgba(250, 252, 253, 0.9);
-    --ifm-navbar-background-color: rgb(242, 244, 245);
-    --ifm-footer-background-color: #171214;
-    --ifm-font-family-base: "Space Grotesk", "Segoe UI", sans-serif;
-    --ifm-font-family-monospace: "IBM Plex Mono", "SFMono-Regular", monospace;
-    --ifm-heading-font-family: "Space Grotesk", "Segoe UI", sans-serif;
-    --ifm-heading-color: #271c1e;
-    --ifm-font-color-base: #453335;
-    --ifm-link-color: #8b4a46;
-    --ifm-link-hover-color: #6f3a37;
-    --ifm-menu-color-active: #8b4a46;
-    --ifm-pagination-nav-color-hover: #8b4a46;
-    --ifm-breadcrumb-color-active: #6f3a37;
-    --ifm-code-font-size: 94%;
-    --docusaurus-highlighted-code-line-bg: rgba(151, 81, 77, 0.08);
-    --flopha-accent: #a36b66;
-    --flopha-accent-strong: #7a4d49;
-    --flopha-ink-strong: #271c1e;
-    --flopha-ink-soft: #6a585a;
-    --flopha-line: rgba(52, 31, 34, 0.12);
-    --flopha-surface-strong: rgba(255, 255, 255, 0.9);
-    --flopha-surface-soft: rgba(255, 255, 255, 0.82);
-    --flopha-code-surface: #eceff1;
-    --flopha-code-surface-strong: #f8fafb;
-    --flopha-code-border: rgba(52, 31, 34, 0.12);
-    --flopha-code-text: #3f2d30;
-    --flopha-terminal-surface: #211d23;
-    --flopha-terminal-surface-strong: #19161b;
-    --flopha-terminal-line: rgba(223, 204, 210, 0.1);
-    --flopha-terminal-chip-surface: rgba(132, 102, 111, 0.2);
-    --flopha-terminal-chip-border: rgba(216, 188, 196, 0.14);
-    --flopha-terminal-chip-text: #f5ecf0;
-    --flopha-terminal-text: rgba(246, 237, 241, 0.92);
-    --flopha-terminal-text-soft: rgba(216, 197, 204, 0.8);
-    --flopha-chip-surface: rgba(252, 254, 255, 0.94);
-    --flopha-chip-border: rgba(57, 45, 46, 0.08);
-    --flopha-chip-text: #7f5753;
-    --flopha-glow-primary: rgba(103, 93, 96, 0.04);
-    --flopha-glow-secondary: rgba(198, 189, 185, 0.06);
-    --flopha-button-start: #9e6863;
-    --flopha-button-end: #a8736d;
-    --flopha-footer-link: #b5bac3;
-    --flopha-footer-link-hover: #d2d8e0;
+    --ifm-color-primary: #151515;
+    --ifm-color-primary-dark: #000000;
+    --ifm-color-primary-darker: #000000;
+    --ifm-color-primary-darkest: #000000;
+    --ifm-color-primary-light: #333333;
+    --ifm-color-primary-lighter: #444444;
+    --ifm-color-primary-lightest: #66655f;
+    --ifm-background-color: #fafaf9;
+    --ifm-background-surface-color: #ffffff;
+    --ifm-navbar-background-color: #fafaf9;
+    --ifm-footer-background-color: #fafaf9;
+    --ifm-font-family-base: "Inter", system-ui, -apple-system, sans-serif;
+    --ifm-font-family-monospace: "JetBrains Mono", ui-monospace, monospace;
+    --ifm-heading-font-family: "JetBrains Mono", ui-monospace, monospace;
+    --ifm-heading-color: #151515;
+    --ifm-font-color-base: #3d3c38;
+    --ifm-link-color: #151515;
+    --ifm-link-hover-color: #66655f;
+    --ifm-menu-color-active: #151515;
+    --ifm-pagination-nav-color-hover: #151515;
+    --ifm-breadcrumb-color-active: #151515;
+    --ifm-code-font-size: 90%;
+    --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.08);
+    --flopha-ink-strong: #151515;
+    --flopha-ink-soft: #66655f;
+    --flopha-line: #e7e5e4;
+    --flopha-line-strong: #d6d3d1;
+    --flopha-surface-soft: #f2f1ef;
+    --flopha-code-surface-strong: #f2f1ef;
+    --flopha-code-text: #151515;
+    --flopha-terminal-surface: #151515;
+    --flopha-terminal-line: #151515;
+    --flopha-terminal-text: #ededed;
+    --flopha-terminal-text-soft: #8f8f8f;
+    --flopha-footer-link: #66655f;
+    --flopha-footer-link-hover: #151515;
+    --flopha-action: #151515;
+    --flopha-action-hover: #333333;
+    --flopha-action-text: #ffffff;
+    --flopha-version: #3fb950;
+    --flopha-accent: #1a7f37;
+    --flopha-menu-active: #f0efed;
 }
 
 html[data-theme="dark"]:not(#flopha-theme-override):not(
         #flopha-theme-override-2
     ) {
-    --ifm-color-primary: #c89b93;
-    --ifm-color-primary-dark: #bd8c83;
-    --ifm-color-primary-darker: #b6857c;
-    --ifm-color-primary-darkest: #9e6a61;
-    --ifm-color-primary-light: #d3aaa3;
-    --ifm-color-primary-lighter: #d9b6b0;
-    --ifm-color-primary-lightest: #e7d1cd;
-    --ifm-background-color: #171515;
-    --ifm-background-surface-color: rgba(26, 24, 24, 0.92);
-    --ifm-navbar-background-color: rgb(18, 17, 17);
-    --ifm-heading-color: #fff2ee;
-    --ifm-font-color-base: #e4d2cd;
-    --ifm-link-color: #d5aaa2;
-    --ifm-link-hover-color: #ead0cb;
-    --ifm-menu-color-active: #e0b8b1;
-    --ifm-pagination-nav-color-hover: #e0b8b1;
-    --ifm-breadcrumb-color-active: #e8cbc5;
-    --docusaurus-highlighted-code-line-bg: rgba(200, 155, 147, 0.12);
-    --flopha-accent: #bea39e;
-    --flopha-accent-strong: #dcc5c0;
-    --flopha-ink-strong: #fff2ee;
-    --flopha-ink-soft: #baa4a0;
-    --flopha-line: rgba(255, 226, 219, 0.1);
-    --flopha-surface-strong: rgba(27, 25, 25, 0.94);
-    --flopha-surface-soft: rgba(27, 25, 25, 0.9);
-    --flopha-code-surface: #241d1f;
-    --flopha-code-surface-strong: #1a1416;
-    --flopha-code-border: rgba(255, 226, 219, 0.08);
-    --flopha-code-text: #fae7e2;
-    --flopha-terminal-surface: #1d181d;
-    --flopha-terminal-surface-strong: #151116;
-    --flopha-terminal-line: rgba(225, 205, 211, 0.1);
-    --flopha-terminal-chip-surface: rgba(130, 98, 108, 0.2);
-    --flopha-terminal-chip-border: rgba(214, 186, 194, 0.14);
-    --flopha-terminal-chip-text: #f4ebef;
-    --flopha-terminal-text: rgba(245, 238, 242, 0.92);
-    --flopha-terminal-text-soft: rgba(214, 195, 202, 0.8);
-    --flopha-chip-surface: rgba(47, 40, 41, 0.5);
-    --flopha-chip-border: rgba(223, 206, 201, 0.12);
-    --flopha-chip-text: #e2ccc7;
-    --flopha-glow-primary: rgba(63, 57, 58, 0.08);
-    --flopha-glow-secondary: rgba(124, 116, 114, 0.08);
-    --flopha-button-start: #8f625e;
-    --flopha-button-end: #9d726d;
-    --flopha-footer-link: #a9b0ba;
-    --flopha-footer-link-hover: #d0d7e0;
+    --ifm-color-primary: #ededed;
+    --ifm-color-primary-dark: #ffffff;
+    --ifm-color-primary-darker: #ffffff;
+    --ifm-color-primary-darkest: #ffffff;
+    --ifm-color-primary-light: #d4d4d4;
+    --ifm-color-primary-lighter: #c4c4c4;
+    --ifm-color-primary-lightest: #a1a1a1;
+    --ifm-background-color: #0a0a0a;
+    --ifm-background-surface-color: #111111;
+    --ifm-navbar-background-color: #0a0a0a;
+    --ifm-footer-background-color: #0a0a0a;
+    --ifm-heading-color: #ededed;
+    --ifm-font-color-base: #c8c8c8;
+    --ifm-link-color: #ededed;
+    --ifm-link-hover-color: #a1a1a1;
+    --ifm-menu-color-active: #ffffff;
+    --ifm-pagination-nav-color-hover: #ffffff;
+    --ifm-breadcrumb-color-active: #ffffff;
+    --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.08);
+    --flopha-ink-strong: #ededed;
+    --flopha-ink-soft: #a1a1a1;
+    --flopha-line: #262626;
+    --flopha-line-strong: #3a3a3a;
+    --flopha-surface-soft: #171717;
+    --flopha-code-surface-strong: #171717;
+    --flopha-code-text: #ededed;
+    --flopha-terminal-surface: #141414;
+    --flopha-terminal-line: #3a3a3a;
+    --flopha-terminal-text: #ededed;
+    --flopha-terminal-text-soft: #8f8f8f;
+    --flopha-footer-link: #a1a1a1;
+    --flopha-footer-link-hover: #ededed;
+    --flopha-action: #ededed;
+    --flopha-action-hover: #ffffff;
+    --flopha-action-text: #0a0a0a;
+    --flopha-version: #3fb950;
+    --flopha-accent: #3fb950;
+    --flopha-menu-active: #1c1c1c;
 }
 
 html {
@@ -125,7 +108,12 @@ body {
     border-top: 1px solid var(--flopha-line);
 }
 
-.navbar__title,
+.navbar__title {
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+}
+
 .navbar__link,
 .footer__link-item {
     font-weight: 700;
@@ -141,7 +129,7 @@ body {
     color: var(--flopha-footer-link-hover) !important;
 }
 
-a,
+a:not(.button),
 .pagination-nav__link,
 .pagination-nav__label,
 .table-of-contents__link,
@@ -171,13 +159,18 @@ a,
 .markdown h2,
 .markdown h3,
 .markdown h4 {
-    letter-spacing: -0.04em;
+    letter-spacing: -0.03em;
 }
 
 .markdown p,
 .theme-doc-markdown p,
 .markdown li {
     line-height: 1.8;
+}
+
+code,
+pre {
+    font-variant-ligatures: none;
 }
 
 code {
@@ -188,56 +181,13 @@ code {
     padding: 0.16rem 0.42rem;
 }
 
-.theme-code-block {
-    background:
-        linear-gradient(
-            140deg,
-            rgba(255, 255, 255, 0.03) 0%,
-            rgba(255, 255, 255, 0) 32%
-        ),
-        radial-gradient(
-            circle at 88% 0%,
-            rgba(90, 72, 75, 0.1),
-            transparent 34%
-        ),
-        radial-gradient(
-            circle at 12% 100%,
-            rgba(134, 122, 120, 0.06),
-            transparent 28%
-        ),
-        linear-gradient(
-            180deg,
-            var(--flopha-terminal-surface) 0%,
-            var(--flopha-terminal-surface-strong) 100%
-        );
+div.theme-code-block {
+    background: var(--flopha-terminal-surface);
+    box-shadow: none;
     border: 1px solid var(--flopha-terminal-line);
-    border-radius: 1.1rem;
-    box-shadow: 0 1.2rem 2.8rem rgba(12, 10, 11, 0.2);
+    border-radius: 0.6rem;
     overflow: hidden;
     position: relative;
-}
-
-.theme-code-block::before {
-    content: "";
-    inset: 0;
-    pointer-events: none;
-    position: absolute;
-    background:
-        linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.02) 0%,
-            rgba(255, 255, 255, 0) 24%
-        ),
-        linear-gradient(
-            135deg,
-            rgba(255, 255, 255, 0.025) 0%,
-            rgba(255, 255, 255, 0) 46%
-        );
-    z-index: 0;
-}
-
-.theme-code-block::after {
-    content: none;
 }
 
 .theme-code-block pre {
@@ -251,22 +201,22 @@ code {
 .theme-code-block code {
     border: 0;
     color: var(--flopha-terminal-text);
+    overflow-wrap: anywhere;
     padding: 0;
+    white-space: pre-wrap;
+}
+
+/* Lines always wrap, so copy is the only control. */
+.theme-code-block [class*="buttonGroup"] > button:not(:last-child) {
+    display: none;
 }
 
 .theme-code-block [class*="buttonGroup"] {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 0.65rem;
-    box-shadow: 0 0.45rem 1.1rem rgba(0, 0, 0, 0.16);
     opacity: 0;
     pointer-events: none;
-    right: 0.8rem;
-    top: 0.72rem;
-    transform: translateY(-0.12rem);
-    transition:
-        opacity var(--ifm-transition-fast) ease,
-        transform var(--ifm-transition-fast) ease;
+    right: 0.6rem;
+    top: 0.6rem;
+    transition: opacity var(--ifm-transition-fast) ease;
     z-index: 1;
 }
 
@@ -274,31 +224,24 @@ code {
 .theme-code-block:focus-within [class*="buttonGroup"] {
     opacity: 1;
     pointer-events: auto;
-    transform: translateY(0);
 }
 
+/* Full-width lines run under the hover-only button, so it masks the text it covers. */
 .theme-code-block [class*="buttonGroup"] > button {
-    color: #f3fbf7;
-}
-
-.theme-code-block [class*="buttonGroup"] > button:hover {
-    color: #ffffff;
+    background: var(--flopha-terminal-surface);
+    border: 0;
+    opacity: 1;
 }
 
 @media (hover: none) {
     .theme-code-block [class*="buttonGroup"] {
         opacity: 1;
         pointer-events: auto;
-        transform: translateY(0);
     }
 }
 
 .menu__link--active:not(.menu__link--sublist) {
-    background: rgba(169, 76, 71, 0.12);
-}
-
-[data-theme="dark"] .menu__link--active:not(.menu__link--sublist) {
-    background: rgba(227, 141, 130, 0.16);
+    background: var(--flopha-menu-active);
 }
 
 .theme-doc-sidebar-item-link-level-1 > .menu__link--active,
