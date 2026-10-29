@@ -1,310 +1,99 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/flopha-icon-dark.svg">
+  <img src="assets/brand/flopha-icon.svg" alt="" width="64">
+</picture>
+
 # flopha
 
-flopha is a CLI for semantic versioning and Git release workflows. It helps teams calculate the next version, manage Git tags and release branches, generate pre-release versions, and automate version bumps from conventional commits.
+**Turn merged commits into your next tagged release.**
 
-Use flopha when you want a lightweight release management tool for Git repositories without wiring up a larger release pipeline.
+flopha reads your Git tags and commit messages, picks the next semantic version, and creates the tag, changelog, and GitHub Release. One binary for any language: run it from your terminal, any CI, or as a GitHub Action.
 
-## GitHub Action
+```console
+$ git log --oneline v1.2.3..
+3f2c1a9 fix: handle empty input
+a1b2c3d feat: add release notes export
 
-Use flopha as a GitHub Action to auto-tag the next semantic version and optionally create a GitHub Release. No setup required.
-
-```yaml
-- uses: sjquant/flopha@v1
+$ flopha release    # with [release] create = true in flopha.toml
+Released v1.3.0
+GitHub Release: https://github.com/acme/app/releases/tag/v1.3.0
 ```
-
-See [Full action docs: inputs, outputs, and examples](docs/github-action.md).
-
----
 
 ## Install
 
-Shell (Mac, Linux):
+macOS (Intel, Apple silicon) and Linux x86_64:
 
-```
+```sh
 curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh
 ```
 
-## Docs
+On other platforms, build from source with `cargo install --git https://github.com/sjquant/flopha --locked`.
 
-- Official docs: https://flopha.solaqua.dev
-- Website source: `website/`
-- Local preview: `pnpm docs:start`
-- Production build: `pnpm docs:build`
+## Quick start
 
-## Features
-
-- Semantic versioning CLI for Git tags and release branches
-- Conventional commit auto-detection for major, minor, and patch bumps
-- Pre-release channel support for `alpha`, `beta`, and `rc` style versions
-- Custom version patterns for app releases, desktop builds, and monorepo naming
-- Version history output for release auditing and changelog workflows
-
-## Quickstart
-
-Run commands inside a Git repository with release tags such as `v1.2.3`.
-
-Check the latest version:
+Run these inside a Git repository. flopha looks for tags like `v1.2.3`; if you have none yet, add `--initial-version 0.1.0` to choose the first one.
 
 ```sh
-flopha last-version
+flopha next-version --auto            # feat: -> minor, breaking -> major, otherwise patch
+flopha next-version --auto --create   # create that tag
 ```
 
-Calculate the next patch version:
+## Release with one command
 
-```sh
-flopha next-version
-```
-
-Let commit messages decide the bump:
-
-```sh
-flopha next-version --auto
-```
-
-Create the next version in Git:
-
-```sh
-flopha next-version --create
-```
-
-Show recent release history:
-
-```sh
-flopha log --limit 10
-```
-
-For custom tag names like `mobile@1.2.3`, use a pattern such as `mobile@{semver}`. See the command reference below or the [official docs](https://flopha.solaqua.dev) for release branches, changelogs, pre-releases, and CI examples.
-
-## CLI Commands
-
-### NextVersion
-
-Calculates and displays the next version based on the latest matching tag or branch.
-Aliases: `nv`
-
-#### Options
-
-- `--initial-version <MAJOR.MINOR.PATCH>`: Use this version directly when no tag or branch matches the pattern. Once a matching version exists, normal bump behavior applies.
-
-- `-i`, `--increment <major|minor|patch>`: Explicit bump level. Default: `patch`.
-
-- `--auto`: Auto-detect the bump level from commit messages since the last version. Built-in conventional commit behavior is:
-
-  - `BREAKING CHANGE` or `BREAKING-CHANGE` -> `major`
-  - `<type>!:` or `<type>(<scope>)!:` -> `major`
-  - `feat:` or `feat(scope):` -> `minor`
-  - anything else -> `patch`
-
-- `--rule <LEVEL:PATTERN>`: Define custom bump rules used with `--auto`. Repeatable. When any `--rule` flags are provided, they replace the built-in conventional commit rules entirely.
-
-- `-p`, `--pattern <PATTERN>`: Specify a custom pattern for version matching and generation. Use placeholders `{major}`, `{minor}`, and `{patch}`, or `{semver}` as shorthand for `{major}.{minor}.{patch}`. Example patterns:
-
-  - `v{major}.{minor}.{patch}`
-  - `mobile@{semver}`
-  - `release-{major}.{minor}.{patch}`
-
-- `--pre <CHANNEL>`: Format the next version as a pre-release on the given channel. Example: `--pre alpha` produces `v1.2.3-alpha.1`.
-
-- `-s`, `--source <tag|branch>`: Read versions from tags or branches. Default: `tag`.
-
-- `-c`, `--create`: Create the next tag or branch in Git.
-
-- `--tag-message <MESSAGE>`: Create an annotated tag with the given message. Requires `--create` and tag source.
-
-- `--push`: Push the created tag or branch to `origin`. Requires `--create`.
-
-- `-f`, `--format <text|json>`: Output format. Default: `text`.
-
-For the first release, supply a bare stable version (no tag prefix, pre-release suffix, build metadata, or leading zeros). Each component must fit an unsigned 32-bit integer. The pattern must contain all three placeholders (or `{semver}`) and supplies the tag or branch name:
-
-```sh
-flopha next-version --initial-version 0.2.0 --pattern 'mobile@{semver}' --create
-# Creates mobile@0.2.0, without incrementing 0.2.0
-```
-
-Without a matching version or an explicit initial version, `next-version` fails with guidance, including with `--create` or `--auto`. `--auto` does not choose an initial version. Add `--pre beta` to produce `mobile@0.2.0-beta.1`; subsequent pre-releases use the next available channel counter. To create the first stable tag after pre-releases, keep the same initial version and omit `--pre`.
-
-### LastVersion
-
-Retrieves and displays the most recent version tag or branch in the repository that matches a specified pattern.
-Aliases: `lv`
-
-#### Options
-
-- `-p`, `--pattern <PATTERN>`: Get the last version based on a given pattern (e.g., `v{major}.{minor}.{patch}` or `v{semver}`).
-
-- `-s`, `--source <tag|branch>`: Read versions from tags or branches. Default: `tag`.
-
-- `-c`, `--checkout`: Check out the last matching version.
-
-- `-f`, `--format <text|json>`: Output format. Default: `text`.
-
-### Log
-
-Shows matching versions. In tag mode, it also includes tag dates and the number of commits between releases.
-Aliases: `lg`
-
-#### Options
-
-- `-p`, `--pattern <PATTERN>`: Filter versions by a pattern such as `v{major}.{minor}.{patch}` or `v{semver}`.
-
-- `-s`, `--source <tag|branch>`: Read versions from tags or branches. Default: `tag`.
-
-  Tag mode provides full timeline metadata. Branch mode still lists matching versions, but tag dates and commit counts are not available.
-
-- `-n`, `--limit <LIMIT>`: Limit the number of versions shown.
-
-- `-f`, `--format <text|json>`: Output format. Default: `text`.
-
-### Changelog
-
-Generates a changelog from commits since the last matching version or a specific starting tag.
-Aliases: `cl`
-
-#### Options
-
-- `--from <TAG>`: Tag to start from. Defaults to the latest version matching `--pattern`.
-
-- `--to <VERSION>`: Upper bound for the changelog. The tag must exist when limiting commit history. Also available as `{to}` in `--title`.
-
-- `-p`, `--pattern <PATTERN>`: Match a custom version format. `{semver}` expands to `{major}.{minor}.{patch}`.
-
-- `-s`, `--source <tag|branch>`: Read versions from tags or branches when resolving the default `--from`. Default: `tag`.
-
-- `--group <TITLE:PATTERN>`: Custom changelog group rule. Repeatable. When any group is provided, it replaces the built-in defaults.
-
-- `--other <TITLE>`: Title for commits that match no group. Pass an empty string to suppress unmatched commits. Default: `Other Changes`.
-
-- `--title <TEMPLATE>`: Heading template. Use `{from}` and `{to}` placeholders.
-
-- `-o`, `--output <FILE>`: Write to a file instead of stdout. Existing content is prepended by default.
-
-- `--overwrite`: Replace the output file instead of prepending.
-
-- `-f`, `--format <text|json>`: Output format. Default: `text`.
-
-Default changelog groups:
-
-| Section | Matched commits |
-|---|---|
-| Breaking Changes | `BREAKING CHANGE`, `BREAKING-CHANGE`, or `type!:` |
-| Features | `feat:` or `feat(scope):` |
-| Bug Fixes | `fix:` or `fix(scope):` |
-| Other Changes | Everything else |
-
-### Release
-
-Runs the full release pipeline in one command, driven by a checked-in `flopha.toml`: compute the version bump, sync it into manifest files (`Cargo.toml`, `package.json`, `pyproject.toml`, or arbitrary regex targets), commit, create an annotated tag, push, generate a changelog, and create a GitHub Release.
-Aliases: `rel`
-
-#### Options
-
-- `-c`, `--config <FILE>`: Path to the config file. Default: `flopha.toml`.
-
-- `--initial-version <MAJOR.MINOR.PATCH>`: Override `version.initial_version` for bootstrapping the first release.
-
-- `--prepare`: Update configured manifests only, leaving changes unstaged for a release PR. Does not commit, tag, push, or contact the GitHub Release API. Requires at least one `[[manifest]]` target.
-
-- `--require-version-match`: Verify that all configured manifests (including Cargo lock entries) match the calculated version. Fail without modifying files if they differ; otherwise release without a version commit. Requires committed changes for an actual release and cannot be combined with `--prepare`.
-
-- `--dry-run`: Print the release plan (bump, manifest files that would be touched, changelog preview) without making any changes.
-
-- `-f`, `--format <text|json>`: Output format for `--dry-run` or `--prepare`. Default: `text`. Preparation returns `{"version":"<tag>"}` in JSON mode.
-
-For a repository without matching version tags, set `initial_version` under `[version]` or pass `--initial-version`. The CLI value takes precedence. The supplied bare version is rendered with `version.pattern` and used directly, including with the default `auto = true`. It can remain configured for later releases, which use normal bump behavior once a matching stable tag exists.
-
-`version.pre` adds the channel suffix and next available counter to both tags and manifests. A first-release changelog includes all commits reachable from HEAD.
-
-#### flopha.toml
+Check in a `flopha.toml` and `flopha release` bumps the version, writes it into your manifests, commits, tags, pushes, and publishes a GitHub Release with a generated changelog.
 
 ```toml
-[version]
-# initial_version = "0.1.0"            # used directly only when no matching version tag exists
-pattern = "v{major}.{minor}.{patch}"   # default
-auto = true                            # detect bump level from conventional commits (default)
-# increment = "patch"                  # used instead of auto-detection when auto = false
-# rules = ["major:BREAKING CHANGE", "minor:^feat"]
-# pre = "beta"                         # pre-release channel, e.g. v1.2.3-beta.1
-# tag_message = "Release {tag}"        # annotated tag message; supports {tag} and {version}
-
-[changelog]
-enabled = true
-# groups = ["Breaking Changes:BREAKING CHANGE", "Features:^feat"]
-# other = "Other Changes"
-# title = "Changes in {to}"
-
 [release]
 create = true
-draft = false
-# title = "{tag}"                     # supports {tag} and {version}
-# body = "..."                        # falls back to the generated changelog, then generate_notes
-# generate_notes = false
-# repo = "owner/repo"                 # defaults to parsing the `origin` remote
 
 [[manifest]]
-path = "Cargo.toml"
-type = "cargo"                        # sets [package].version (or [workspace.package].version) and Cargo.lock
-
-[[manifest]]
-path = "package.json"
-type = "npm"                          # sets the top-level "version" field
-
-[[manifest]]
-path = "pyproject.toml"
-type = "pyproject"                    # sets [project].version, falling back to [tool.poetry].version
-
-[[manifest]]
-path = "docs/VERSION"
-type = "regex"
-pattern = "(?m)^version=.*$"
-replacement = "version={version}"     # {version} is substituted with the new version
+path = "package.json"   # also: Cargo.toml, pyproject.toml, or any file via regex
+type = "npm"
 ```
-
-- Safe to re-run: on a commit that is already tagged, `release` finishes that release (pushes the tag, creates a missing GitHub Release) instead of cutting a new one, and with no new commits it does nothing.
-- When releasing with automatic manifest commits, the working tree must be clean and the branch up to date with `origin`. If pushing the release commit fails, the local commit and tag are undone.
-- `release.create` needs a GitHub token in `GH_TOKEN` or `GITHUB_TOKEN`. Locally, an existing `gh auth login` also works.
-- Cargo workspace targets use `cargo metadata --no-deps --offline --locked` to identify packages inheriting the workspace version; Cargo must be installed. Fixed-version members are preserved.
-- `version.source = "branch"` is not supported. For branch-based versioning, use `flopha next-version --source branch --create`.
-
-#### This repository's release process
-
-Prepare a version PR from a branch containing the changes to release:
 
 ```sh
-cargo run --locked -- release --prepare
-git add Cargo.toml Cargo.lock
-git commit -m "🔖 Prepare release"
+flopha release --dry-run   # preview the plan
+flopha release
 ```
 
-Open a PR for those changes. `flopha.toml` derives major bumps from `💥`, minor bumps from `✨`, and patch bumps otherwise. CI verifies version PRs with `release --require-version-match --dry-run`. On merge to `main`, an unpublished Cargo version starts the release workflow: it verifies the prepared files, creates a tag and draft Release, builds the tagged source, uploads binaries, then publishes the Release. Published versions are skipped on ordinary pushes.
+Re-running is safe: with no new commits it does nothing, and on an already-tagged commit it only finishes what was left undone. Creating a GitHub Release needs `GH_TOKEN` or `GITHUB_TOKEN` (or `gh auth login` locally).
 
-If commits added since preparation change the calculated version, verification stops before tagging or publishing. Update the version branch from `main`, rerun `--prepare`, and commit the new versions. If the PR has already merged, open a follow-up version PR. Keep version PR titles neutral (`🔖`), since their commit messages also participate in bump detection. If a build or upload fails after creating the draft, rerun the original failed workflow to finish that same release.
+## GitHub Action
 
-The workflow builds flopha from source so it can use these options before they appear in a published binary. It does not push version commits to `main`.
+Tag the next version and publish a release from a workflow, with no config file:
 
-See [Release Workflows](https://flopha.solaqua.dev/docs/release-workflows#flopha-release-in-github-actions) for running `release` in CI.
+```yaml
+permissions:
+  contents: write
 
-### Global Options
+steps:
+  - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+  - uses: sjquant/flopha@v1
+    with:
+      create-release: true
+      changelog: true
+```
 
-- `-v`, `--verbose`: Enable verbose output for detailed information.
+See the [action reference](docs/github-action.md) for inputs and outputs.
 
-## Default Behavior
+## Fits the release flow you already have
 
-- The CLI fetches from the `origin` remote before resolving versions.
-- The default version pattern is `v{major}.{minor}.{patch}`. Use `v{semver}` as a shorter equivalent.
+- **Custom tag patterns** for apps and packages in one repo: `--pattern "mobile@{semver}"`
+- **Release branches** instead of tags: `--source branch --pattern "release/{semver}"`
+- **Pre-releases** from the next stable version: `--pre rc` gives `v1.3.0-rc.1`
+- **Your own commit conventions**: `--auto --rule 'minor:^feature'`
+- **Version PRs** when releases need review: `flopha release --prepare`
+
+## Documentation
+
+[flopha.solaqua.dev](https://flopha.solaqua.dev) covers [version patterns](https://flopha.solaqua.dev/docs/version-patterns), [release workflows](https://flopha.solaqua.dev/docs/release-workflows), and the full [command and `flopha.toml` reference](https://flopha.solaqua.dev/docs/command-reference).
 
 ## Contributing
 
-Install dev tools and activate git hooks after cloning:
-
-```sh
-cargo install prek
-prek install
-prek install --hook-type commit-msg
-```
-
-Hooks enforce formatting, linting, secret detection, and [gitmoji](https://gitmoji.dev) commit messages.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-flopha is released under the [MIT License](LICENSE).
+[MIT](LICENSE)

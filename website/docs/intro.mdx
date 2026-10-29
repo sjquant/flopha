@@ -4,33 +4,30 @@ title: Overview
 slug: /
 ---
 
-# Release versioning for Git tags and branches
+# Turn merged commits into your next tagged release
 
-`flopha` is a small Git-focused CLI for repositories that encode releases as semantic versions. It looks at matching tags or branches, resolves the latest version, calculates the next one, and can create the result directly in Git.
+`flopha` reads your Git tags and commit messages, picks the next semantic version, and creates the tag, changelog, and GitHub Release. It runs from your terminal, any CI, or as a [GitHub Action](https://github.com/sjquant/flopha/blob/main/docs/github-action.md).
 
-The official docs are published at https://flopha.solaqua.dev.
+```console
+$ git log --oneline v1.2.3..
+3f2c1a9 fix: handle empty input
+a1b2c3d feat: add release notes export
 
-It is useful when your repository needs more than a one-off `git tag`:
+$ flopha next-version --auto
+v1.3.0
+```
 
-- You release with a custom prefix like `desktop@1.4.2` or `release/1.4.2`.
-- You want to drive version bumps from conventional commits.
-- You need branch-based version streams instead of tag-only releases.
-- You want pre-release channels such as `alpha`, `beta`, or `rc`.
+## When it fits
 
-## What it does well
+flopha treats Git tags (or branch names) as the source of truth for versions. It is a good fit when:
 
-- Resolve the latest matching version with `flopha last-version`.
-- Calculate the next semantic version with `flopha next-version`.
-- Infer the bump from commit history with `flopha next-version --auto`.
-- Create tags or branches once the version is resolved.
-- Show version history with commit counts using `flopha log`.
+- You want the next version decided by commit messages instead of by hand.
+- You want the tag, changelog, and GitHub Release from one command or one workflow step.
+- Your versions have a custom shape, like `desktop@1.4.2` or `release/1.4.2`.
+- You keep the version in `Cargo.toml`, `package.json`, or `pyproject.toml` and want it written there before tagging.
 
-## Default behavior
+## Where to go next
 
-By default, `flopha` looks for tags matching `v{major}.{minor}.{patch}` and fetches from `origin` before operating. You can override both the version pattern and the version source when your repository uses a different release scheme.
-
-## Next
-
-- Go to [Installation](/docs/installation) to install the binary.
-- Go to [Quick Start](/docs/quick-start) for the common day-to-day commands.
-- Go to [Version Patterns](/docs/version-patterns) for custom formats.
+- [Installation](/docs/installation): install the binary.
+- [Quick Start](/docs/quick-start): calculate and create your first version, then release with one command.
+- [Release Workflows](/docs/release-workflows): CI pipelines, version PRs, and custom bump rules.

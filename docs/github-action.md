@@ -6,13 +6,14 @@ Auto-tag the next semantic version and optionally create a GitHub Release.
 - uses: sjquant/flopha@v1
   with:
     create-release: true
+    changelog: true
 ```
 
-Requires `permissions: contents: write` in the calling workflow.
+Requires `permissions: contents: write` and a checkout with `fetch-depth: 0` so flopha can see tags and history.
 
 ## When to use
 
-flopha treats **Git tags as the authoritative version source**. It is not the right tool when the version lives in a file (`Cargo.toml`, `package.json`, etc.) and is bumped manually before release.
+The action treats **Git tags as the version source**: it tags and releases without changing any files. If the version also lives in `Cargo.toml`, `package.json`, or `pyproject.toml`, run [`flopha release`](https://flopha.solaqua.dev/docs/release-workflows#flopha-release-in-github-actions) with a `flopha.toml` instead; it writes the new version into those files before tagging.
 
 ## Inputs
 
@@ -23,6 +24,10 @@ flopha treats **Git tags as the authoritative version source**. It is not the ri
 | `pattern` | `v{major}.{minor}.{patch}` | Tag pattern. Use `{major}`, `{minor}`, `{patch}` as placeholders, or `{semver}` as shorthand. |
 | `pre` | | Pre-release channel: `alpha`, `beta`, `rc`, etc. Produces tags like `v1.2.3-rc.1`. |
 | `rule` | | Custom bump rules, one per line, as `level:regex`. Replaces built-in conventional-commit defaults entirely. |
+| `changelog` | `false` | Generate a changelog since the previous tag. Exposed as the `changelog` output, and used as the release body when `create-release` is true and `release-body` is empty. |
+| `changelog-groups` | | Custom changelog groups, one per line, as `TITLE:REGEX`. Replaces the built-in defaults entirely. |
+| `changelog-other` | `Other Changes` | Title for commits that match no group. |
+| `changelog-suppress-other` | `false` | Omit commits that match no group. |
 | `create-release` | `false` | Create a GitHub Release for the new tag. |
 | `draft` | `false` | Create the release as a draft. |
 | `release-title` | tag name | Title for the GitHub Release. |
@@ -40,6 +45,7 @@ flopha treats **Git tags as the authoritative version source**. It is not the ri
 | `tag` | The version tag created (or would-be, on dry-run), e.g. `v1.3.0`. |
 | `version` | Bare version number without prefix, e.g. `1.3.0`. |
 | `release-url` | URL of the GitHub Release. Empty when `create-release: false` or `dry-run: true`. |
+| `changelog` | Generated changelog (Markdown). Empty when `changelog: false`. |
 
 ## Examples
 
@@ -56,7 +62,7 @@ steps:
   - uses: sjquant/flopha@v1
 ```
 
-**Tag + GitHub Release:**
+**Tag + GitHub Release with a changelog:**
 
 ```yaml
 permissions:
@@ -69,7 +75,7 @@ steps:
   - uses: sjquant/flopha@v1
     with:
       create-release: true
-      generate-release-notes: true
+      changelog: true
 ```
 
 **Pre-release on non-main branches:**
