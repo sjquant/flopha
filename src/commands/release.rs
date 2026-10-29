@@ -48,9 +48,13 @@ pub fn release(path: &Path, args: &ReleaseArgs) -> Result<Option<String>, Flopha
         config.version.increment.clone(),
     )?;
 
-    let next = versioner.next_version(increment)?.ok_or_else(|| {
+    let initial = args
+        .initial_version
+        .as_deref()
+        .or(config.version.initial_version.as_deref());
+    let next = versioner.next_version(increment, initial)?.ok_or_else(|| {
         FlophaError::Config(
-            "no version tag matches version.pattern; nothing to bump from".to_string(),
+            "no version tag matches version.pattern; set version.initial_version in the release config or supply --initial-version <MAJOR.MINOR.PATCH> to create the first release".to_string(),
         )
     })?;
     let version_core = next.core()?;
@@ -248,7 +252,7 @@ fn release_tag_and_version(
 ) -> (String, String) {
     match &config.version.pre {
         Some(channel) => {
-            let n = super::next_pre_release_number(repo, &next.tag, channel);
+            let n = super::next_pre_release_number(repo, &TagVersionSource, &next.tag, channel);
             (
                 versioning::pre_release(&next.tag, channel, n),
                 versioning::pre_release(&version_core, channel, n),
@@ -558,12 +562,163 @@ mod tests {
 
     fn release_args() -> ReleaseArgs {
         ReleaseArgs {
+            initial_version: None,
             config: "flopha.toml".to_string(),
             dry_run: false,
             prepare: false,
             require_version_match: false,
             format: OutputFormat::Text,
         }
+    }
+
+    /// The initial release previews and prepares a custom version without creating Git or remote changes.
+    #[test]
+    fn initial_release_preparation() {
+        for (pre_setting, expected_version) in [("", "2.3.4"), ("pre = \"beta\"", "2.3.4-beta.3")] {
+            // Given no matching stable tags, a manifest, and GitHub Release creation enabled
+            let (td, repo) = testutils::init_repo();
+            let (remote_td, _remote) = testutils::init_remote(&repo);
+            testutils::tag_head(&repo, "unrelated@9.0.0");
+            testutils::tag_head(&repo, "app@2.3.4-beta.2");
+            repo.branch(
+                "app@2.3.4-beta.99",
+                &repo.head().unwrap().peel_to_commit().unwrap(),
+                false,
+            )
+            .unwrap();
+            std::fs::write(
+                td.path().join("package.json"),
+                r#"{"name":"app","version":"0.0.0"}"#,
+            )
+            .unwrap();
+            gitutils::commit(&repo, "feat!: first release").unwrap();
+            let head = repo.head().unwrap().target().unwrap();
+            write_config(
+                td.path(),
+                &format!(
+                    r#"
+                [version]
+                pattern = "app@{{semver}}"
+                initial_version = "2.3.4"
+                {pre_setting}
+                [changelog]
+                enabled = true
+                [release]
+                create = true
+                [[manifest]]
+                type = "npm"
+                path = "package.json"
+            "#
+                ),
+            );
+            let expected_tag = format!("app@{}", expected_version);
+            let original = std::fs::read(td.path().join("package.json")).unwrap();
+
+            // When previewing both release modes, neither writes files
+            for prepare in [false, true] {
+                let args = ReleaseArgs {
+                    prepare,
+                    dry_run: true,
+                    ..release_args()
+                };
+                assert_eq!(
+                    release(td.path(), &args).unwrap().as_deref(),
+                    Some(expected_tag.as_str())
+                );
+                assert_eq!(
+                    std::fs::read(td.path().join("package.json")).unwrap(),
+                    original
+                );
+            }
+            // When preparing repeatedly and verifying the result in a dry run
+            let args = ReleaseArgs {
+                prepare: true,
+                ..release_args()
+            };
+            for _ in 0..2 {
+                assert_eq!(
+                    release(td.path(), &args).unwrap().as_deref(),
+                    Some(expected_tag.as_str())
+                );
+            }
+            let args = ReleaseArgs {
+                require_version_match: true,
+                dry_run: true,
+                ..release_args()
+            };
+            assert_eq!(
+                release(td.path(), &args).unwrap().as_deref(),
+                Some(expected_tag.as_str())
+            );
+
+            // Then only the manifest changed, with the bare version and matching pre-release counter
+            let manifest: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(td.path().join("package.json")).unwrap())
+                    .unwrap();
+            assert_eq!(manifest["version"], expected_version);
+            assert_eq!(repo.head().unwrap().target().unwrap(), head);
+            assert_eq!(
+                repo.index().unwrap().write_tree().unwrap(),
+                repo.head().unwrap().peel_to_tree().unwrap().id()
+            );
+            assert!(repo
+                .revparse_single(&format!("refs/tags/{}", expected_tag))
+                .is_err());
+            let remote = git2::Repository::open(remote_td.path()).unwrap();
+            assert!(remote.tag_names(None).unwrap().is_empty());
+        }
+    }
+
+    /// Missing initial versions fail actionably, while a CLI override bootstraps and later releases bump normally.
+    #[test]
+    fn initial_release_override_and_subsequent_bump() {
+        // Given no matching tag and no configured initial version
+        let (td, repo) = testutils::init_repo();
+        let (remote_td, _remote) = testutils::init_remote(&repo);
+        write_config(td.path(), "");
+
+        // When previewing without an initial version
+        let err = release(
+            td.path(),
+            &ReleaseArgs {
+                dry_run: true,
+                ..release_args()
+            },
+        )
+        .unwrap_err();
+
+        // Then the failure names both ways to supply it and creates no tag
+        assert!(err.to_string().contains("version.initial_version"));
+        assert!(err.to_string().contains("--initial-version"));
+        assert!(repo.tag_names(None).unwrap().is_empty());
+
+        // When the CLI overrides the configured initial version for the first release
+        write_config(td.path(), "[version]\ninitial_version = \"9.0.0\"\n");
+        let args = ReleaseArgs {
+            initial_version: Some("0.2.0".to_string()),
+            ..release_args()
+        };
+        assert_eq!(
+            release(td.path(), &args).unwrap().as_deref(),
+            Some("v0.2.0")
+        );
+        let remote = git2::Repository::open(remote_td.path()).unwrap();
+        assert!(remote.revparse_single("refs/tags/v0.2.0").is_ok());
+
+        // Then a later feature uses normal auto detection despite the retained initial version
+        gitutils::commit(&repo, "feat: another feature").unwrap();
+        assert_eq!(
+            release(
+                td.path(),
+                &ReleaseArgs {
+                    dry_run: true,
+                    ..args
+                }
+            )
+            .unwrap()
+            .as_deref(),
+            Some("v0.3.0")
+        );
     }
 
     /// Preparing a release updates Cargo files without staging, committing, tagging, or pushing.

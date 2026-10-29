@@ -26,6 +26,7 @@ Calculate the next version.
 
 ```bash
 flopha next-version \
+  [--initial-version <MAJOR.MINOR.PATCH>] \
   [--increment <major|minor|patch>] \
   [--auto] \
   [--rule <level:regex>] \
@@ -40,6 +41,7 @@ flopha next-version \
 
 Options:
 
+- `--initial-version`: Use a bare `MAJOR.MINOR.PATCH` directly when no version matches the pattern; otherwise use normal bump behavior.
 - `--increment`, `-i`: Explicit bump level. Default is `patch`.
 - `--auto`: Detect the bump from commit messages since the last version.
 - `--rule`: Replace the built-in auto-detection rules. Requires `--auto`.
@@ -133,10 +135,11 @@ When no `--group` flags are provided, commits are classified as:
 Prepare or publish a release using `flopha.toml`.
 
 ```bash
-flopha release [--config <file>] [--prepare | --require-version-match] [--dry-run] [--format <text|json>]
+flopha release [--config <file>] [--initial-version <MAJOR.MINOR.PATCH>] [--prepare | --require-version-match] [--dry-run] [--format <text|json>]
 ```
 
 - `--config`, `-c`: Config path relative to the repository root. Default: `flopha.toml`.
+- `--initial-version`: Override `[version].initial_version` for the first release.
 - `--prepare`: Update configured manifests only, leaving changes unstaged for a release PR. No commit, tag, push, or GitHub Release is created.
 - `--require-version-match`: Fail if manifests differ from the calculated version; otherwise publish without a version commit. Actual releases require committed files. Cannot be combined with `--prepare`.
 - `--dry-run`: Preview without writing files or publishing. With `--require-version-match`, also validate the prepared files.
@@ -149,3 +152,5 @@ Both `--prepare` and `--require-version-match` need at least one `[[manifest]]` 
 - `--verbose`, `-v` enables debug logging.
 - The CLI fetches from the `origin` remote before resolving versions.
 - The default version pattern is `v{major}.{minor}.{patch}`. Use `v{semver}` as a shorter equivalent.
+
+When no version matches the pattern, `next-version` and `release` fail unless an initial version is supplied; `--auto` does not select one. Use three unsigned 32-bit components without leading zeros, tag prefixes, pre-release suffixes, or build metadata. Use `--pre` / `version.pre` for pre-releases. See [First release](./release-workflows#first-release) for examples.

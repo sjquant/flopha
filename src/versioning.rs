@@ -195,10 +195,30 @@ impl Versioner {
         versions
     }
 
-    pub fn next_version(&self, increment: Increment) -> Result<Option<Version>, FlophaError> {
+    /// Uses `initial_version` directly when no prior version matches the pattern.
+    pub fn next_version(
+        &self,
+        increment: Increment,
+        initial_version: Option<&str>,
+    ) -> Result<Option<Version>, FlophaError> {
+        let initial = initial_version
+            .map(parse_initial_version)
+            .transpose()
+            .map_err(FlophaError::InvalidArgs)?;
         let last_version = match self.last_version() {
             Some(v) => v,
-            None => return Ok(None),
+            None => {
+                if initial.is_some() {
+                    for component in ["major", "minor", "patch"] {
+                        if !self.pattern.contains(&format!("{{{}}}", component)) {
+                            return Err(FlophaError::MissingVersionComponent(
+                                component.to_string(),
+                            ));
+                        }
+                    }
+                }
+                return Ok(initial.map(|[major, minor, patch]| self.version(major, minor, patch)));
+            }
         };
 
         let (major, minor, patch) = match increment {
@@ -234,19 +254,44 @@ impl Versioner {
             }
         };
 
+        Ok(Some(self.version(major, minor, patch)))
+    }
+
+    fn version(&self, major: u32, minor: u32, patch: u32) -> Version {
         let tag = self
             .pattern
             .replace("{major}", &major.to_string())
             .replace("{minor}", &minor.to_string())
             .replace("{patch}", &patch.to_string());
 
-        Ok(Some(Version::new(
-            tag,
-            Some(major),
-            Some(minor),
-            Some(patch),
-        )))
+        Version::new(tag, Some(major), Some(minor), Some(patch))
     }
+}
+
+/// Validates the bare stable version accepted by CLI flags and release config.
+/// Components use the same `u32` range as versions read from tags.
+pub fn validate_initial_version(input: &str) -> Result<String, String> {
+    parse_initial_version(input).map(|_| input.to_string())
+}
+
+fn parse_initial_version(input: &str) -> Result<[u32; 3], String> {
+    let parts: Option<Vec<u32>> = input
+        .split('.')
+        .map(|part| {
+            if part.is_empty()
+                || !part.bytes().all(|b| b.is_ascii_digit())
+                || (part.len() > 1 && part.starts_with('0'))
+            {
+                None
+            } else {
+                part.parse().ok()
+            }
+        })
+        .collect();
+    parts.and_then(|parts| parts.try_into().ok()).ok_or_else(|| format!(
+        "invalid initial version '{}': expected MAJOR.MINOR.PATCH with unsigned 32-bit components, no leading zeros, prefix, or suffix; use --pre / version.pre for pre-releases",
+        input
+    ))
 }
 
 fn build_regex(pattern: &str) -> Regex {
@@ -416,7 +461,7 @@ mod tests {
             "z4.0.0".to_string(),
         ];
         let versioner = Versioner::new(tags.clone(), "v{major}.{minor}.{patch}".to_string());
-        let next_version = versioner.next_version(Increment::Major).unwrap();
+        let next_version = versioner.next_version(Increment::Major, None).unwrap();
         assert_eq!(
             next_version,
             Some(Version::new(
@@ -427,7 +472,7 @@ mod tests {
             ))
         );
 
-        let next_version = versioner.next_version(Increment::Minor).unwrap();
+        let next_version = versioner.next_version(Increment::Minor, None).unwrap();
         assert_eq!(
             next_version,
             Some(Version::new(
@@ -438,7 +483,7 @@ mod tests {
             ))
         );
 
-        let next_version = versioner.next_version(Increment::Patch).unwrap();
+        let next_version = versioner.next_version(Increment::Patch, None).unwrap();
         assert_eq!(
             next_version,
             Some(Version::new(
@@ -450,13 +495,28 @@ mod tests {
         );
     }
 
+    /// Bootstrapping rejects patterns that cannot represent all components of the initial version.
+    #[test]
+    fn initial_version_requires_complete_pattern() {
+        // Given a pattern with a fixed major component and no matching versions
+        let versioner = Versioner::new(Vec::new(), "v1.{minor}.{patch}".to_string());
+
+        // When initializing a version whose major would be lost in that pattern
+        let err = versioner
+            .next_version(Increment::Patch, Some("2.3.4"))
+            .unwrap_err();
+
+        // Then the missing placeholder is reported instead of producing a different version
+        assert!(err.to_string().contains("{major}"));
+    }
+
     #[test]
     fn test_next_version_returns_none_when_no_last_version() {
         let versioner = Versioner::new(
             vec!["v1.0.0".to_string(), "v1.0.1".to_string()],
             "no-{major}.{minor}.{patch}".to_string(),
         );
-        let next_version = versioner.next_version(Increment::Major).unwrap();
+        let next_version = versioner.next_version(Increment::Major, None).unwrap();
         assert_eq!(next_version, None);
     }
 
@@ -468,7 +528,7 @@ mod tests {
         let versioner = Versioner::new(tags, "mobile@{semver}".to_string());
 
         // When
-        let next_version = versioner.next_version(Increment::Minor).unwrap();
+        let next_version = versioner.next_version(Increment::Minor, None).unwrap();
 
         // Then
         assert_eq!(
@@ -488,7 +548,7 @@ mod tests {
             vec!["v1.0.0".to_string(), "v1.0.1".to_string()],
             "v1.{minor}.{patch}".to_string(),
         );
-        assert!(versioner.next_version(Increment::Major).is_err());
+        assert!(versioner.next_version(Increment::Major, None).is_err());
     }
 
     // ── bump-rule / auto-detection tests ─────────────────────────────────────

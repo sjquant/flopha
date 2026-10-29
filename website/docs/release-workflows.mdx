@@ -5,6 +5,40 @@ title: Release Workflows
 
 # Release Workflows
 
+## First release
+
+When no tags match the version pattern, explicitly choose the first version:
+
+```bash
+flopha next-version --initial-version 0.2.0 --pattern 'mobile@{semver}' --create
+# Creates mobile@0.2.0
+```
+
+The initial version is a bare `MAJOR.MINOR.PATCH`, with no prefix, suffix, build metadata, or leading zeros. Each component must fit an unsigned 32-bit integer. The pattern must contain all three placeholders (or `{semver}`) and supplies the tag name. `--source branch` also supports `--initial-version` with a branch pattern such as `release/{semver}`.
+
+For the config-driven release pipeline, set the version under `[version]`:
+
+```toml
+[version]
+pattern = "mobile@{semver}"
+initial_version = "0.2.0"
+
+[[manifest]]
+path = "package.json"
+type = "npm"
+```
+
+```bash
+flopha release --dry-run       # preview mobile@0.2.0 without writing files
+flopha release --prepare       # update manifests to 0.2.0 for review
+# After committing the prepared files:
+flopha release --require-version-match --dry-run
+```
+
+`release --initial-version 0.3.0` overrides the configured initial version. Neither `auto = true` nor an explicit increment bumps the initial version. Once a stable tag matches the pattern, normal bump behavior resumes, so the setting can stay in the config. Without a matching version and an initial version, both commands fail with instructions for supplying one. First-release changelogs include all commits reachable from HEAD.
+
+For an initial pre-release, add `--pre beta` to `next-version`, or `pre = "beta"` under `[version]`. This produces `mobile@0.2.0-beta.1` and manifest version `0.2.0-beta.1`. Existing pre-release tags advance the channel counter. Keep the same initial version for subsequent pre-releases; omit the channel to create the first stable `mobile@0.2.0` tag.
+
 ## Conventional commits
 
 Use `--auto` to infer the next bump from commit messages since the latest version:

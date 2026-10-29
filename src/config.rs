@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::cli::VersionSourceName;
 use crate::error::FlophaError;
-use crate::versioning::{Increment, DEFAULT_PATTERN};
+use crate::versioning::{validate_initial_version, Increment, DEFAULT_PATTERN};
 
 /// The checked-in `flopha.toml` schema driving `flopha release`.
 #[derive(Debug, Deserialize, Default)]
@@ -29,6 +29,10 @@ impl FlophaConfig {
     }
 
     fn validate(&self) -> Result<(), FlophaError> {
+        if let Some(initial) = &self.version.initial_version {
+            validate_initial_version(initial)
+                .map_err(|e| FlophaError::Config(format!("version.initial_version: {}", e)))?;
+        }
         if self.version.source == VersionSourceName::Branch {
             return Err(FlophaError::Config(
                 "release only supports version.source = \"tag\" (manifest sync, commits, and \
@@ -53,6 +57,7 @@ impl FlophaConfig {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct VersionConfig {
+    pub initial_version: Option<String>,
     pub pattern: String,
     pub source: VersionSourceName,
     pub auto: bool,
@@ -65,6 +70,7 @@ pub struct VersionConfig {
 impl Default for VersionConfig {
     fn default() -> Self {
         Self {
+            initial_version: None,
             pattern: DEFAULT_PATTERN.to_string(),
             source: VersionSourceName::Tag,
             auto: true,
@@ -207,6 +213,23 @@ mod tests {
         assert_eq!(config.manifests.len(), 2);
         assert!(matches!(config.manifests[0], ManifestTarget::Cargo { .. }));
         assert!(matches!(config.manifests[1], ManifestTarget::Regex { .. }));
+    }
+
+    /// Release configuration rejects malformed initial versions before running the release pipeline.
+    #[test]
+    fn invalid_initial_version_is_rejected() {
+        // Given a tagged version string instead of a bare version
+        // When loading the release configuration
+        let err = load(
+            r#"[version]
+initial_version = "v1.2.3"
+"#,
+        )
+        .unwrap_err();
+
+        // Then the diagnostic names the setting and accepted syntax
+        assert!(err.to_string().contains("version.initial_version"));
+        assert!(err.to_string().contains("MAJOR.MINOR.PATCH"));
     }
 
     /// It rejects `version.source = "branch"` since release assumes tag-based versioning.

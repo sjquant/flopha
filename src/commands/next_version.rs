@@ -29,16 +29,13 @@ pub fn next_version(path: &Path, args: &NextVersionArgs) -> Result<Option<String
         args.increment.clone(),
     )?;
 
-    let next = match versioner.next_version(increment)? {
-        Some(v) => v,
-        None => {
-            super::print_none(&args.format, "No version found");
-            return Ok(None);
-        }
-    };
+    let next = versioner.next_version(increment, args.initial_version.as_deref())?
+        .ok_or_else(|| FlophaError::InvalidArgs(
+            "no version matches --pattern; supply --initial-version <MAJOR.MINOR.PATCH> to create the first version".to_string()
+        ))?;
 
     let final_tag = if let Some(channel) = &args.pre {
-        let n = super::next_pre_release_number(&repo, &next.tag, channel);
+        let n = super::next_pre_release_number(&repo, version_source.as_ref(), &next.tag, channel);
         versioning::pre_release(&next.tag, channel, n)
     } else {
         next.tag.clone()
@@ -75,6 +72,175 @@ mod tests {
     use crate::testutils::{self, create_new_remote_branch, create_new_remote_tag};
     use crate::versioning::Increment;
 
+    /// A supplied initial version creates the first matching tag or branch without an auto bump.
+    #[test]
+    fn initial_version_creates_first_reference() {
+        use crate::cli::{Cli, Commands};
+        use clap::Parser;
+
+        for (source, pattern, expected) in [
+            ("tag", "v{semver}", "v2.3.4"),
+            ("tag", "mobile@{major}.{minor}.{patch}", "mobile@2.3.4"),
+            ("branch", "release/{semver}", "release/2.3.4"),
+        ] {
+            // Given a repository with unrelated tags and a breaking change
+            let (td, repo) = testutils::init_repo();
+            testutils::tag_head(&repo, "unrelated@8.0.0");
+            gitutils::commit(&repo, "feat!: first feature").unwrap();
+            let cli = Cli::try_parse_from([
+                "flopha",
+                "next-version",
+                "--initial-version",
+                "2.3.4",
+                "--source",
+                source,
+                "--pattern",
+                pattern,
+                "--auto",
+                "--create",
+            ])
+            .unwrap();
+            let Some(Commands::NextVersion(args)) = cli.command else {
+                panic!("expected next-version")
+            };
+
+            // When creating the first version
+            let result = next_version(td.path(), &args).unwrap();
+
+            // Then the initial version is rendered through the pattern and points at HEAD
+            assert_eq!(result.as_deref(), Some(expected));
+            let reference = format!(
+                "refs/{}/{}",
+                if source == "tag" { "tags" } else { "heads" },
+                expected
+            );
+            assert_eq!(
+                repo.revparse_single(&reference)
+                    .unwrap()
+                    .peel_to_commit()
+                    .unwrap()
+                    .id(),
+                repo.head().unwrap().peel_to_commit().unwrap().id()
+            );
+        }
+    }
+
+    /// Successive initial pre-release branches have distinct counters and point at each release's commit.
+    #[test]
+    fn initial_pre_release_branches_track_each_commit() {
+        use crate::cli::{Cli, Commands};
+        use clap::Parser;
+
+        // Given a repository without any release branches or tags
+        let (td, repo) = testutils::init_repo();
+        let first_commit = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let cli = Cli::try_parse_from([
+            "flopha",
+            "next-version",
+            "--source",
+            "branch",
+            "--pattern",
+            "release/{semver}",
+            "--initial-version",
+            "2.3.4",
+            "--pre",
+            "beta",
+            "--create",
+        ])
+        .unwrap();
+        let Some(Commands::NextVersion(args)) = cli.command else {
+            panic!("expected next-version")
+        };
+
+        // When creating the first branch and then releasing a new commit from main
+        assert_eq!(
+            next_version(td.path(), &args).unwrap().as_deref(),
+            Some("release/2.3.4-beta.1")
+        );
+        gitutils::checkout_branch(&repo, "main", false).unwrap();
+        let second_commit = gitutils::commit(&repo, "feat: second release").unwrap();
+        assert_eq!(
+            next_version(td.path(), &args).unwrap().as_deref(),
+            Some("release/2.3.4-beta.2")
+        );
+
+        // Then each branch preserves its intended commit and HEAD selects the new release
+        assert_eq!(
+            repo.find_branch("release/2.3.4-beta.1", git2::BranchType::Local)
+                .unwrap()
+                .get()
+                .target(),
+            Some(first_commit)
+        );
+        assert_eq!(
+            repo.find_branch("release/2.3.4-beta.2", git2::BranchType::Local)
+                .unwrap()
+                .get()
+                .target(),
+            Some(second_commit)
+        );
+        assert_eq!(repo.head().unwrap().target(), Some(second_commit));
+        assert_eq!(
+            repo.head().unwrap().name(),
+            Some("refs/heads/release/2.3.4-beta.2")
+        );
+        assert!(repo.tag_names(None).unwrap().is_empty());
+    }
+
+    /// Initial pre-releases continue the channel counter and can later produce the stable initial tag.
+    #[test]
+    fn initial_pre_release_then_stable() {
+        use crate::cli::{Cli, Commands};
+        use clap::Parser;
+
+        // Given pre-release tags but no matching stable tag
+        let (td, repo) = testutils::init_repo();
+        testutils::tag_head(&repo, "mobile@2.3.4-beta.2");
+        testutils::tag_head(&repo, "mobile@2.3.4-alpha.9");
+        repo.branch(
+            "mobile@2.3.4-beta.99",
+            &repo.head().unwrap().peel_to_commit().unwrap(),
+            false,
+        )
+        .unwrap();
+        let cli = Cli::try_parse_from([
+            "flopha",
+            "next-version",
+            "--initial-version",
+            "2.3.4",
+            "--pre",
+            "beta",
+            "--pattern",
+            "mobile@{semver}",
+            "--increment",
+            "major",
+            "--create",
+        ])
+        .unwrap();
+        let Some(Commands::NextVersion(mut args)) = cli.command else {
+            panic!("expected next-version")
+        };
+
+        // When creating another pre-release and then the stable version
+        assert_eq!(
+            next_version(td.path(), &args).unwrap().as_deref(),
+            Some("mobile@2.3.4-beta.3")
+        );
+        args.pre = None;
+        assert_eq!(
+            next_version(td.path(), &args).unwrap().as_deref(),
+            Some("mobile@2.3.4")
+        );
+
+        // Then the stable tag exists and future versions use the requested bump
+        assert!(repo.revparse_single("refs/tags/mobile@2.3.4").is_ok());
+        args.create = false;
+        assert_eq!(
+            next_version(td.path(), &args).unwrap().as_deref(),
+            Some("mobile@3.0.0")
+        );
+    }
+
     #[test]
     fn test_next_version_returns_next_version_with_given_pattern() {
         let (td, repo) = testutils::init_repo();
@@ -98,6 +264,7 @@ mod tests {
         gitutils::commit(&repo, "New commit").unwrap();
 
         let args = NextVersionArgs {
+            initial_version: Some("9.0.0".to_string()),
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
@@ -133,6 +300,7 @@ mod tests {
         gitutils::commit(&repo, "New commit").unwrap();
 
         let args = NextVersionArgs {
+            initial_version: None,
             pattern: Some("flopha@{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
@@ -173,6 +341,7 @@ mod tests {
         gitutils::commit(&repo, "New commit").unwrap();
 
         let args = NextVersionArgs {
+            initial_version: None,
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
@@ -189,8 +358,9 @@ mod tests {
         assert_eq!(result, Some("release/2.10.12".to_string()))
     }
 
+    /// Creating a release branch without a prior match requires an explicit initial version.
     #[test]
-    fn test_next_version_branch_returns_none_without_match() {
+    fn test_next_version_branch_requires_initial_without_match() {
         let (td, repo) = testutils::init_repo();
         let (_remote_td, mut remote) = testutils::init_remote(&repo);
 
@@ -200,21 +370,25 @@ mod tests {
         }
 
         let args = NextVersionArgs {
+            initial_version: None,
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
-            auto: false,
+            auto: true,
             rule: vec![],
             pre: None,
             source: VersionSourceName::Branch,
-            create: false,
+            create: true,
             format: OutputFormat::Text,
             tag_message: None,
             push: false,
         };
 
-        let result = next_version(td.path(), &args).unwrap();
+        let err = next_version(td.path(), &args).unwrap_err();
 
-        assert_eq!(result, None);
+        assert!(err.to_string().contains("--initial-version"));
+        assert!(repo
+            .find_branch("release/0.1.0", git2::BranchType::Local)
+            .is_err());
     }
 
     #[test]
@@ -230,6 +404,7 @@ mod tests {
         gitutils::commit(&repo, "New commit").unwrap();
 
         let args = NextVersionArgs {
+            initial_version: None,
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Minor,
             auto: false,
@@ -265,6 +440,7 @@ mod tests {
         gitutils::commit(&repo, "feat: add new command").unwrap();
 
         let args = NextVersionArgs {
+            initial_version: None,
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: true,
@@ -294,6 +470,7 @@ mod tests {
         gitutils::commit(&repo, "fix: something").unwrap();
 
         let args = NextVersionArgs {
+            initial_version: None,
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
@@ -323,6 +500,7 @@ mod tests {
         gitutils::commit(&repo, "fix: something").unwrap();
 
         let args = NextVersionArgs {
+            initial_version: None,
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
@@ -352,6 +530,7 @@ mod tests {
         gitutils::commit(&repo, "feat: add thing").unwrap();
 
         let args = NextVersionArgs {
+            initial_version: None,
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: true,
@@ -378,6 +557,7 @@ mod tests {
         gitutils::commit(&repo, "fix: something").unwrap();
 
         let args = NextVersionArgs {
+            initial_version: None,
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
@@ -409,6 +589,7 @@ mod tests {
         gitutils::commit(&repo, "New commit").unwrap();
 
         let args = NextVersionArgs {
+            initial_version: None,
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
@@ -438,6 +619,7 @@ mod tests {
         gitutils::commit(&repo, "fix: something").unwrap();
 
         let args = NextVersionArgs {
+            initial_version: None,
             pattern: Some("v{major}.{minor}.{patch}".to_string()),
             increment: Increment::Patch,
             auto: false,
@@ -471,6 +653,7 @@ mod tests {
         gitutils::commit(&repo, "New commit").unwrap();
 
         let args = NextVersionArgs {
+            initial_version: None,
             pattern: Some("release/{major}.{minor}.{patch}".to_string()),
             increment: Increment::Minor,
             auto: false,

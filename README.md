@@ -84,6 +84,8 @@ Aliases: `nv`
 
 #### Options
 
+- `--initial-version <MAJOR.MINOR.PATCH>`: Use this version directly when no tag or branch matches the pattern. Once a matching version exists, normal bump behavior applies.
+
 - `-i`, `--increment <major|minor|patch>`: Explicit bump level. Default: `patch`.
 
 - `--auto`: Auto-detect the bump level from commit messages since the last version. Built-in conventional commit behavior is:
@@ -112,6 +114,15 @@ Aliases: `nv`
 - `--push`: Push the created tag or branch to `origin`. Requires `--create`.
 
 - `-f`, `--format <text|json>`: Output format. Default: `text`.
+
+For the first release, supply a bare stable version (no tag prefix, pre-release suffix, build metadata, or leading zeros). Each component must fit an unsigned 32-bit integer. The pattern must contain all three placeholders (or `{semver}`) and supplies the tag or branch name:
+
+```sh
+flopha next-version --initial-version 0.2.0 --pattern 'mobile@{semver}' --create
+# Creates mobile@0.2.0, without incrementing 0.2.0
+```
+
+Without a matching version or an explicit initial version, `next-version` fails with guidance, including with `--create` or `--auto`. `--auto` does not choose an initial version. Add `--pre beta` to produce `mobile@0.2.0-beta.1`; subsequent pre-releases use the next available channel counter. To create the first stable tag after pre-releases, keep the same initial version and omit `--pre`.
 
 ### LastVersion
 
@@ -190,6 +201,8 @@ Aliases: `rel`
 
 - `-c`, `--config <FILE>`: Path to the config file. Default: `flopha.toml`.
 
+- `--initial-version <MAJOR.MINOR.PATCH>`: Override `version.initial_version` for bootstrapping the first release.
+
 - `--prepare`: Update configured manifests only, leaving changes unstaged for a release PR. Does not commit, tag, push, or contact the GitHub Release API. Requires at least one `[[manifest]]` target.
 
 - `--require-version-match`: Verify that all configured manifests (including Cargo lock entries) match the calculated version. Fail without modifying files if they differ; otherwise release without a version commit. Requires committed changes for an actual release and cannot be combined with `--prepare`.
@@ -198,10 +211,15 @@ Aliases: `rel`
 
 - `-f`, `--format <text|json>`: Output format for `--dry-run` or `--prepare`. Default: `text`. Preparation returns `{"version":"<tag>"}` in JSON mode.
 
+For a repository without matching version tags, set `initial_version` under `[version]` or pass `--initial-version`. The CLI value takes precedence. The supplied bare version is rendered with `version.pattern` and used directly, including with the default `auto = true`. It can remain configured for later releases, which use normal bump behavior once a matching stable tag exists.
+
+`version.pre` adds the channel suffix and next available counter to both tags and manifests. A first-release changelog includes all commits reachable from HEAD.
+
 #### flopha.toml
 
 ```toml
 [version]
+# initial_version = "0.1.0"            # used directly only when no matching version tag exists
 pattern = "v{major}.{minor}.{patch}"   # default
 auto = true                            # detect bump level from conventional commits (default)
 # increment = "patch"                  # used instead of auto-detection when auto = false

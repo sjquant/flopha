@@ -61,6 +61,12 @@ pub enum OutputFormat {
 #[derive(Args, Debug)]
 pub struct NextVersionArgs {
     #[clap(
+        help = "Initial MAJOR.MINOR.PATCH version when no version matches the pattern; used without incrementing",
+        long,
+        value_parser = crate::versioning::validate_initial_version
+    )]
+    pub initial_version: Option<String>,
+    #[clap(
         help = "Specify the version part to increment: major, minor, or patch",
         long,
         value_enum,
@@ -287,6 +293,12 @@ pub enum VersionSourceName {
 #[derive(Args, Debug)]
 pub struct ReleaseArgs {
     #[clap(
+        help = "Override version.initial_version with MAJOR.MINOR.PATCH for the first release; used without incrementing",
+        long,
+        value_parser = crate::versioning::validate_initial_version
+    )]
+    pub initial_version: Option<String>,
+    #[clap(
         help = "Path to the flopha release config file",
         long,
         short = 'c',
@@ -320,4 +332,41 @@ pub struct ReleaseArgs {
         default_value = "text"
     )]
     pub format: OutputFormat,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Both version commands reject initial versions containing tag syntax, suffixes, or invalid components.
+    #[test]
+    fn invalid_initial_versions_are_rejected() {
+        // Given values outside the supported bare stable version syntax
+        for command in ["next-version", "release"] {
+            for value in [
+                "",
+                "v1.2.3",
+                "1.2",
+                "1.2.3.4",
+                "1.2.3-beta.1",
+                "1.2.3+build",
+                "01.2.3",
+                "1.-2.3",
+                "1.2.3\n",
+                "4294967296.0.0",
+                "１.2.3",
+            ] {
+                // When parsing either command's initial-version flag
+                let err = Cli::try_parse_from(["flopha", command, "--initial-version", value])
+                    .err()
+                    .expect("invalid initial version must fail");
+
+                // Then parsing fails with the expected syntax in the diagnostic
+                assert!(
+                    err.to_string().contains("MAJOR.MINOR.PATCH"),
+                    "{command} {value}: {err}"
+                );
+            }
+        }
+    }
 }

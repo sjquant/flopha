@@ -68,26 +68,23 @@ fn resolve_increment(
             let messages = gitutils::commits_since_tag(repo, &last.tag).unwrap_or_default();
             versioning::detect_increment(&messages, &rules)
         }
-        None => {
-            ::log::warn!("--auto: no prior tag found, falling back to --increment");
-            fallback
-        }
+        None => fallback,
     })
 }
 
-/// Returns the next available pre-release counter for `base_version` on `channel`
-/// (i.e. one greater than the highest existing `{base_version}-{channel}.N` tag).
-fn next_pre_release_number(repo: &git2::Repository, base_version: &str, channel: &str) -> u32 {
-    let max_pre = repo
-        .tag_names(None)
-        .map(|names| {
-            names
-                .iter()
-                .flatten()
-                .filter_map(|t| versioning::pre_release_number(t, base_version, channel))
-                .max()
-                .unwrap_or(0)
-        })
-        .unwrap_or(0);
-    max_pre.saturating_add(1)
+/// Returns one greater than the highest `{base_version}-{channel}.N` counter
+/// in the selected version source.
+fn next_pre_release_number(
+    repo: &git2::Repository,
+    source: &dyn VersionSource,
+    base_version: &str,
+    channel: &str,
+) -> u32 {
+    source
+        .fetch_all(repo)
+        .iter()
+        .filter_map(|name| versioning::pre_release_number(name, base_version, channel))
+        .max()
+        .unwrap_or(0)
+        .saturating_add(1)
 }
