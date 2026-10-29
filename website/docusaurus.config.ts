@@ -4,10 +4,17 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'flopha',
-  tagline: 'Semantic versioning CLI for Git releases',
-  favicon: 'img/flopha-icon.svg',
+  tagline: 'Turn merged commits into your next tagged release',
+  favicon: 'img/favicon.svg',
   future: {
-    v4: true,
+    v4: {
+      removeLegacyPostBuildHeadAttribute: true,
+      // The layer polyfill ranks Infima above site CSS modules, so page styles lose to theme defaults.
+      useCssCascadeLayers: false,
+      siteStorageNamespacing: true,
+      fasterByDefault: true,
+      mdx1CompatDisabledByDefault: true,
+    },
   },
   url: 'https://flopha.solaqua.dev',
   baseUrl: '/',
@@ -58,6 +65,7 @@ const config: Config = {
       logo: {
         alt: 'flopha logo',
         src: 'img/flopha-icon.svg',
+        srcDark: 'img/flopha-icon-dark.svg',
       },
       items: [
         {
@@ -95,7 +103,7 @@ const config: Config = {
       ],
     },
     footer: {
-      style: 'dark',
+      style: 'light',
       links: [
         {
           title: 'Docs',

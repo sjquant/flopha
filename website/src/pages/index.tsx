@@ -1,71 +1,57 @@
-import type {ReactNode} from 'react';
+import {useLayoutEffect, useState, type ReactNode} from 'react';
 import clsx from 'clsx';
 import Head from '@docusaurus/Head';
 import Link from '@docusaurus/Link';
+import CodeBlock from '@theme/CodeBlock';
 import Layout from '@theme/Layout';
 
 import styles from './index.module.css';
 
+const headline = 'Turn merged commits into your next tagged release';
 const siteDescription =
-  'flopha is a semantic versioning CLI for Git that calculates the next release, supports tags or branches, and keeps pre-releases moving without manual version math.';
+  'flopha reads your Git tags and commit messages, picks the next semantic version, and creates the tag, changelog, and GitHub Release.';
 const siteUrl = 'https://flopha.solaqua.dev/';
 const socialPreviewUrl = 'https://flopha.solaqua.dev/img/flopha-social-preview.png';
+const installCommand =
+  'curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh';
 
-const proofPoints = [
+const transcript = [
   {
-    title: 'Stop doing release math by hand',
-    body: 'Resolve the next semantic version from Git history instead of manually checking tags, commit types, and pre-release counters.',
+    command: 'git log --oneline v1.2.3..',
+    output: ['3f2c1a9 fix: handle empty input', 'a1b2c3d feat: add release notes export'],
   },
   {
-    title: 'Fit the release flow you already have',
-    body: 'Use Git tags by default, switch to release branches when needed, and keep custom version patterns without shell glue.',
-  },
-  {
-    title: 'Keep release candidates moving',
-    body: 'Generate alpha, beta, and rc versions from the next stable release so your team can ship previews without guesswork.',
+    command: 'flopha release',
+    output: ['Released v1.3.0', 'GitHub Release: https://github.com/acme/app/releases/tag/v1.3.0'],
   },
 ];
 
-const heroSignals = [
-  'Semantic versioning',
-  'Conventional commits',
-  'Tag or branch releases',
-  'Pre-release automation',
+// The changelog flopha writes into the GitHub Release for the commits above.
+const releaseNotes = [
+  {title: 'Features', items: ['feat: add release notes export (a1b2c3d)']},
+  {title: 'Bug Fixes', items: ['fix: handle empty input (3f2c1a9)']},
 ];
 
-const workflow = [
+const fitItems = [
   {
-    command: 'flopha last-version',
-    detail: 'See the current release before you decide what ships next.',
+    title: 'Custom tag patterns',
+    body: 'Version apps and packages separately in one repository.',
+    code: 'mobile@{semver}',
   },
   {
-    command: 'flopha next-version --auto --pre rc',
-    detail: 'Generate the next release candidate from commit history instead of bumping by hand.',
+    title: 'Release branches',
+    body: 'Keep version streams in branch names like release/1.4.2.',
+    code: '--source branch',
   },
   {
-    command: 'flopha next-version --source branch --create',
-    detail: 'Create the release branch directly when your version stream lives in branch names.',
-  },
-];
-
-const docsCards = [
-  {
-    title: 'Get it running fast',
-    body: 'Install the binary, add it to your PATH, and verify it inside a Git repository in a few minutes.',
-    href: '/docs/installation',
-    label: 'Installation',
+    title: 'Pre-releases',
+    body: 'Cut alpha, beta, and rc builds from the next stable version.',
+    code: '--pre rc  # v1.3.0-rc.1',
   },
   {
-    title: 'Ship the next version',
-    body: 'Start with the shortest path through last-version, next-version, auto bumping, and release creation.',
-    href: '/docs/quick-start',
-    label: 'Quick Start',
-  },
-  {
-    title: 'Browse the commands',
-    body: 'See the full CLI surface when you want the exact flags for release creation, pre-releases, and history lookups.',
-    href: '/docs/command-reference',
-    label: 'Command Reference',
+    title: 'Manifest sync',
+    body: 'Write the new version into Cargo.toml, package.json, pyproject.toml, or any file.',
+    code: '[[manifest]]\npath = "Cargo.toml"\ntype = "cargo"',
   },
 ];
 
@@ -81,12 +67,12 @@ export default function Home(): ReactNode {
   };
 
   return (
-    <Layout title="Semantic versioning CLI for Git releases" description={siteDescription}>
+    <Layout title={headline} description={siteDescription}>
       <SiteHead jsonLd={jsonLd} />
       <main className={styles.page}>
         <HeroSection />
-        <ProblemSection />
-        <DocsSection />
+        <RunSection />
+        <FitSection />
       </main>
     </Layout>
   );
@@ -97,18 +83,18 @@ function SiteHead({jsonLd}: {jsonLd: Record<string, unknown>}): ReactNode {
     <Head>
       <meta
         name="keywords"
-        content="semantic versioning cli, git release automation, conventional commits versioning, git tag workflow, release branch workflow, prerelease automation"
+        content="semantic versioning cli, git release automation, conventional commits versioning, git tag workflow, github release action, changelog generator"
       />
       <meta property="og:type" content="website" />
       <meta property="og:url" content={siteUrl} />
-      <meta property="og:title" content="flopha | Semantic versioning CLI for Git releases" />
+      <meta property="og:title" content={`flopha | ${headline}`} />
       <meta property="og:description" content={siteDescription} />
       <meta property="og:image" content={socialPreviewUrl} />
       <meta property="og:image:alt" content="flopha social preview" />
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />
       <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content="flopha | Semantic versioning CLI for Git releases" />
+      <meta name="twitter:title" content={`flopha | ${headline}`} />
       <meta name="twitter:description" content={siteDescription} />
       <meta name="twitter:image" content={socialPreviewUrl} />
       <meta name="twitter:image:alt" content="flopha social preview" />
@@ -118,122 +104,300 @@ function SiteHead({jsonLd}: {jsonLd: Record<string, unknown>}): ReactNode {
 }
 
 function HeroSection(): ReactNode {
+  const {step, fading} = useReplay();
+  const shown = linesShown(step);
+  // Each commit climbs one step; the release lands on v1.3.0.
+  const level = shown >= 5 ? 3 : shown >= 3 ? 2 : shown >= 2 ? 1 : 0;
+
   return (
-    <section className={styles.hero}>
-      <div className={clsx('container', styles.heroInner)}>
-        <div className={styles.copyColumn}>
-          <p className={styles.eyebrow}>Git versioning CLI</p>
-          <h1 className={styles.title}>Ship the next version without release-script sprawl</h1>
-          <p className={styles.lead}>
-            <code>flopha</code> finds the latest version, calculates the next semantic release, and
-            creates it as a Git tag or branch from the same CLI flow.
-          </p>
-          <p className={styles.support}>
-            Use it when releases still depend on shell glue, manual bump decisions, or repo
-            rituals nobody wants to debug twice.
-          </p>
-          <ul className={styles.signalList}>
-            {heroSignals.map((item) => (
+    <section className={clsx('container', styles.hero)}>
+      <div className={styles.heroCopy}>
+        <h1 className={styles.title}>{headline}</h1>
+        <p className={styles.lead}>
+          flopha reads your Git tags and commit messages, picks the next semantic version, and
+          creates the tag, changelog, and GitHub Release. One binary for any language: run it
+          locally, in any CI, or as a GitHub Action.
+        </p>
+        <div className={styles.actions}>
+          <Link className={clsx('button button--lg', styles.primaryAction)} to="/docs/quick-start">
+            Tag your next release
+          </Link>
+          <Link className={styles.textAction} to="/docs">
+            Read the docs →
+          </Link>
+        </div>
+        <CodeBlock language="bash" className={styles.install}>
+          {installCommand}
+        </CodeBlock>
+        <p className={styles.platforms}>
+          macOS and Linux x86_64. Other platforms:{' '}
+          <Link to="/docs/installation#build-from-source">build from source</Link>.
+        </p>
+      </div>
+      <VersionPath level={level} />
+      <div className={clsx(styles.demo, fading && styles.fading)}>
+        <Terminal step={step} />
+        <ReleaseCard visible={shown === lines.length} />
+      </div>
+    </section>
+  );
+}
+
+const lines = transcript.flatMap(({command, output}) => [
+  {text: command, isCommand: true},
+  ...output.map((text) => ({text, isCommand: false})),
+]);
+// A command is typed one character per step; an output line appears in one step.
+const lineSteps = lines.map((line) => (line.isCommand ? line.text.length : 1));
+const lineStarts = lineSteps.map((_, i) => lineSteps.slice(0, i).reduce((sum, n) => sum + n, 0));
+const totalSteps = lineSteps.reduce((sum, n) => sum + n, 0);
+
+const holdMs = 5000;
+const fadeMs = 450;
+
+function useReplay(): {step: number; fading: boolean} {
+  // The server renders the finished demo so it stays readable without JavaScript.
+  const [step, setStep] = useState(totalSteps);
+  const [fading, setFading] = useState(false);
+
+  useLayoutEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+
+    let timer: number;
+    const advance = (next: number) => {
+      setStep(next);
+      if (next < totalSteps) {
+        timer = window.setTimeout(() => advance(next + 1), stepDelay(next));
+        return;
+      }
+      // Hold the published release, fade it out, then replay from an empty prompt.
+      timer = window.setTimeout(() => {
+        setFading(true);
+        timer = window.setTimeout(() => {
+          setFading(false);
+          advance(0);
+        }, fadeMs);
+      }, holdMs);
+    };
+    advance(0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return {step, fading};
+}
+
+function linesShown(step: number): number {
+  return lineStarts.filter((start, i) => step >= start + lineSteps[i]).length;
+}
+
+function stepDelay(step: number): number {
+  const line = lineStarts.filter((start) => start <= step).length - 1;
+  if (lines[line].isCommand) {
+    // Uneven keystrokes read as typing rather than a ticker.
+    return step === lineStarts[line] ? 700 : 30 + Math.random() * 60;
+  }
+  return lines[line - 1].isCommand ? 450 : 350;
+}
+
+function Terminal({step}: {step: number}): ReactNode {
+  const typing = step < totalSteps;
+
+  return (
+    <div
+      className={styles.terminal}
+      role="img"
+      aria-label={lines.map((line) => (line.isCommand ? `$ ${line.text}` : line.text)).join('\n')}>
+      <pre aria-hidden="true">
+        {lines.map((line, i) => {
+          const shown = Math.min(Math.max(step - lineStarts[i], 0), lineSteps[i]);
+          const isCurrent = typing && step >= lineStarts[i] && step < lineStarts[i] + lineSteps[i];
+          const hidden = shown === 0 && !isCurrent;
+
+          return (
+            <div
+              key={i}
+              className={clsx(
+                line.isCommand && i > 0 && styles.commandGap,
+                !line.isCommand && styles.output,
+                hidden && styles.hidden,
+              )}>
+              {line.isCommand ? (
+                <>
+                  <span className={styles.prompt}>$ </span>
+                  {line.text.slice(0, shown)}
+                  {isCurrent && <span className={styles.cursor} />}
+                </>
+              ) : (
+                <OutputLine text={line.text} />
+              )}
+            </div>
+          );
+        })}
+        <div className={clsx(styles.commandGap, typing && styles.hidden)}>
+          <span className={styles.prompt}>$ </span>
+          <span className={styles.cursor} />
+        </div>
+      </pre>
+    </div>
+  );
+}
+
+function OutputLine({text}: {text: string}): ReactNode {
+  const [before, version] = text.split(/(?<=^Released )/);
+  if (!version) {
+    return text;
+  }
+  return (
+    <>
+      {before}
+      <span className={styles.version}>{version}</span>
+    </>
+  );
+}
+
+function ReleaseCard({visible}: {visible: boolean}): ReactNode {
+  return (
+    <article className={clsx(styles.releaseCard, !visible && styles.hidden)}>
+      <p className={styles.releaseLabel}>GitHub Release</p>
+      <p className={styles.releaseTitle}>v1.3.0</p>
+      {releaseNotes.map((group) => (
+        <div key={group.title}>
+          <p className={styles.releaseGroup}>{group.title}</p>
+          <ul>
+            {group.items.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
-          <div className={styles.actions}>
-            <Link className={clsx('button button--lg', styles.primaryAction)} to="/docs/quick-start">
-              Quick Start
-            </Link>
-            <Link className={clsx('button button--lg', styles.secondaryAction)} to="/docs/command-reference">
-              Command Reference
-            </Link>
-          </div>
         </div>
-        <HeroTerminal />
-      </div>
-      <div className={clsx('container', styles.proofGrid)}>
-        {proofPoints.map((item) => (
-          <article key={item.title} className={styles.proofCard}>
-            <h2>{item.title}</h2>
-            <p>{item.body}</p>
-          </article>
-        ))}
+      ))}
+    </article>
+  );
+}
+
+// The mark drawn on a dot grid, with a stepped path from v1.2.3 to v1.3.0 around it.
+const pitch = 14;
+const cols = 33;
+const rows = 35;
+// Path corners in grid cells. Corners 2, 4 and 8 end the three reveal levels.
+const corners = [[1, 30], [9, 30], [9, 28], [20, 28], [20, 26], [29, 26], [29, 11], [31, 11], [31, 3]];
+const levelEnds = [2, 4, 8];
+const nodes = [0, 2, 4, 6];
+
+function markCell(c: number, r: number): 'body' | 'eye' | null {
+  // Sample the mark (viewBox 100 x 87) at the cell center; it spans 22 cells from (5, 4).
+  const x = ((c + 0.5 - 5) * 100) / 22;
+  const y = ((r + 0.5 - 4) * 100) / 22;
+  const dome = x >= 6 && x <= 94 && y <= 75 && (y >= 42 || ((x - 50) / 44) ** 2 + ((y - 42) / 41) ** 2 <= 1);
+  const foot = [15, 50, 85].some((cx) => ((x - cx) / 15) ** 2 + ((y - 75) / 11) ** 2 <= 1);
+  if (!dome && !foot) {
+    return null;
+  }
+  const eye = y >= 36 && y <= 57 && ((x >= 33 && x <= 41.5) || (x >= 58.5 && x <= 67));
+  return eye ? 'eye' : 'body';
+}
+
+const markCells = Array.from({length: rows * cols}, (_, i) => {
+  const c = i % cols;
+  const r = Math.floor(i / cols);
+  return {c, r, kind: markCell(c, r)};
+}).filter((cell) => cell.kind);
+
+const pathCells = corners.slice(1).flatMap(([bc, br], i) => {
+  const [ac, ar] = corners[i];
+  const level = levelEnds.findIndex((end) => i < end) + 1;
+  const length = Math.abs(bc - ac) + Math.abs(br - ar);
+  return Array.from({length}, (_, k) => ({
+    c: ac + Math.sign(bc - ac) * (k + 1),
+    r: ar + Math.sign(br - ar) * (k + 1),
+    level,
+  }));
+});
+
+function VersionPath({level}: {level: number}): ReactNode {
+  const center = (n: number) => n * pitch + pitch / 2;
+  const square = (c: number, r: number, size: number, className?: string) => (
+    <rect
+      key={`${c},${r}`}
+      className={className}
+      x={center(c) - size / 2}
+      y={center(r) - size / 2}
+      width={size}
+      height={size}
+    />
+  );
+  const [end] = corners.slice(-1);
+
+  return (
+    <svg
+      className={clsx(styles.versionPath, level === 3 && styles.released)}
+      viewBox={`0 0 ${cols * pitch} ${rows * pitch}`}
+      role="img"
+      aria-label="The flopha octopus beside a stepped path from v1.2.3 up to v1.3.0">
+      {markCells.map(({c, r, kind}) => square(c, r, 10, kind === 'eye' ? styles.eye : undefined))}
+      {pathCells.map(({c, r, level: cellLevel}) =>
+        square(c, r, 4, clsx(styles.pathDot, cellLevel <= level && styles.reached)),
+      )}
+      {nodes.map((i) =>
+        square(corners[i][0], corners[i][1], 14, clsx(styles.node, levelOf(i) <= level && styles.reached)),
+      )}
+      {square(end[0], end[1], 14, styles.target)}
+      <text x={center(corners[0][0]) - 13} y={center(corners[0][1]) + 37}>
+        v1.2.3
+      </text>
+      <text className={styles.targetLabel} x={center(end[0]) + 13} y={center(end[1]) - 20} textAnchor="end">
+        v1.3.0
+      </text>
+    </svg>
+  );
+}
+
+function levelOf(corner: number): number {
+  return corner === 0 ? 0 : levelEnds.findIndex((end) => corner <= end) + 1;
+}
+
+function RunSection(): ReactNode {
+  return (
+    <section className={clsx('container', styles.section)}>
+      <h2 className={styles.sectionTitle}>Two ways to run it</h2>
+      <div className={styles.columns}>
+        <div className={styles.column}>
+          <h3>CLI</h3>
+          <p>Preview the next version in any repository. No config needed.</p>
+          <CodeBlock language="bash">flopha next-version --auto</CodeBlock>
+          <p>
+            To publish the release, check in a{' '}
+            <Link to="/docs/command-reference#flophatoml">flopha.toml</Link> and run{' '}
+            <code>flopha release</code>. Creating the GitHub Release needs <code>GH_TOKEN</code> or{' '}
+            <code>gh auth login</code>.
+          </p>
+          <CodeBlock language="toml">{'[release]\ncreate = true'}</CodeBlock>
+        </div>
+        <div className={styles.column}>
+          <h3>GitHub Action</h3>
+          <p>Tag and publish from a workflow step. No config file needed.</p>
+          <CodeBlock language="yaml">
+            {'- uses: sjquant/flopha@v1\n  with:\n    create-release: true'}
+          </CodeBlock>
+        </div>
       </div>
     </section>
   );
 }
 
-function HeroTerminal(): ReactNode {
+function FitSection(): ReactNode {
   return (
-    <section className={styles.terminal} aria-label="CLI workflow example">
-      <div className={styles.terminalHeader}>
-        <span />
-        <span />
-        <span />
-      </div>
-      <div className={styles.terminalIntro}>
-        <p className={styles.terminalEyebrow}>Typical release flow</p>
-        <h2>Go from current version to next release in three commands</h2>
-      </div>
-      <div className={styles.terminalBody}>
-        {workflow.map((item) => (
-          <article key={item.command} className={styles.terminalStep}>
-            <span className={styles.commandChip}>{item.command}</span>
-            <p>{item.detail}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ProblemSection(): ReactNode {
-  return (
-    <section className={clsx('container', styles.problemSection)}>
-      <div className={styles.sectionIntro}>
-        <p className={styles.sectionLabel}>What it solves</p>
-        <h2>Built for release moments that usually turn messy</h2>
-      </div>
-      <div className={styles.problemGrid}>
-        <article className={styles.problemCard}>
-          <h3>Custom versions without custom tooling</h3>
-          <p>
-            Track versions like <code>desktop@1.6.3</code> or <code>release/1.6.3</code> without
-            building repo-specific release scripts.
-          </p>
-        </article>
-        <article className={styles.problemCard}>
-          <h3>Version bumps that follow your commit language</h3>
-          <p>
-            Promote `feat`, breaking changes, or your own message conventions into version math
-            with `--auto` and `--rule`.
-          </p>
-        </article>
-        <article className={styles.problemCard}>
-          <h3>Pre-releases that do not drift</h3>
-          <p>
-            Generate `alpha`, `beta`, or `rc` series from the next stable version instead of
-            keeping counters in your head.
-          </p>
-        </article>
-      </div>
-    </section>
-  );
-}
-
-function DocsSection(): ReactNode {
-  return (
-    <section className={clsx('container', styles.docsSection)}>
-      <div className={styles.sectionIntro}>
-        <p className={styles.sectionLabel}>Docs</p>
-        <h2>Start with the docs that get you to a real release fastest</h2>
-      </div>
-      <div className={styles.docsGrid}>
-        {docsCards.map((item) => (
-          <article key={item.title} className={styles.docsCard}>
+    <section className={clsx('container', styles.section)}>
+      <h2 className={styles.sectionTitle}>Fits the release flow you already have</h2>
+      <div className={styles.fitGrid}>
+        {fitItems.map((item) => (
+          <div key={item.title} className={styles.fitItem}>
             <h3>{item.title}</h3>
             <p>{item.body}</p>
-            <Link className={styles.docsLink} to={item.href}>
-              {item.label}
-            </Link>
-          </article>
+            <code>{item.code}</code>
+          </div>
         ))}
       </div>
     </section>

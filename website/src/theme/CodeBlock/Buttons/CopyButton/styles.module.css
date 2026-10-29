@@ -5,10 +5,10 @@
 
 .copyButton {
   align-items: center;
-  background: rgba(248, 251, 250, 0.12);
-  border: 1px solid rgba(235, 244, 240, 0.18);
-  border-radius: 0.7rem;
-  color: #f3fbf7;
+  background: var(--flopha-terminal-surface);
+  border: 0;
+  border-radius: 0.4rem;
+  color: var(--flopha-terminal-text-soft);
   display: inline-flex;
   height: 1.95rem;
   justify-content: center;
@@ -21,10 +21,7 @@
 }
 
 .copyButton:hover {
-  background: rgba(248, 251, 250, 0.2);
-  border-color: rgba(235, 244, 240, 0.28);
-  color: #ffffff;
-  transform: translateY(-1px);
+  color: var(--flopha-terminal-text);
 }
 
 .copyButtonError {
