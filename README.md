@@ -34,8 +34,8 @@ On other platforms, build from source with `cargo install --git https://github.c
 Run these inside a Git repository. flopha looks for tags like `v1.2.3`; if you have none yet, add `--initial-version 0.1.0` to choose the first one.
 
 ```sh
-flopha next-version --auto            # feat: -> minor, breaking -> major, otherwise patch
-flopha next-version --auto --create   # create that tag
+flopha next-version --auto                   # feat: -> minor, breaking -> major, otherwise patch
+flopha next-version --auto --create --push   # create and push that tag
 ```
 
 ## Release with one command

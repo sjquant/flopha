@@ -10,8 +10,8 @@ title: Release Workflows
 When no tags match the version pattern, explicitly choose the first version:
 
 ```bash
-flopha next-version --initial-version 0.2.0 --pattern 'mobile@{semver}' --create
-# Creates mobile@0.2.0
+flopha next-version --initial-version 0.2.0 --pattern 'mobile@{semver}' --create --push
+# Creates mobile@0.2.0 and pushes it to origin
 ```
 
 The initial version is a bare `MAJOR.MINOR.PATCH`, with no prefix, suffix, build metadata, or leading zeros. Each component must fit an unsigned 32-bit integer. The pattern must contain all three placeholders (or `{semver}`) and supplies the tag name. `--source branch` also supports `--initial-version` with a branch pattern such as `release/{semver}`.
