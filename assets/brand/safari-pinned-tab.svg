@@ -1,26 +1,14 @@
-<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path
-    d="M 7 43 C 19 43 25 19 39 12"
-    stroke="black"
-    stroke-width="2.35"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    opacity="0.7"
-  />
-  <path
-    d="M 10 53 C 29 53 31 25 50 21"
-    stroke="black"
-    stroke-width="6"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
-  <path
-    d="M 15 59 C 34 59 39 33 55 29"
-    stroke="black"
-    stroke-width="3.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    opacity="0.6"
-  />
-  <circle cx="50" cy="21" r="3.5" fill="black" />
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="56" viewBox="0 0 100 87">
+
+  <mask id="flopha-eyes">
+    <rect width="100" height="87" fill="#fff"/>
+    <rect x="33" y="36" width="8.5" height="21" rx="4.25" fill="#000"/>
+    <rect x="58.5" y="36" width="8.5" height="21" rx="4.25" fill="#000"/>
+  </mask>
+  <g class="mark" fill="#000" mask="url(#flopha-eyes)">
+    <path d="M6 75V42C6 18 26 1 50 1s44 17 44 41v33z"/>
+    <ellipse cx="15" cy="75" rx="15" ry="11"/>
+    <ellipse cx="50" cy="75" rx="15" ry="11"/>
+    <ellipse cx="85" cy="75" rx="15" ry="11"/>
+  </g>
 </svg>
