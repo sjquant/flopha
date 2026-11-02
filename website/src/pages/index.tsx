@@ -5,12 +5,11 @@ import Link from '@docusaurus/Link';
 import CodeBlock from '@theme/CodeBlock';
 import Layout from '@theme/Layout';
 
+import StructuredData, {siteDescription, siteUrl} from '@site/src/components/StructuredData';
+
 import styles from './index.module.css';
 
 const headline = 'Turn merged commits into your next tagged release';
-const siteDescription =
-  'flopha reads your Git tags and commit messages, picks the next semantic version, and creates the tag, changelog, and GitHub Release.';
-const siteUrl = 'https://flopha.solaqua.dev/';
 const socialPreviewUrl = 'https://flopha.solaqua.dev/img/flopha-social-preview.png';
 const installCommand =
   'curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh';
@@ -56,19 +55,10 @@ const fitItems = [
 ];
 
 export default function Home(): ReactNode {
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    applicationCategory: 'DeveloperApplication',
-    codeRepository: 'https://github.com/sjquant/flopha',
-    description: siteDescription,
-    name: 'flopha',
-    operatingSystem: 'macOS, Linux',
-  };
-
   return (
     <Layout title={headline} description={siteDescription}>
-      <SiteHead jsonLd={jsonLd} />
+      <SiteHead />
+      <StructuredData url={siteUrl} title={headline} description={siteDescription} />
       <main className={styles.page}>
         <HeroSection />
         <RunSection />
@@ -78,7 +68,7 @@ export default function Home(): ReactNode {
   );
 }
 
-function SiteHead({jsonLd}: {jsonLd: Record<string, unknown>}): ReactNode {
+function SiteHead(): ReactNode {
   return (
     <Head>
       <meta
@@ -87,8 +77,6 @@ function SiteHead({jsonLd}: {jsonLd: Record<string, unknown>}): ReactNode {
       />
       <meta property="og:type" content="website" />
       <meta property="og:url" content={siteUrl} />
-      <meta property="og:title" content={`flopha | ${headline}`} />
-      <meta property="og:description" content={siteDescription} />
       <meta property="og:image" content={socialPreviewUrl} />
       <meta property="og:image:alt" content="flopha social preview" />
       <meta property="og:image:width" content="1200" />
@@ -98,7 +86,6 @@ function SiteHead({jsonLd}: {jsonLd: Record<string, unknown>}): ReactNode {
       <meta name="twitter:description" content={siteDescription} />
       <meta name="twitter:image" content={socialPreviewUrl} />
       <meta name="twitter:image:alt" content="flopha social preview" />
-      <script type="application/ld+json">{JSON.stringify(jsonLd)}</script>
     </Head>
   );
 }
