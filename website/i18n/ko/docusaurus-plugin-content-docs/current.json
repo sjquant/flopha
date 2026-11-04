@@ -1,0 +1,18 @@
+{
+  "version.label": {
+    "message": "다음 버전",
+    "description": "The label for version current"
+  },
+  "sidebar.docsSidebar.category.Get Started": {
+    "message": "시작하기",
+    "description": "The label for category 'Get Started' in sidebar 'docsSidebar'"
+  },
+  "sidebar.docsSidebar.category.Guides": {
+    "message": "가이드",
+    "description": "The label for category 'Guides' in sidebar 'docsSidebar'"
+  },
+  "sidebar.docsSidebar.category.Reference": {
+    "message": "참고 자료",
+    "description": "The label for category 'Reference' in sidebar 'docsSidebar'"
+  }
+}

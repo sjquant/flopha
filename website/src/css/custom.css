@@ -317,3 +317,7 @@ div.theme-code-block {
 .card {
     border-color: var(--flopha-line);
 }
+
+html[lang="ko"] {
+    word-break: keep-all;
+}

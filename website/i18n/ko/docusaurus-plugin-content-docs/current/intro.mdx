@@ -1,0 +1,34 @@
+---
+id: intro
+description: Git 태그와 커밋 메시지로 다음 버전을 정하고 릴리스하는 flopha의 기능과 터미널·CI 사용법을 알아보세요.
+title: 개요
+slug: /
+---
+
+# 머지한 커밋으로 다음 릴리스에 태그를 붙이세요
+
+`flopha`는 Git 태그와 커밋 메시지를 읽어 다음 시맨틱 버전을 정하고, 태그와 변경 내역, GitHub 릴리스를 만듭니다. 터미널이나 원하는 CI 환경에서 실행하거나 [GitHub Action](https://github.com/sjquant/flopha/blob/main/docs/github-action.md)으로 사용할 수 있습니다.
+
+```console
+$ git log --oneline v1.2.3..
+3f2c1a9 fix: handle empty input
+a1b2c3d feat: add release notes export
+
+$ flopha next-version --auto
+v1.3.0
+```
+
+## 이런 경우에 적합합니다 {/* #when-it-fits */}
+
+flopha는 Git 태그나 브랜치 이름을 기준으로 버전을 관리합니다. 다음과 같은 경우에 사용해 보세요.
+
+- 다음 버전을 직접 정하는 대신 커밋 메시지로 결정하고 싶을 때
+- 명령어 하나나 워크플로 단계 하나로 태그와 변경 내역, GitHub 릴리스를 함께 만들고 싶을 때
+- `desktop@1.4.2`, `release/1.4.2` 같은 사용자 지정 버전 형식을 사용할 때
+- `Cargo.toml`, `package.json`, `pyproject.toml`에서 버전을 관리하고, 태그를 만들기 전에 이 파일에 새 버전을 반영하고 싶을 때
+
+## 다음 단계 {/* #where-to-go-next */}
+
+- [설치](/ko/docs/installation): 바이너리를 설치합니다.
+- [빠른 시작](/ko/docs/quick-start): 첫 버전을 정해 태그를 만들고, 명령어 하나로 릴리스하는 방법을 익힙니다.
+- [릴리스 워크플로](/ko/docs/release-workflows): CI 연동과 버전 PR 절차, 팀에 맞는 버전 증가 규칙을 알아봅니다.

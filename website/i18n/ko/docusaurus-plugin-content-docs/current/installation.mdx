@@ -1,0 +1,38 @@
+---
+id: installation
+description: macOS·Linux용 바이너리를 설치하거나 Cargo로 소스를 빌드한 뒤 flopha가 정상적으로 실행되는지 확인하세요.
+title: 설치
+---
+
+# 설치
+
+## 바이너리 설치 {/* #install-the-binary */}
+
+macOS(Intel, Apple silicon)와 Linux x86_64에서 바로 사용할 수 있는 바이너리를 제공합니다.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh
+```
+
+설치 프로그램은 `FLOPHA_INSTALL`이 이미 설정되어 있으면 그 경로를 사용하고, 그렇지 않으면 `~/.flopha/bin`에 바이너리를 저장합니다. 설치 후 `flopha` 명령을 찾지 못한다면 셸 프로필에 다음 내용을 추가해 `PATH`를 설정하세요.
+
+```bash
+export FLOPHA_INSTALL="$HOME/.flopha"
+export PATH="$FLOPHA_INSTALL/bin:$PATH"
+```
+
+## 소스에서 빌드 {/* #build-from-source */}
+
+다른 플랫폼에서 실행하거나 `main` 브랜치의 최신 코드를 사용하려면 Cargo로 설치하세요.
+
+```bash
+cargo install --git https://github.com/sjquant/flopha --locked
+```
+
+## 설치 확인 {/* #verify */}
+
+```bash
+flopha --version
+```
+
+이제 [빠른 시작](/ko/docs/quick-start)을 따라 진행하세요.

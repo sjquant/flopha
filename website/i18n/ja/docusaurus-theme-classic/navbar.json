@@ -1,0 +1,38 @@
+{
+  "title": {
+    "message": "flopha",
+    "description": "The title in the navbar"
+  },
+  "logo.alt": {
+    "message": "flopha のロゴ",
+    "description": "The alt text of navbar logo"
+  },
+  "item.label.Docs": {
+    "message": "ドキュメント",
+    "description": "Navbar item with label Docs"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item with label GitHub"
+  },
+  "item.label.Overview": {
+    "message": "概要",
+    "description": "Navbar item with label Overview"
+  },
+  "item.label.Installation": {
+    "message": "インストール",
+    "description": "Navbar item with label Installation"
+  },
+  "item.label.Quick Start": {
+    "message": "クイックスタート",
+    "description": "Navbar item with label Quick Start"
+  },
+  "item.label.Patterns": {
+    "message": "バージョンパターン",
+    "description": "Navbar item with label Patterns"
+  },
+  "item.label.Commands": {
+    "message": "コマンド",
+    "description": "Navbar item with label Commands"
+  }
+}

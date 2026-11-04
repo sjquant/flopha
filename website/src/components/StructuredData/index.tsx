@@ -1,11 +1,15 @@
 import type {ReactNode} from 'react';
 import Head from '@docusaurus/Head';
+import {translate} from '@docusaurus/Translate';
+import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
 export const siteUrl = 'https://flopha.solaqua.dev/';
-export const siteDescription =
-  'flopha reads your Git tags and commit messages, picks the next semantic version, and creates the tag, changelog, and GitHub Release.';
+export const siteDescription = translate({
+  id: 'site.description',
+  message: 'flopha reads your Git tags and commit messages, picks the next semantic version, and creates the tag, changelog, and GitHub Release.',
+});
 const repositoryUrl = 'https://github.com/sjquant/flopha';
-const websiteId = `${siteUrl}#website`;
 const softwareId = `${siteUrl}#software`;
 const sourceId = `${repositoryUrl}#source`;
 const authorId = 'https://github.com/sjquant#person';
@@ -21,6 +25,9 @@ export default function StructuredData({
   description: string;
   isDoc?: boolean;
 }): ReactNode {
+  const {i18n: {currentLocale}} = useDocusaurusContext();
+  const localeUrl = useBaseUrl('/', {absolute: true});
+  const websiteId = `${localeUrl}#website`;
   const pageId = `${url}#webpage`;
   const articleId = `${url}#article`;
   const jsonLd = {
@@ -30,9 +37,9 @@ export default function StructuredData({
         '@type': 'WebSite',
         '@id': websiteId,
         name: 'flopha',
-        url: siteUrl,
+        url: localeUrl,
         description: siteDescription,
-        inLanguage: 'en',
+        inLanguage: currentLocale,
         about: {'@id': softwareId},
         publisher: {'@id': authorId},
       },
@@ -44,8 +51,8 @@ export default function StructuredData({
         description: siteDescription,
         applicationCategory: 'DeveloperApplication',
         operatingSystem: 'macOS, Linux',
-        installUrl: `${siteUrl}docs/installation`,
-        softwareHelp: {'@id': `${siteUrl}docs#article`},
+        installUrl: `${localeUrl}docs/installation`,
+        softwareHelp: {'@id': `${localeUrl}docs#article`},
         author: {'@id': authorId},
         isBasedOn: {'@id': sourceId},
       },
@@ -71,7 +78,7 @@ export default function StructuredData({
         url,
         name: title,
         description,
-        inLanguage: 'en',
+        inLanguage: currentLocale,
         isPartOf: {'@id': websiteId},
         about: {'@id': softwareId},
         mainEntity: {'@id': isDoc ? articleId : softwareId},
@@ -83,7 +90,7 @@ export default function StructuredData({
             url,
             headline: title,
             description,
-            inLanguage: 'en',
+            inLanguage: currentLocale,
             about: {'@id': softwareId},
             isPartOf: {'@id': websiteId},
             mainEntityOfPage: {'@id': pageId},

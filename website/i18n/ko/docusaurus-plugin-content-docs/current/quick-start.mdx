@@ -1,0 +1,60 @@
+---
+id: quick-start
+description: 첫 버전 태그를 만든 다음, 커밋을 바탕으로 다음 버전을 계산하고 flopha로 GitHub 릴리스를 게시해 보세요.
+title: 빠른 시작
+---
+
+# 빠른 시작
+
+아래 명령은 `origin` 원격 저장소가 설정된 Git 저장소 안에서 실행하세요. flopha는 `v1.2.3` 같은 태그를 읽어 버전을 확인합니다.
+
+## 1. 시작 태그 정하기 {/* #1-start-from-a-tag */}
+
+저장소에 버전 태그가 아직 없다면 첫 버전을 지정하세요.
+
+```bash
+flopha next-version --initial-version 0.1.0 --create --push
+```
+
+## 2. 다음 버전 계산하기 {/* #2-calculate-the-next-version */}
+
+```bash
+flopha next-version --auto
+```
+
+호환성을 깨는 변경(`feat!:` 또는 `BREAKING CHANGE`)이 있으면 `major`를, `feat` 커밋이 있으면 `minor`를 올립니다. 그 외에는 `patch`를 올립니다. 예를 들어 `v0.1.0` 이후에 `feat: ...` 커밋이 추가되었다면 `v0.2.0`을 출력합니다.
+
+## 3. 태그 생성하기 {/* #3-create-it */}
+
+```bash
+flopha next-version --auto --create --push
+```
+
+태그를 생성하고 `origin`에 푸시합니다.
+
+## 4. 명령어 하나로 릴리스하기 {/* #4-release-with-one-command */}
+
+매니페스트에 새 버전을 반영하고 변경 내역과 함께 GitHub 릴리스를 게시하려면 `flopha.toml`을 추가하세요.
+
+```toml
+[release]
+create = true
+
+[[manifest]]
+path = "package.json"
+type = "npm"
+```
+
+실행할 작업을 먼저 확인한 다음 릴리스하세요.
+
+```bash
+flopha release --dry-run
+flopha release
+```
+
+GitHub 릴리스를 게시하려면 `GH_TOKEN` 또는 `GITHUB_TOKEN`이 필요합니다. 로컬에서는 `gh auth login`으로 로그인해도 됩니다. 설정할 수 있는 모든 옵션은 [`flopha.toml` 참고 자료](/ko/docs/command-reference#flophatoml)에 정리되어 있습니다.
+
+## 다음 단계 {/* #next */}
+
+- [버전 패턴](/ko/docs/version-patterns): `mobile@1.2.3` 같은 태그나 릴리스 브랜치를 사용하는 방법을 알아봅니다.
+- [릴리스 워크플로](/ko/docs/release-workflows): CI, 사전 릴리스, 버전 PR을 사용하는 방법을 알아봅니다.

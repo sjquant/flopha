@@ -1,0 +1,38 @@
+{
+  "title": {
+    "message": "flopha",
+    "description": "The title in the navbar"
+  },
+  "logo.alt": {
+    "message": "flopha 로고",
+    "description": "The alt text of navbar logo"
+  },
+  "item.label.Docs": {
+    "message": "문서",
+    "description": "Navbar item with label Docs"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item with label GitHub"
+  },
+  "item.label.Overview": {
+    "message": "개요",
+    "description": "Navbar item with label Overview"
+  },
+  "item.label.Installation": {
+    "message": "설치",
+    "description": "Navbar item with label Installation"
+  },
+  "item.label.Quick Start": {
+    "message": "빠른 시작",
+    "description": "Navbar item with label Quick Start"
+  },
+  "item.label.Patterns": {
+    "message": "버전 패턴",
+    "description": "Navbar item with label Patterns"
+  },
+  "item.label.Commands": {
+    "message": "명령어",
+    "description": "Navbar item with label Commands"
+  }
+}

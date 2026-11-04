@@ -1,0 +1,57 @@
+---
+id: version-patterns
+description: 시맨틱 버전의 각 자리를 나타내는 패턴을 사용해 Git 태그 형식, 릴리스 브랜치, 사전 릴리스 채널을 설정하세요.
+title: 버전 패턴
+---
+
+# 버전 패턴
+
+`flopha`는 다음 세 자리 표시자를 넣은 문자열 패턴으로 버전을 찾거나 새로 만듭니다.
+
+- `{major}`
+- `{minor}`
+- `{patch}`
+
+`{major}.{minor}.{patch}` 대신 축약형 `{semver}`를 사용할 수 있습니다.
+
+## 자주 사용하는 예제 {/* #common-examples */}
+
+```bash
+flopha last-version --pattern "v{major}.{minor}.{patch}"
+flopha next-version --pattern "desktop@{semver}"
+flopha next-version --pattern "release/{major}.{minor}.{patch}" --source branch
+```
+
+## 패턴 일치 방식 {/* #how-matching-works */}
+
+패턴은 내부에서 문자열 전체를 검사하는 정규 표현식으로 바뀝니다. 패턴에 직접 적은 텍스트는 정확히 일치해야 합니다. 자리 표시자에 해당하는 부분은 숫자 캡처 그룹으로 처리합니다.
+
+예를 들어 다음과 같이 동작합니다.
+
+- `desktop@{major}.{minor}.{patch}`는 `desktop@1.3.7`에 일치합니다.
+- `desktop@{semver}`는 `desktop@1.3.7`에 일치합니다.
+- `release/{major}.{minor}.{patch}`는 `release/2.0.0`에 일치합니다.
+- `v1.{minor}.{patch}`는 작업 범위를 `1.x` 버전대로 제한합니다.
+
+## 태그 대신 브랜치를 사용하는 경우 {/* #when-to-use-branches-instead-of-tags */}
+
+Git 태그 대신 릴리스 브랜치로 버전을 나타내려면 `--source branch`를 사용하세요.
+
+```bash
+flopha next-version \
+  --source branch \
+  --pattern "release/{major}.{minor}.{patch}" \
+  --create
+```
+
+## 사전 릴리스 채널 {/* #pre-release-channels */}
+
+사전 릴리스 버전은 항상 계산된 정식 버전 뒤에 접미사를 붙여 만듭니다.
+
+```bash
+flopha next-version --pre alpha
+flopha next-version --pre beta
+flopha next-version --pre rc
+```
+
+저장소에 `v2.4.0-rc.1`이 이미 있으면 다음 실행에서는 `v2.4.0-rc.2`가 생성됩니다.

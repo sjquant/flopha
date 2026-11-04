@@ -2,9 +2,29 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
+const locale = process.env.DOCUSAURUS_CURRENT_LOCALE ?? 'en';
+const localizedText: Record<string, {tagline: string; keywords: string; builtWith: string}> = {
+  en: {
+    tagline: 'Turn merged commits into your next tagged release',
+    keywords: 'semantic versioning cli, git release automation, conventional commits versioning, git tag release workflow, branch versioning tool, prerelease automation',
+    builtWith: 'Built with Docusaurus.',
+  },
+  ko: {
+    tagline: '머지한 커밋으로 다음 릴리스에 태그를 붙이세요',
+    keywords: '시맨틱 버전 관리 CLI, Git 릴리스 자동화, Conventional Commits 버전 관리, Git 태그 릴리스 워크플로, 브랜치 버전 관리 도구, 사전 릴리스 자동화',
+    builtWith: 'Docusaurus로 만들었습니다.',
+  },
+  ja: {
+    tagline: 'マージしたコミットから、次のタグ付きリリースへ',
+    keywords: 'セマンティックバージョニング CLI, Git リリース自動化, Conventional Commits バージョン管理, Git タグ リリースワークフロー, ブランチ バージョン管理, プレリリース自動化',
+    builtWith: 'Docusaurus で構築しています。',
+  },
+};
+const text = localizedText[locale] ?? localizedText.en;
+
 const config: Config = {
   title: 'flopha',
-  tagline: 'Turn merged commits into your next tagged release',
+  tagline: text.tagline,
   favicon: 'img/favicon.svg',
   future: {
     v4: {
@@ -25,7 +45,12 @@ const config: Config = {
   onBrokenLinks: 'throw',
   i18n: {
     defaultLocale: 'en',
-    locales: ['en'],
+    locales: ['en', 'ko', 'ja'],
+    localeConfigs: {
+      en: {label: 'English', htmlLang: 'en'},
+      ko: {label: '한국어', htmlLang: 'ko'},
+      ja: {label: '日本語', htmlLang: 'ja'},
+    },
   },
   customFields: {
     docsUrl: 'https://flopha.solaqua.dev',
@@ -38,6 +63,7 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/sjquant/flopha/tree/main/website/',
+          editLocalizedFiles: true,
           showLastUpdateTime: true,
         },
         blog: false,
@@ -52,8 +78,7 @@ const config: Config = {
     metadata: [
       {
         name: 'keywords',
-        content:
-          'semantic versioning cli, git release automation, conventional commits versioning, git tag release workflow, branch versioning tool, prerelease automation',
+        content: text.keywords,
       },
     ],
     colorMode: {
@@ -68,6 +93,7 @@ const config: Config = {
         srcDark: 'img/flopha-icon-dark.svg',
       },
       items: [
+        {type: 'localeDropdown', position: 'right'},
         {
           type: 'dropdown',
           label: 'Docs',
@@ -123,7 +149,7 @@ const config: Config = {
           items: [
             {
               label: 'Official docs',
-              href: 'https://flopha.solaqua.dev',
+              ...(locale === 'en' ? {href: 'https://flopha.solaqua.dev'} : {to: '/'}),
             },
             {
               label: 'GitHub',
@@ -136,7 +162,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} sjquant. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} sjquant. ${text.builtWith}`,
     },
     prism: {
       theme: prismThemes.dracula,
