@@ -1,0 +1,210 @@
+---
+id: command-reference
+description: バージョン管理、変更履歴、マニフェスト、リリースに使う flopha のコマンド、オプション、JSON 出力、flopha.toml の設定を確認できます。
+title: コマンドリファレンス
+---
+
+# コマンドリファレンス
+
+## `flopha last-version` {/* #flopha-last-version */}
+
+パターンに一致する最新のバージョンを出力します。
+
+```bash
+flopha last-version [--pattern <pattern>] [--source <tag|branch>] [--checkout] [--format <text|json>]
+```
+
+オプション：
+
+- `--pattern`, `-p`：独自のバージョン形式に一致するバージョンを検索します。`{semver}` は `{major}.{minor}.{patch}` に展開されます。
+- `--source`, `-s`：タグまたはブランチからバージョンを読み取ります。デフォルトは `tag` です。
+- `--checkout`：見つかったバージョンを出力した後、そのバージョンをチェックアウトします。
+- `--format`, `-f`：出力形式です。`text`（デフォルト）または `json` を指定できます。
+
+## `flopha next-version` {/* #flopha-next-version */}
+
+次のバージョンを計算します。
+
+```bash
+flopha next-version \
+  [--initial-version <MAJOR.MINOR.PATCH>] \
+  [--increment <major|minor|patch>] \
+  [--auto] \
+  [--rule <level:regex>] \
+  [--pre <channel>] \
+  [--pattern <pattern>] \
+  [--source <tag|branch>] \
+  [--create] \
+  [--tag-message <message>] \
+  [--push] \
+  [--format <text|json>]
+```
+
+オプション：
+
+- `--initial-version`：パターンに一致するバージョンがない場合は、接頭辞や接尾辞のない `MAJOR.MINOR.PATCH` の値をそのまま使います。一致するバージョンがある場合は、通常の引き上げルールに従います。
+- `--increment`, `-i`：引き上げるレベルを明示的に指定します。デフォルトは `patch` です。
+- `--auto`：前回のバージョン以降のコミットメッセージから、引き上げるレベルを判定します。
+- `--rule`：組み込みの自動判定ルールを置き換えます。`--auto` が必要です。
+- `--pre`：`-alpha.1` や `-rc.1` のような接尾辞を付けたプレリリースタグを作成します。
+- `--pattern`, `-p`：独自のバージョン形式でバージョンを検索・生成します。`{semver}` は `{major}.{minor}.{patch}` に展開されます。
+- `--source`, `-s`：タグまたはブランチからバージョンを読み取ります。デフォルトは `tag` です。
+- `--create`：新しいバージョンを出力した後、タグまたはブランチを作成します。
+- `--tag-message`：指定したメッセージで注釈付きタグを作成します。`--create` を指定し、バージョンのソースにタグを使う必要があります。
+- `--push`：作成したタグまたはブランチを `origin` にプッシュします。`--create` が必要です。
+- `--format`, `-f`：出力形式です。`text`（デフォルト）または `json` を指定できます。
+
+## `flopha log` {/* #flopha-log */}
+
+パターンに一致するバージョンを新しい順に表示します。
+
+```bash
+flopha log [--pattern <pattern>] [--source <tag|branch>] [--limit <number>] [--format <text|json>]
+```
+
+オプション：
+
+- `--pattern`, `-p`：独自のバージョン形式に一致するバージョンを検索します。`{semver}` は `{major}.{minor}.{patch}` に展開されます。
+- `--source`, `-s`：タグまたはブランチからバージョンを読み取ります。デフォルトは `tag` です。
+- `--limit`, `-n`：表示する行数を制限します。
+- `--format`, `-f`：出力形式です。`text`（デフォルト）または `json` を指定できます。
+
+## `flopha changelog` {/* #flopha-changelog */}
+
+前回のバージョン、または指定したバージョン以降のコミットから変更履歴を生成します。
+
+```bash
+flopha changelog \
+  [--from <tag>] \
+  [--to <tag>] \
+  [--pattern <pattern>] \
+  [--source <tag|branch>] \
+  [--group <TITLE:REGEX>] \
+  [--other <title>] \
+  [--title <template>] \
+  [--output <file>] \
+  [--overwrite] \
+  [--format <text|json>]
+```
+
+オプション：
+
+- `--from`：開始点となるタグです。デフォルトは、パターンに一致する最新のタグです。
+- `--to`：変更履歴に含める範囲の終点となる既存のタグまたは参照です。対象のコミットを制限するため、Git 上に実在する値を指定してください。`--title` では `{to}` として参照できます。
+- `--pattern`, `-p`：独自のバージョン形式に一致するバージョンを検索します。`{semver}` は `{major}.{minor}.{patch}` に展開されます。
+- `--source`, `-s`：タグまたはブランチからバージョンを読み取ります。デフォルトは `tag` です。
+- `--group`：`TITLE:REGEX` 形式で独自のグループ分けルールを指定します。複数回指定できます。1 つでも指定すると、組み込みのルールをすべて置き換えます。どのグループにも一致しないコミットは、残りのコミット用のグループにまとめられます。
+- `--other`：どのグループにも一致しないコミットをまとめる見出しです。空文字列を渡すと、それらのコミットを出力から完全に除外します。デフォルトは `"Other Changes"` です。
+- `--title`：見出しのテンプレートです。開始タグは `{from}`、`--to` を指定した場合の終点は `{to}` で参照できます。デフォルトは、`--to` があれば `"Changes in {to}"`、なければ `"Changelog since {from}"` です。まだタグがない次のバージョンを見出しに入れる場合は、`--title` に直接指定してください。
+- `--output`, `-o`：標準出力ではなくファイルに書き込みます。デフォルトでは、新しい内容を既存のファイルの**先頭に追加**します。
+- `--overwrite`：先頭に追加する代わりに、出力ファイルを上書きします。
+- `--format`, `-f`：出力形式です。`text`（デフォルト、Markdown）または `json` を指定できます。
+
+### デフォルトのグループ {/* #default-groups */}
+
+`--group` を指定しない場合、コミットは次のように分類されます。
+
+| 区分 | 一致するコミット |
+|---------|----------------|
+| 破壊的変更 | `BREAKING CHANGE`、`BREAKING-CHANGE`、`type!:` |
+| 新機能 | `feat:` または `feat(scope):` |
+| バグ修正 | `fix:` または `fix(scope):` |
+| その他の変更 | 上記以外のすべて |
+
+### JSON 出力スキーマ {/* #json-output-schema */}
+
+```json
+{
+  "title": "Changes in v1.2.0",
+  "from": "v1.1.0",
+  "to": "v1.2.0",
+  "groups": [
+    {
+      "title": "Features",
+      "entries": [
+        { "subject": "add search command", "hash": "abc1234" }
+      ]
+    }
+  ]
+}
+```
+
+`to` は `--to` を指定した場合にのみ含まれます。一致するコミットがないグループは省略されます。
+
+## `flopha release` {/* #flopha-release */}
+
+`flopha.toml` を使ってリリースを準備または公開します。
+
+```bash
+flopha release [--config <file>] [--initial-version <MAJOR.MINOR.PATCH>] [--prepare | --require-version-match] [--dry-run] [--format <text|json>]
+```
+
+- `--config`, `-c`：リポジトリのルートを基準にした設定ファイルのパスです。デフォルトは `flopha.toml` です。
+- `--initial-version`：最初のリリースに使う `[version].initial_version` を上書きします。
+- `--prepare`：設定したマニフェストだけを更新し、リリース PR 用に変更をステージせず残します。コミット、タグ作成、プッシュ、GitHub リリースの作成は行いません。
+- `--require-version-match`：マニフェストが計算したバージョンと異なる場合は失敗します。一致する場合は、バージョン更新コミットを作成せずに公開します。実際のリリースにはコミット済みのファイルが必要です。`--prepare` とは併用できません。
+- `--dry-run`：ファイルへの書き込みや公開をせず、実行予定の内容を確認します。`--require-version-match` と併用すると、準備済みのファイルも検証します。
+- `--format`, `-f`：プレビューとリリース準備の出力形式です。テキスト（デフォルト）または JSON を指定できます。準備結果の JSON は `{"version":"<tag>"}` で、処理が不要な場合は `null` を返します。
+
+`--prepare` と `--require-version-match` は、どちらも 1 つ以上の `[[manifest]]` 対象が必要です。どちらのオプションも指定しない場合、`release` はタグ作成と公開の前にマニフェストを更新してコミットします。PR の準備と復旧の手順は[リリースワークフロー](./release-workflows)を参照してください。
+
+### `flopha.toml` {/* #flophatoml */}
+
+すべてのキーは省略できます。空のファイルでは以下のデフォルト設定でリリースし、GitHub リリースは作成しません。
+
+```toml
+[version]
+# initial_version = "0.1.0"            # used directly only when no matching version tag exists
+pattern = "v{major}.{minor}.{patch}"   # default
+auto = true                            # detect bump level from conventional commits (default)
+# increment = "patch"                  # used instead of auto-detection when auto = false
+# rules = ["major:BREAKING CHANGE", "minor:^feat"]
+# pre = "beta"                         # pre-release channel, e.g. v1.2.3-beta.1
+# tag_message = "Release {tag}"        # annotated tag message; supports {tag} and {version}
+
+[changelog]
+enabled = true
+# groups = ["Breaking Changes:BREAKING CHANGE", "Features:^feat"]
+# other = "Other Changes"
+# title = "Changes in {to}"
+
+[release]
+create = true                         # default: false; publish a GitHub Release
+draft = false
+# title = "{tag}"                     # supports {tag} and {version}
+# body = "..."                        # falls back to the generated changelog, then generate_notes
+# generate_notes = false
+# repo = "owner/repo"                 # defaults to parsing the `origin` remote
+
+[[manifest]]
+path = "Cargo.toml"
+type = "cargo"                        # sets [package].version (or [workspace.package].version) and Cargo.lock
+
+[[manifest]]
+path = "package.json"
+type = "npm"                          # sets the top-level "version" field
+
+[[manifest]]
+path = "pyproject.toml"
+type = "pyproject"                    # sets [project].version, falling back to [tool.poetry].version
+
+[[manifest]]
+path = "docs/VERSION"
+type = "regex"
+pattern = "(?m)^version=.*$"
+replacement = "version={version}"     # {version} is substituted with the new version
+```
+
+- 再実行しても安全です。タグが付いたコミットでは新しいリリースを作らず、そのリリースを完了します（タグをプッシュし、未作成の GitHub リリースを作成します）。新しいコミットがなければ何もしません。
+- マニフェストの自動コミットを使ってリリースする場合、作業ツリーに未コミットの変更がなく、ブランチが `origin` と同期している必要があります。リリースコミットのプッシュに失敗すると、ローカルのコミットとタグは元に戻されます。
+- `release.create` には `GH_TOKEN` または `GITHUB_TOKEN` に設定した GitHub トークンが必要です。ローカルでは、既存の `gh auth login` による認証も使えます。
+- Cargo ワークスペースを対象にする場合は、`cargo metadata --no-deps --offline --locked` でワークスペースのバージョンを継承するパッケージを特定します。Cargo のインストールが必要です。バージョンを固定したメンバーは変更しません。
+- `version.source = "branch"` はサポートしていません。ブランチベースのバージョン管理には `flopha next-version --source branch --create` を使ってください。
+
+## 共通の動作 {/* #global-behavior */}
+
+- `--verbose`, `-v` を指定するとデバッグログを出力します。
+- CLI はバージョンを解決する前に、`origin` リモートからフェッチします。
+- デフォルトのバージョンパターンは `v{major}.{minor}.{patch}` です。同じ意味の省略形 `v{semver}` も使えます。
+
+パターンに一致するバージョンがない場合、初期バージョンを指定しないと `next-version` と `release` は失敗します。`--auto` は初期バージョンを選びません。先頭にゼロを付けない 3 つの符号なし 32 ビット整数を使い、タグの接頭辞、プレリリースの接尾辞、ビルドメタデータは含めないでください。プレリリースには `--pre` または `version.pre` を使います。例は[最初のリリース](./release-workflows#first-release)を参照してください。

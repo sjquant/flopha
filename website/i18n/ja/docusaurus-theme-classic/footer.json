@@ -1,0 +1,30 @@
+{
+  "link.title.Docs": {
+    "message": "ドキュメント",
+    "description": "The title of the footer links column with title=Docs in the footer"
+  },
+  "link.title.Project": {
+    "message": "プロジェクト",
+    "description": "The title of the footer links column with title=Project in the footer"
+  },
+  "link.item.label.Overview": {
+    "message": "概要",
+    "description": "The label of footer link with label=Overview linking to /docs"
+  },
+  "link.item.label.Quick Start": {
+    "message": "クイックスタート",
+    "description": "The label of footer link with label=Quick Start linking to /docs/quick-start"
+  },
+  "link.item.label.Official docs": {
+    "message": "公式ドキュメント",
+    "description": "The label of footer link with label=Official docs linking to https://flopha.solaqua.dev"
+  },
+  "link.item.label.GitHub": {
+    "message": "GitHub",
+    "description": "The label of footer link with label=GitHub linking to https://github.com/sjquant/flopha"
+  },
+  "link.item.label.Issues": {
+    "message": "課題の報告",
+    "description": "The label of footer link with label=Issues linking to https://github.com/sjquant/flopha/issues"
+  }
+}

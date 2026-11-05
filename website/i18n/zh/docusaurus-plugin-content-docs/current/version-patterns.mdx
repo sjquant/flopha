@@ -1,0 +1,57 @@
+---
+id: version-patterns
+description: 使用语义化版本占位符配置 flopha 的自定义 Git 标签格式、发布分支和预发布渠道。
+title: 版本格式
+---
+
+# 版本格式
+
+`flopha` 使用包含以下三个占位符的字符串模式来查找和生成版本：
+
+- `{major}`
+- `{minor}`
+- `{patch}`
+
+`{major}.{minor}.{patch}` 可以简写为 `{semver}`。
+
+## 常用示例 {/* #common-examples */}
+
+```bash
+flopha last-version --pattern "v{major}.{minor}.{patch}"
+flopha next-version --pattern "desktop@{semver}"
+flopha next-version --pattern "release/{major}.{minor}.{patch}" --source branch
+```
+
+## 匹配规则 {/* #how-matching-works */}
+
+模式会在内部转换为匹配整个字符串的正则表达式。固定文本必须完全一致，占位符则作为数字捕获组处理。
+
+例如：
+
+- `desktop@{major}.{minor}.{patch}` 匹配 `desktop@1.3.7`
+- `desktop@{semver}` 匹配 `desktop@1.3.7`
+- `release/{major}.{minor}.{patch}` 匹配 `release/2.0.0`
+- `v1.{minor}.{patch}` 将操作范围限制在 `1.x` 版本系列
+
+## 何时使用分支而不是标签 {/* #when-to-use-branches-instead-of-tags */}
+
+如果用发布分支而不是 Git 标签表示版本，请使用 `--source branch`：
+
+```bash
+flopha next-version \
+  --source branch \
+  --pattern "release/{major}.{minor}.{patch}" \
+  --create
+```
+
+## 预发布渠道 {/* #pre-release-channels */}
+
+预发布版本始终在计算出的正式版本后追加后缀。
+
+```bash
+flopha next-version --pre alpha
+flopha next-version --pre beta
+flopha next-version --pre rc
+```
+
+如果仓库已有 `v2.4.0-rc.1`，下次运行将生成 `v2.4.0-rc.2`。

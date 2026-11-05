@@ -1,0 +1,34 @@
+---
+id: intro
+description: Git タグとコミットメッセージからバージョン、変更履歴、GitHub リリースを作る flopha の機能と、ターミナルや CI での使い方を紹介します。
+title: 概要
+slug: /
+---
+
+# マージしたコミットから、次のタグ付きリリースへ
+
+`flopha` は Git タグとコミットメッセージを読み取り、次のセマンティックバージョンを決めて、タグ、変更履歴、GitHub リリースを作成します。ターミナルや任意の CI 環境で実行でき、[GitHub Action](https://github.com/sjquant/flopha/blob/main/docs/github-action.md) としても使えます。
+
+```console
+$ git log --oneline v1.2.3..
+3f2c1a9 fix: handle empty input
+a1b2c3d feat: add release notes export
+
+$ flopha next-version --auto
+v1.3.0
+```
+
+## こんな場合に適しています {/* #when-it-fits */}
+
+flopha は Git タグやブランチ名を基準にバージョンを管理します。次のような場合に適しています。
+
+- 次のバージョンを手作業ではなく、コミットメッセージから決めたい場合
+- 1 つのコマンドやワークフローのステップで、タグ、変更履歴、GitHub リリースを作成したい場合
+- `desktop@1.4.2` や `release/1.4.2` のような独自のバージョン形式を使っている場合
+- `Cargo.toml`、`package.json`、`pyproject.toml` でバージョンを管理していて、タグを作る前に新しいバージョンをファイルに反映したい場合
+
+## 次のステップ {/* #where-to-go-next */}
+
+- [インストール](/ja/docs/installation)：バイナリをインストールします。
+- [クイックスタート](/ja/docs/quick-start)：最初のバージョンを決めて作成し、コマンド 1 つでリリースする流れを確認します。
+- [リリースワークフロー](/ja/docs/release-workflows)：CI パイプライン、バージョン更新 PR、独自のバージョン引き上げルールを確認します。

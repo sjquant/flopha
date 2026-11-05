@@ -1,0 +1,60 @@
+---
+id: quick-start
+description: 最初のバージョンタグを作り、コミットから次のバージョンを計算して、flopha で GitHub リリースを公開するまでの流れを説明します。
+title: クイックスタート
+---
+
+# クイックスタート
+
+以下のコマンドは、`origin` リモートが設定された Git リポジトリ内で実行してください。flopha は `v1.2.3` のようなタグを読み取ります。
+
+## 1. 最初のタグを決める {/* #1-start-from-a-tag */}
+
+リポジトリにバージョンタグがまだない場合は、最初のバージョンを指定します。
+
+```bash
+flopha next-version --initial-version 0.1.0 --create --push
+```
+
+## 2. 次のバージョンを計算する {/* #2-calculate-the-next-version */}
+
+```bash
+flopha next-version --auto
+```
+
+破壊的変更（`feat!:` または `BREAKING CHANGE`）がある場合は `major`、`feat` コミットがある場合は `minor`、それ以外の場合は `patch` を引き上げます。たとえば、`v0.1.0` の後に `feat: ...` コミットを追加すると、`v0.2.0` が出力されます。
+
+## 3. タグを作成する {/* #3-create-it */}
+
+```bash
+flopha next-version --auto --create --push
+```
+
+タグを作成し、`origin` にプッシュします。
+
+## 4. コマンド 1 つでリリースする {/* #4-release-with-one-command */}
+
+マニフェストにもバージョンを反映し、変更履歴付きの GitHub リリースを公開するには、`flopha.toml` を追加します。
+
+```toml
+[release]
+create = true
+
+[[manifest]]
+path = "package.json"
+type = "npm"
+```
+
+まず実行予定の内容を確認し、その後リリースしてください。
+
+```bash
+flopha release --dry-run
+flopha release
+```
+
+GitHub リリースの公開には `GH_TOKEN` または `GITHUB_TOKEN` が必要です。ローカルでは `gh auth login` による認証も使えます。すべての設定項目は [`flopha.toml` リファレンス](/ja/docs/command-reference#flophatoml)を参照してください。
+
+## 次のステップ {/* #next */}
+
+- [バージョンパターン](/ja/docs/version-patterns)：`mobile@1.2.3` のようなタグやリリースブランチを使う方法を説明します。
+- [リリースワークフロー](/ja/docs/release-workflows)：CI、プレリリース、バージョン更新 PR を使う方法を説明します。

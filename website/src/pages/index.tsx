@@ -4,12 +4,14 @@ import Head from '@docusaurus/Head';
 import Link from '@docusaurus/Link';
 import CodeBlock from '@theme/CodeBlock';
 import Layout from '@theme/Layout';
+import Translate, {translate} from '@docusaurus/Translate';
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
-import StructuredData, {siteDescription, siteUrl} from '@site/src/components/StructuredData';
+import StructuredData, {siteDescription} from '@site/src/components/StructuredData';
 
 import styles from './index.module.css';
 
-const headline = 'Turn merged commits into your next tagged release';
+const headline = translate({id: 'home.headline', message: 'Turn merged commits into your next tagged release'});
 const socialPreviewUrl = 'https://flopha.solaqua.dev/img/flopha-social-preview.png';
 const installCommand =
   'curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh';
@@ -27,38 +29,39 @@ const transcript = [
 
 // The changelog flopha writes into the GitHub Release for the commits above.
 const releaseNotes = [
-  {title: 'Features', items: ['feat: add release notes export (a1b2c3d)']},
-  {title: 'Bug Fixes', items: ['fix: handle empty input (3f2c1a9)']},
+  {title: translate({id: 'home.release.features', message: 'Features'}), items: ['feat: add release notes export (a1b2c3d)']},
+  {title: translate({id: 'home.release.fixes', message: 'Bug Fixes'}), items: ['fix: handle empty input (3f2c1a9)']},
 ];
 
 const fitItems = [
   {
-    title: 'Custom tag patterns',
-    body: 'Version apps and packages separately in one repository.',
+    title: translate({id: 'home.fit.tags.title', message: 'Custom tag patterns'}),
+    body: translate({id: 'home.fit.tags.body', message: 'Version apps and packages separately in one repository.'}),
     code: 'mobile@{semver}',
   },
   {
-    title: 'Release branches',
-    body: 'Keep version streams in branch names like release/1.4.2.',
+    title: translate({id: 'home.fit.branches.title', message: 'Release branches'}),
+    body: translate({id: 'home.fit.branches.body', message: 'Keep version streams in branch names like release/1.4.2.'}),
     code: '--source branch',
   },
   {
-    title: 'Pre-releases',
-    body: 'Cut alpha, beta, and rc builds from the next stable version.',
+    title: translate({id: 'home.fit.pre.title', message: 'Pre-releases'}),
+    body: translate({id: 'home.fit.pre.body', message: 'Cut alpha, beta, and rc builds from the next stable version.'}),
     code: '--pre rc  # v1.3.0-rc.1',
   },
   {
-    title: 'Manifest sync',
-    body: 'Write the new version into Cargo.toml, package.json, pyproject.toml, or any file.',
+    title: translate({id: 'home.fit.manifests.title', message: 'Manifest sync'}),
+    body: translate({id: 'home.fit.manifests.body', message: 'Write the new version into Cargo.toml, package.json, pyproject.toml, or any file.'}),
     code: '[[manifest]]\npath = "Cargo.toml"\ntype = "cargo"',
   },
 ];
 
 export default function Home(): ReactNode {
+  const url = useBaseUrl('/', {absolute: true});
   return (
     <Layout title={headline} description={siteDescription}>
       <SiteHead />
-      <StructuredData url={siteUrl} title={headline} description={siteDescription} />
+      <StructuredData url={url} title={headline} description={siteDescription} />
       <main className={styles.page}>
         <HeroSection />
         <RunSection />
@@ -69,23 +72,24 @@ export default function Home(): ReactNode {
 }
 
 function SiteHead(): ReactNode {
+  const url = useBaseUrl('/', {absolute: true});
   return (
     <Head>
       <meta
         name="keywords"
-        content="semantic versioning cli, git release automation, conventional commits versioning, git tag workflow, github release action, changelog generator"
+        content={translate({id: 'home.keywords', message: 'semantic versioning cli, git release automation, conventional commits versioning, git tag workflow, github release action, changelog generator'})}
       />
       <meta property="og:type" content="website" />
-      <meta property="og:url" content={siteUrl} />
+      <meta property="og:url" content={url} />
       <meta property="og:image" content={socialPreviewUrl} />
-      <meta property="og:image:alt" content="flopha social preview" />
+      <meta property="og:image:alt" content={translate({id: 'site.imageAlt', message: 'flopha social preview'})} />
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={`flopha | ${headline}`} />
       <meta name="twitter:description" content={siteDescription} />
       <meta name="twitter:image" content={socialPreviewUrl} />
-      <meta name="twitter:image:alt" content="flopha social preview" />
+      <meta name="twitter:image:alt" content={translate({id: 'site.imageAlt', message: 'flopha social preview'})} />
     </Head>
   );
 }
@@ -101,24 +105,27 @@ function HeroSection(): ReactNode {
       <div className={styles.heroCopy}>
         <h1 className={styles.title}>{headline}</h1>
         <p className={styles.lead}>
-          flopha reads your Git tags and commit messages, picks the next semantic version, and
-          creates the tag, changelog, and GitHub Release. One binary for any language: run it
-          locally, in any CI, or as a GitHub Action.
+          {translate({id: 'home.lead', message: 'flopha reads your Git tags and commit messages, picks the next semantic version, and creates the tag, changelog, and GitHub Release. One binary for any language: run it locally, in any CI, or as a GitHub Action.'})}
         </p>
         <div className={styles.actions}>
           <Link className={clsx('button button--lg', styles.primaryAction)} to="/docs/quick-start">
-            Tag your next release
+            {translate({id: 'home.start', message: 'Tag your next release'})}
           </Link>
           <Link className={styles.textAction} to="/docs">
-            Read the docs →
+            {translate({id: 'home.docs', message: 'Read the docs →'})}
           </Link>
         </div>
         <CodeBlock language="bash" className={styles.install}>
           {installCommand}
         </CodeBlock>
         <p className={styles.platforms}>
-          macOS and Linux x86_64. Other platforms:{' '}
-          <Link to="/docs/installation#build-from-source">build from source</Link>.
+          <Translate
+            id="home.platforms"
+            values={{
+              build: <Link to="/docs/installation#build-from-source">{translate({id: 'home.buildSource', message: 'build from source'})}</Link>,
+            }}>
+            {'macOS and Linux x86_64. Other platforms: {build}.'}
+          </Translate>
         </p>
       </div>
       <VersionPath level={level} />
@@ -248,7 +255,7 @@ function OutputLine({text}: {text: string}): ReactNode {
 function ReleaseCard({visible}: {visible: boolean}): ReactNode {
   return (
     <article className={clsx(styles.releaseCard, !visible && styles.hidden)}>
-      <p className={styles.releaseLabel}>GitHub Release</p>
+      <p className={styles.releaseLabel}>{translate({id: 'home.release.label', message: 'GitHub Release'})}</p>
       <p className={styles.releaseTitle}>v1.3.0</p>
       {releaseNotes.map((group) => (
         <div key={group.title}>
@@ -322,7 +329,7 @@ function VersionPath({level}: {level: number}): ReactNode {
       className={clsx(styles.versionPath, level === 3 && styles.released)}
       viewBox={`0 0 ${cols * pitch} ${rows * pitch}`}
       role="img"
-      aria-label="The flopha octopus beside a stepped path from v1.2.3 up to v1.3.0">
+      aria-label={translate({id: 'home.versionPath.alt', message: 'The flopha octopus beside a stepped path from v1.2.3 up to v1.3.0'})}>
       {markCells.map(({c, r, kind}) => square(c, r, 10, kind === 'eye' ? styles.eye : undefined))}
       {pathCells.map(({c, r, level: cellLevel}) =>
         square(c, r, 4, clsx(styles.pathDot, cellLevel <= level && styles.reached)),
@@ -348,23 +355,29 @@ function levelOf(corner: number): number {
 function RunSection(): ReactNode {
   return (
     <section className={clsx('container', styles.section)}>
-      <h2 className={styles.sectionTitle}>Two ways to run it</h2>
+      <h2 className={styles.sectionTitle}>{translate({id: 'home.run.title', message: 'Two ways to run it'})}</h2>
       <div className={styles.columns}>
         <div className={styles.column}>
           <h3>CLI</h3>
-          <p>Preview the next version in any repository. No config needed.</p>
+          <p>{translate({id: 'home.run.preview', message: 'Preview the next version in any repository. No config needed.'})}</p>
           <CodeBlock language="bash">flopha next-version --auto</CodeBlock>
           <p>
-            To publish the release, check in a{' '}
-            <Link to="/docs/command-reference#flophatoml">flopha.toml</Link> and run{' '}
-            <code>flopha release</code>. Creating the GitHub Release needs <code>GH_TOKEN</code> or{' '}
-            <code>gh auth login</code>.
+            <Translate
+              id="home.run.publish"
+              values={{
+                config: <Link to="/docs/command-reference#flophatoml">flopha.toml</Link>,
+                command: <code>flopha release</code>,
+                token: <code>GH_TOKEN</code>,
+                auth: <code>gh auth login</code>,
+              }}>
+              {'To publish the release, check in a {config} and run {command}. Creating the GitHub Release needs {token} or {auth}.'}
+            </Translate>
           </p>
           <CodeBlock language="toml">{'[release]\ncreate = true'}</CodeBlock>
         </div>
         <div className={styles.column}>
           <h3>GitHub Action</h3>
-          <p>Tag and publish from a workflow step. No config file needed.</p>
+          <p>{translate({id: 'home.run.action', message: 'Tag and publish from a workflow step. No config file needed.'})}</p>
           <CodeBlock language="yaml">
             {'- uses: sjquant/flopha@v1\n  with:\n    create-release: true'}
           </CodeBlock>
@@ -377,7 +390,7 @@ function RunSection(): ReactNode {
 function FitSection(): ReactNode {
   return (
     <section className={clsx('container', styles.section)}>
-      <h2 className={styles.sectionTitle}>Fits the release flow you already have</h2>
+      <h2 className={styles.sectionTitle}>{translate({id: 'home.fit.title', message: 'Fits the release flow you already have'})}</h2>
       <div className={styles.fitGrid}>
         {fitItems.map((item) => (
           <div key={item.title} className={styles.fitItem}>

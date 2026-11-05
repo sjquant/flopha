@@ -1,0 +1,289 @@
+---
+id: release-workflows
+description: 最初のリリース、独自の引き上げルール、プレリリース、CI パイプライン、マニフェスト検証付きのリリース PR を flopha で構成します。
+title: リリースワークフロー
+---
+
+# リリースワークフロー
+
+## 最初のリリース {/* #first-release */}
+
+バージョンパターンに一致するタグがない場合は、最初のバージョンを明示的に指定してください。
+
+```bash
+flopha next-version --initial-version 0.2.0 --pattern 'mobile@{semver}' --create --push
+# Creates mobile@0.2.0 and pushes it to origin
+```
+
+初期バージョンは、接頭辞、接尾辞、ビルドメタデータ、先頭のゼロを含まない `MAJOR.MINOR.PATCH` 形式で指定します。それぞれの数値は符号なし 32 ビット整数の範囲内である必要があります。タグ名はパターンから作成します。パターンには 3 つのプレースホルダーをすべて含めるか、`{semver}` を使ってください。`--source branch` でも、`release/{semver}` のようなブランチパターンと組み合わせて `--initial-version` を使えます。
+
+設定ファイルからリリースを実行する場合は、`[version]` にバージョンを指定します。
+
+```toml
+[version]
+pattern = "mobile@{semver}"
+initial_version = "0.2.0"
+
+[[manifest]]
+path = "package.json"
+type = "npm"
+```
+
+```bash
+flopha release --dry-run       # preview mobile@0.2.0 without writing files
+flopha release --prepare       # update manifests to 0.2.0 for review
+# After committing the prepared files:
+flopha release --require-version-match --dry-run
+```
+
+`release --initial-version 0.3.0` を指定すると、設定ファイルの初期バージョンを上書きします。`auto = true` や明示的な引き上げオプションを指定しても、初期バージョン自体は引き上げず、そのまま使います。パターンに一致する安定版タグができると通常の引き上げ動作に戻るため、初期バージョンの設定は残しておけます。一致するバージョンも初期バージョンの指定もない場合、どちらのコマンドも指定方法を表示して失敗します。最初のリリースの変更履歴には、HEAD から到達できるすべてのコミットが含まれます。
+
+最初のリリースをプレリリースにするには、`next-version` に `--pre beta` を追加するか、`[version]` に `pre = "beta"` を設定します。タグは `mobile@0.2.0-beta.1`、マニフェストのバージョンは `0.2.0-beta.1` になります。既存のプレリリースタグがあれば、チャネルの連番が進みます。続けてプレリリースを作る際は、初期バージョンを変えないでください。チャネルを省略すると、最初の安定版タグ `mobile@0.2.0` を作成します。
+
+## コミットメッセージの規約 {/* #conventional-commits */}
+
+最新バージョン以降のコミットメッセージから、次に引き上げるレベルを判定するには `--auto` を使います。
+
+```bash
+flopha next-version --auto
+```
+
+組み込みのルールは次のとおりです。
+
+- `BREAKING CHANGE` または `feat!:` 形式のコミットはメジャーバージョンを引き上げます。
+- `feat:` 形式のコミットはマイナーバージョンを引き上げます。
+- それ以外の履歴ではパッチバージョンを引き上げます。
+
+## 独自の引き上げルール {/* #custom-bump-rules */}
+
+チームで別の規約を使っている場合は、`--rule` で組み込みのルールを置き換えてください。
+
+```bash
+flopha next-version \
+  --auto \
+  --rule 'major:BREAKING CHANGE' \
+  --rule 'minor:^feature'
+```
+
+ルールは `level:regex` 形式で指定します。`level` は `major`、`minor`、`patch` のいずれかです。
+
+## ブランチベースのリリース管理 {/* #branch-based-release-streams */}
+
+タグではなくブランチを基準に公開する場合は、一貫して `--source branch` を使ってください。
+
+```bash
+flopha last-version --source branch --pattern "release/{major}.{minor}.{patch}"
+flopha next-version --source branch --pattern "release/{major}.{minor}.{patch}"
+flopha next-version --source branch --pattern "release/{major}.{minor}.{patch}" --create
+```
+
+## リリース履歴を確認する {/* #auditing-release-history */}
+
+公開済みのリリースを確認するには、`log` を使います。
+
+```bash
+flopha log --pattern "desktop@{semver}" --limit 20
+```
+
+ログにはバージョン、リリース日、パターンに一致する前のバージョン以降のコミット数が表示されます。
+
+---
+
+## CI で flopha を使う {/* #using-flopha-in-ci */}
+
+flopha のすべてのコマンドは、デフォルトでプレーンテキストを出力します。スクリプトなどで結果を処理する場合は `--format json` を使えるため、任意の CI パイプラインに簡単に組み込めます。
+
+### 最小構成のリリースパイプライン（シェル） {/* #minimal-release-pipeline-shell */}
+
+```bash
+# 1. Compute the next version without creating it yet
+NEXT=$(flopha next-version --auto --format json | jq -r '.version')
+
+# 2. Generate changelog headed with the upcoming version
+flopha changelog --title "Changes in $NEXT" --output CHANGELOG.md
+
+# 3. Commit the updated changelog
+git add CHANGELOG.md
+git commit -m "chore: release $NEXT"
+
+# 4. Tag and push
+flopha next-version --auto --create
+git push origin "$NEXT"
+```
+
+`--title` を使うと、タグを作る前に次のバージョンを変更履歴の見出しに入れられます。`--to` は、既存のタグや参照までに変更履歴の範囲を制限する場合にだけ使ってください。
+
+### GitHub Actions — アクションを使う {/* #github-actions--using-the-action */}
+
+`sjquant/flopha` アクションは、一般的なタグ作成からリリースまでの流れを 1 つのステップで実行します。
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history so flopha can walk commits
+
+      - name: Tag and release
+        uses: sjquant/flopha@v1
+        with:
+          auto: true
+          create-release: true
+          changelog: true       # generate changelog and use it as the release body
+```
+
+### GitHub Actions — 変更履歴を自分で管理する {/* #github-actions--full-changelog-pipeline */}
+
+タグを作る前に変更履歴を自分で調整する場合は、次のように構成します。
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install flopha
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh
+          echo "$HOME/.flopha/bin" >> $GITHUB_PATH
+
+      - name: Compute next version
+        id: version
+        run: echo "tag=$(flopha next-version --auto --format json | jq -r '.version')" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        run: flopha changelog --title "Changes in ${{ steps.version.outputs.tag }}" --output CHANGELOG.md
+
+      - name: Commit changelog
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git diff --staged --quiet || git commit -m "chore: release ${{ steps.version.outputs.tag }}"
+          git push
+
+      - name: Create tag and release
+        uses: sjquant/flopha@v1
+        with:
+          auto: true
+          create-release: true
+```
+
+### リリース PR を準備する {/* #prepare-a-release-pr */}
+
+バージョンの変更を PR でレビューする場合は、ファイルの更新と公開を分けてください。
+
+```bash
+flopha release --prepare
+# Review and commit the modified manifests, then open a PR.
+flopha release --require-version-match --dry-run   # validate the PR without publishing
+flopha release --require-version-match             # publish after merge
+```
+
+`--prepare` は `flopha.toml` のルールに従ってマニフェストを更新し、ローカル Cargo パッケージのロックファイル内のエントリも更新します。変更はステージせずに残し、コミット、タグ作成、プッシュ、GitHub リリースの作成は行いません。ファイルに書き込まず実行内容だけを確認するには、`--prepare --dry-run` を使います。準備と検証のどちらにも、1 つ以上のマニフェスト対象の設定が必要です。
+
+`--require-version-match` は、計算したバージョンに合わせるために 1 つでもマニフェストの更新が必要なら失敗します。すべて一致していれば、バージョン更新コミットを作らず、コミット済みのバージョンをリリースします。CI で detached HEAD の状態にチェックアウトした場合も使えます。認証情報も公開も不要な PR 検証には `--dry-run` を追加してください。`--prepare` と `--require-version-match` は併用できません。
+
+準備後の新しいコミットによって必要な引き上げレベルが変わった場合は、ベースブランチの変更をバージョン更新用ブランチに取り込み、`--prepare` を再実行して修正後のバージョンをコミットしてください。バージョン更新 PR がすでにマージ済みなら、別の PR を作成します。バージョン更新 PR 自体がメジャーやマイナーの引き上げを引き起こさないよう、コミットメッセージは中立的なものにしてください。
+
+このリポジトリも同じ流れです。バージョン更新 PR で `Cargo.toml` と `Cargo.lock` を変更し、マージ時にはその Cargo バージョンが未公開の場合にだけドラフトリリースを開始します。既存のビルドジョブは、公開前に対象タグをビルドしてバイナリをアップロードします。ドラフトの作成後にビルドやアップロードが失敗した場合は、最初に失敗したワークフローを再実行してください。
+
+### GitHub Actions で `flopha release` を使う {/* #flopha-release-in-github-actions */}
+
+`flopha.toml` をリポジトリにコミットしておくと、`flopha release` がバージョンの引き上げ、マニフェストの同期、タグと変更履歴の作成、GitHub リリースをまとめて処理します。プッシュのたびに実行しても、再実行しても安全です。新しいコミットがなければ何もせず、タグ付きのコミットでは前の実行で未完了だったタグのプッシュと GitHub リリースの作成だけを完了します。
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: release        # back-to-back pushes would race for the same tag
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # full history and tags to detect the bump
+
+      - name: Install flopha
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh
+          echo "$HOME/.flopha/bin" >> $GITHUB_PATH
+
+      - name: Release
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          flopha release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # used to create the GitHub Release
+```
+
+- デフォルトの `GITHUB_TOKEN` によるプッシュでは新しいワークフローが起動しないため、バージョン更新コミットが別のリリースを開始することはありません。
+- `main` への変更にプルリクエストが必須の場合、`[[manifest]]` 対象のバージョン更新コミットは拒否されます。ワークフローのトークンでルールをバイパスできるようにするか、`[[manifest]]` を削除して `release` がタグだけをプッシュするようにしてください。
+- `[[manifest]]` 対象がある場合、HEAD は detached 状態ではなくブランチを指している必要があります。`push` イベントでは `actions/checkout` がその状態にします。`pull_request` イベントや SHA を指定したチェックアウトでは、先に `git checkout -B <branch>` を実行してください。
+
+### JSON 出力をスクリプトで使う {/* #scripting-with-json-output */}
+
+すべてのコマンドが `--format json` をサポートし、`jq` で安全に解析できます。
+
+```bash
+# Extract version string
+flopha next-version --auto --format json | jq -r '.version'
+
+# List recent releases as JSON array
+flopha log --limit 5 --format json
+
+# Generate changelog as structured data for a historical range
+flopha changelog --from "v1.9.0" --to "v2.0.0" --format json | jq '.groups[].title'
+```
+
+### 再利用できるリリーススクリプト {/* #reusable-release-script */}
+
+任意の CI で使える、単体で実行可能なスクリプトです。
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+NEXT=$(flopha next-version --auto --format json | jq -r '.version')
+echo "Releasing $NEXT"
+
+flopha changelog --title "Changes in $NEXT" --output CHANGELOG.md
+git add CHANGELOG.md
+git diff --staged --quiet || git commit -m "chore: release $NEXT"
+git push
+
+flopha next-version --auto --create
+git push origin "$NEXT"
+```

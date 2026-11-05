@@ -1,0 +1,289 @@
+---
+id: release-workflows
+description: 使用 flopha 配置首次发布、自定义版本递增规则、预发布渠道、CI 流水线，以及带清单文件版本校验的发布 PR 流程。
+title: 发布工作流
+---
+
+# 发布工作流
+
+## 首次发布 {/* #first-release */}
+
+没有标签匹配版本模式时，请明确指定初始版本：
+
+```bash
+flopha next-version --initial-version 0.2.0 --pattern 'mobile@{semver}' --create --push
+# Creates mobile@0.2.0 and pushes it to origin
+```
+
+初始版本必须是纯 `MAJOR.MINOR.PATCH` 格式，不能包含前缀、后缀、构建元数据或前导零。每一部分都必须在无符号 32 位整数范围内。模式必须包含三个占位符，或使用 `{semver}`，标签名由模式决定。`--source branch` 也支持 `--initial-version`，可搭配 `release/{semver}` 等分支模式使用。
+
+通过配置文件执行发布时，在 `[version]` 下设置初始版本：
+
+```toml
+[version]
+pattern = "mobile@{semver}"
+initial_version = "0.2.0"
+
+[[manifest]]
+path = "package.json"
+type = "npm"
+```
+
+```bash
+flopha release --dry-run       # preview mobile@0.2.0 without writing files
+flopha release --prepare       # update manifests to 0.2.0 for review
+# After committing the prepared files:
+flopha release --require-version-match --dry-run
+```
+
+`release --initial-version 0.3.0` 会覆盖配置中的初始版本。无论是 `auto = true` 还是明确指定递增级别，都不会递增初始版本。模式匹配到正式版本标签后，会恢复正常递增行为，因此可保留该配置。既无匹配版本、又未指定初始版本时，这两个命令都会失败，并提示如何提供初始版本。首次发布的更新日志包含从 HEAD 可达的全部提交。
+
+首次发布如果是预发布版本，可为 `next-version` 添加 `--pre beta`，或在 `[version]` 中设置 `pre = "beta"`。这会生成 `mobile@0.2.0-beta.1` 标签，并将清单文件中的版本设为 `0.2.0-beta.1`。如果已有预发布标签，则递增该渠道的序号。继续生成预发布版本时，请保持初始版本不变；省略渠道即可创建第一个正式标签 `mobile@0.2.0`。
+
+## 约定式提交 {/* #conventional-commits */}
+
+使用 `--auto`，根据最新版本以来的提交消息判断下一个版本的递增级别：
+
+```bash
+flopha next-version --auto
+```
+
+内置规则如下：
+
+- `BREAKING CHANGE` 或 `feat!:` 形式的提交递增主版本号。
+- `feat:` 形式的提交递增次版本号。
+- 其他提交记录递增修订号。
+
+## 自定义递增规则 {/* #custom-bump-rules */}
+
+团队使用其他提交约定时，可通过 `--rule` 替换内置规则：
+
+```bash
+flopha next-version \
+  --auto \
+  --rule 'major:BREAKING CHANGE' \
+  --rule 'minor:^feature'
+```
+
+每条规则的格式为 `level:regex`，其中 `level` 为 `major`、`minor` 或 `patch`。
+
+## 基于分支管理版本 {/* #branch-based-release-streams */}
+
+如果团队通过分支而不是标签管理发布，请始终使用 `--source branch`：
+
+```bash
+flopha last-version --source branch --pattern "release/{major}.{minor}.{patch}"
+flopha next-version --source branch --pattern "release/{major}.{minor}.{patch}"
+flopha next-version --source branch --pattern "release/{major}.{minor}.{patch}" --create
+```
+
+## 查看发布历史 {/* #auditing-release-history */}
+
+使用 `log` 查看已经发布的版本：
+
+```bash
+flopha log --pattern "desktop@{semver}" --limit 20
+```
+
+日志会显示版本、发布日期，以及上一个匹配版本以来的提交数量。
+
+---
+
+## 在 CI 中使用 flopha {/* #using-flopha-in-ci */}
+
+所有 flopha 命令默认输出纯文本，也可以使用 `--format json` 供脚本处理，便于接入 CI 流水线。
+
+### 最小发布流水线（shell） {/* #minimal-release-pipeline-shell */}
+
+```bash
+# 1. Compute the next version without creating it yet
+NEXT=$(flopha next-version --auto --format json | jq -r '.version')
+
+# 2. Generate changelog headed with the upcoming version
+flopha changelog --title "Changes in $NEXT" --output CHANGELOG.md
+
+# 3. Commit the updated changelog
+git add CHANGELOG.md
+git commit -m "chore: release $NEXT"
+
+# 4. Tag and push
+flopha next-version --auto --create
+git push origin "$NEXT"
+```
+
+`--title` 可以在标签尚未创建时，将即将发布的版本写入更新日志标题。只有需要将更新日志范围限制到某个已存在的标签或引用时，才使用 `--to`。
+
+### GitHub Actions：使用 Action {/* #github-actions--using-the-action */}
+
+`sjquant/flopha` Action 将常用的标签创建和发布操作封装为一个步骤。
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history so flopha can walk commits
+
+      - name: Tag and release
+        uses: sjquant/flopha@v1
+        with:
+          auto: true
+          create-release: true
+          changelog: true       # generate changelog and use it as the release body
+```
+
+### GitHub Actions：自定义更新日志流水线 {/* #github-actions--full-changelog-pipeline */}
+
+如果想在创建标签前完全控制更新日志，可使用以下配置：
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install flopha
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh
+          echo "$HOME/.flopha/bin" >> $GITHUB_PATH
+
+      - name: Compute next version
+        id: version
+        run: echo "tag=$(flopha next-version --auto --format json | jq -r '.version')" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        run: flopha changelog --title "Changes in ${{ steps.version.outputs.tag }}" --output CHANGELOG.md
+
+      - name: Commit changelog
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git diff --staged --quiet || git commit -m "chore: release ${{ steps.version.outputs.tag }}"
+          git push
+
+      - name: Create tag and release
+        uses: sjquant/flopha@v1
+        with:
+          auto: true
+          create-release: true
+```
+
+### 准备发布 PR {/* #prepare-a-release-pr */}
+
+版本变更需要通过 PR 审核时，请将文件修改与正式发布分开：
+
+```bash
+flopha release --prepare
+# Review and commit the modified manifests, then open a PR.
+flopha release --require-version-match --dry-run   # validate the PR without publishing
+flopha release --require-version-match             # publish after merge
+```
+
+`--prepare` 按照 `flopha.toml` 的规则更新清单文件，也会更新锁文件中对应本地 Cargo 包的条目。修改会保留为未暂存状态，不会创建提交或标签，不会推送，也不会创建 GitHub Release。`--prepare --dry-run` 只预览操作，不写入文件。准备和校验都要求至少配置一个清单文件目标。
+
+`--require-version-match` 会检查是否有任何清单文件需要修改，才能与计算出的版本一致；如果有，则失败。检查通过后，直接发布已提交的版本，不创建版本更新提交，也支持 CI 中的 detached HEAD 检出。添加 `--dry-run` 可在不提供凭据、不执行发布的情况下验证 PR。这两个选项不能同时使用。
+
+如果准备完成后，新的提交改变了所需的递增级别，请将基分支的变更合入版本分支，重新运行 `--prepare`，再提交修正后的版本。如果版本 PR 已经合并，请另建后续 PR。版本 PR 应使用中性的提交消息，避免它本身触发主版本号或次版本号递增。
+
+本仓库也使用这一流程：版本 PR 修改 `Cargo.toml` 和 `Cargo.lock`；合并时，只有 Cargo 版本尚未发布，才会创建草稿发布。现有构建任务会在正式发布前构建对应标签并上传可执行文件。如果草稿已创建，但构建或上传失败，请重新运行最初失败的工作流。
+
+### 在 GitHub Actions 中使用 `flopha release` {/* #flopha-release-in-github-actions */}
+
+将 `flopha.toml` 提交到仓库后，`flopha release` 可一次完成版本递增、清单文件同步、标签和更新日志生成，以及 GitHub Release 创建。可以在每次推送时运行，也可以安全地重复运行：没有新提交时不执行操作；当前提交已有标签时，只会补完上次中断的标签推送和 GitHub Release 创建。
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: release        # back-to-back pushes would race for the same tag
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # full history and tags to detect the bump
+
+      - name: Install flopha
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh
+          echo "$HOME/.flopha/bin" >> $GITHUB_PATH
+
+      - name: Release
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          flopha release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # used to create the GitHub Release
+```
+
+- 默认 `GITHUB_TOKEN` 发起的推送不会触发新的工作流，因此版本更新提交不会再次触发发布。
+- 如果 `main` 要求通过 PR 合并，来自 `[[manifest]]` 目标的版本更新提交会被拒绝。请允许工作流令牌绕过该规则，或去掉 `[[manifest]]`，让 `release` 只推送标签。
+- 配置了 `[[manifest]]` 目标时，HEAD 必须指向分支，不能处于分离状态。对于 `push` 事件，`actions/checkout` 会处理这一点；对于 `pull_request` 事件或按 SHA 检出的情况，请先运行 `git checkout -B <branch>`。
+
+### 在脚本中使用 JSON 输出 {/* #scripting-with-json-output */}
+
+每个命令都支持 `--format json`，可用 `jq` 安全解析输出：
+
+```bash
+# Extract version string
+flopha next-version --auto --format json | jq -r '.version'
+
+# List recent releases as JSON array
+flopha log --limit 5 --format json
+
+# Generate changelog as structured data for a historical range
+flopha changelog --from "v1.9.0" --to "v2.0.0" --format json | jq '.groups[].title'
+```
+
+### 可复用的发布脚本 {/* #reusable-release-script */}
+
+以下脚本可独立运行，适用于各种 CI 环境：
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+NEXT=$(flopha next-version --auto --format json | jq -r '.version')
+echo "Releasing $NEXT"
+
+flopha changelog --title "Changes in $NEXT" --output CHANGELOG.md
+git add CHANGELOG.md
+git diff --staged --quiet || git commit -m "chore: release $NEXT"
+git push
+
+flopha next-version --auto --create
+git push origin "$NEXT"
+```

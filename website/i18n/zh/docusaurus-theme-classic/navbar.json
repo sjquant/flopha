@@ -1,0 +1,38 @@
+{
+  "title": {
+    "message": "flopha",
+    "description": "The title in the navbar"
+  },
+  "logo.alt": {
+    "message": "flopha 标志",
+    "description": "The alt text of navbar logo"
+  },
+  "item.label.Docs": {
+    "message": "文档",
+    "description": "Navbar item with label Docs"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item with label GitHub"
+  },
+  "item.label.Overview": {
+    "message": "概览",
+    "description": "Navbar item with label Overview"
+  },
+  "item.label.Installation": {
+    "message": "安装",
+    "description": "Navbar item with label Installation"
+  },
+  "item.label.Quick Start": {
+    "message": "快速开始",
+    "description": "Navbar item with label Quick Start"
+  },
+  "item.label.Patterns": {
+    "message": "版本格式",
+    "description": "Navbar item with label Patterns"
+  },
+  "item.label.Commands": {
+    "message": "命令",
+    "description": "Navbar item with label Commands"
+  }
+}
