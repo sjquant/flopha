@@ -4,6 +4,7 @@ import {useLocation} from '@docusaurus/router';
 import useIsBrowser from '@docusaurus/useIsBrowser';
 import {PageMetadata} from '@docusaurus/theme-common';
 import OriginalNotFound from '@theme-original/NotFound';
+import OpenGraphLocale from '@site/src/components/OpenGraphLocale';
 import korean from '@site/i18n/ko/code.json';
 import japanese from '@site/i18n/ja/code.json';
 
@@ -26,9 +27,9 @@ export default function NotFound(): ReactNode {
   return (
     <>
       <PageMetadata title={title} description={description} />
+      <OpenGraphLocale locale={locale} />
       <Head>
         <html lang={locale} />
-        <meta property="og:locale" content={locale} />
         <meta name="twitter:title" content={`flopha | ${title}`} />
         <meta name="twitter:description" content={description} />
       </Head>
