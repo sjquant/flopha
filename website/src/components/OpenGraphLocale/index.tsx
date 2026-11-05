@@ -6,6 +6,7 @@ const openGraphLocales: Record<string, string> = {
   en: 'en_US',
   ko: 'ko_KR',
   ja: 'ja_JP',
+  'zh-Hans': 'zh_CN',
 };
 
 export default function OpenGraphLocale({locale}: {locale?: string}): ReactNode {

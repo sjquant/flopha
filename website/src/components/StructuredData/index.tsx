@@ -25,7 +25,8 @@ export default function StructuredData({
   description: string;
   isDoc?: boolean;
 }): ReactNode {
-  const {i18n: {currentLocale}} = useDocusaurusContext();
+  const {i18n: {currentLocale, localeConfigs}} = useDocusaurusContext();
+  const language = localeConfigs[currentLocale].htmlLang;
   const localeUrl = useBaseUrl('/', {absolute: true});
   const websiteId = `${localeUrl}#website`;
   const pageId = `${url}#webpage`;
@@ -39,7 +40,7 @@ export default function StructuredData({
         name: 'flopha',
         url: localeUrl,
         description: siteDescription,
-        inLanguage: currentLocale,
+        inLanguage: language,
         about: {'@id': softwareId},
         publisher: {'@id': authorId},
       },
@@ -78,7 +79,7 @@ export default function StructuredData({
         url,
         name: title,
         description,
-        inLanguage: currentLocale,
+        inLanguage: language,
         isPartOf: {'@id': websiteId},
         about: {'@id': softwareId},
         mainEntity: {'@id': isDoc ? articleId : softwareId},
@@ -90,7 +91,7 @@ export default function StructuredData({
             url,
             headline: title,
             description,
-            inLanguage: currentLocale,
+            inLanguage: language,
             about: {'@id': softwareId},
             isPartOf: {'@id': websiteId},
             mainEntityOfPage: {'@id': pageId},

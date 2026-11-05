@@ -1,0 +1,60 @@
+---
+id: quick-start
+description: 从创建第一个版本标签开始，根据提交记录计算下一个版本，再用 flopha 发布 GitHub Release。
+title: 快速开始
+---
+
+# 快速开始
+
+请在配置了 `origin` 远程仓库的 Git 仓库中运行以下命令。flopha 会读取 `v1.2.3` 这样的版本标签。
+
+## 1. 设置初始标签 {/* #1-start-from-a-tag */}
+
+如果仓库还没有版本标签，请先指定初始版本：
+
+```bash
+flopha next-version --initial-version 0.1.0 --create --push
+```
+
+## 2. 计算下一个版本 {/* #2-calculate-the-next-version */}
+
+```bash
+flopha next-version --auto
+```
+
+包含破坏性变更（`feat!:` 或 `BREAKING CHANGE`）时递增 `major`，包含 `feat` 提交时递增 `minor`，其他情况递增 `patch`。例如，在 `v0.1.0` 之后新增一条 `feat: ...` 提交，命令会输出 `v0.2.0`。
+
+## 3. 创建标签 {/* #3-create-it */}
+
+```bash
+flopha next-version --auto --create --push
+```
+
+这会创建标签并推送到 `origin`。
+
+## 4. 用一条命令发布 {/* #4-release-with-one-command */}
+
+如果还需要将新版本写入项目清单文件，并发布带有更新日志的 GitHub Release，请添加 `flopha.toml`：
+
+```toml
+[release]
+create = true
+
+[[manifest]]
+path = "package.json"
+type = "npm"
+```
+
+先预览将要执行的操作，再进行发布：
+
+```bash
+flopha release --dry-run
+flopha release
+```
+
+发布 GitHub Release 需要 `GH_TOKEN` 或 `GITHUB_TOKEN`。在本地也可以使用 `gh auth login` 登录。完整配置项见 [`flopha.toml` 参考](/zh/docs/command-reference#flophatoml)。
+
+## 接下来 {/* #next */}
+
+- [版本格式](/zh/docs/version-patterns)：使用 `mobile@1.2.3` 这样的标签或发布分支。
+- [发布工作流](/zh/docs/release-workflows)：配置 CI、预发布版本和版本更新 PR。

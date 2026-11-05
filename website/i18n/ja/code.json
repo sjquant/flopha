@@ -1,6 +1,6 @@
 {
   "home.headline": {
-    "message": "マージしたコミットから、次のタグ付きリリースへ"
+    "message": "次のバージョンは、コミット履歴から。"
   },
   "home.release.features": {
     "message": "新機能"
@@ -9,28 +9,28 @@
     "message": "バグ修正"
   },
   "home.fit.tags.title": {
-    "message": "独自のタグパターン"
+    "message": "アプリごとにバージョンを分ける"
   },
   "home.fit.tags.body": {
-    "message": "1 つのリポジトリでも、アプリやパッケージごとにバージョンを管理できます。"
+    "message": "タグにアプリ名やパッケージ名を含めれば、1 つのリポジトリで複数のバージョンを管理できます。"
   },
   "home.fit.branches.title": {
-    "message": "リリースブランチ"
+    "message": "ブランチ名でバージョンを管理"
   },
   "home.fit.branches.body": {
-    "message": "release/1.4.2 のようなブランチ名を基準に、バージョンを管理できます。"
+    "message": "release/1.4.2 のようなブランチからバージョンを読み取り、次のリリースブランチを作成できます。"
   },
   "home.fit.pre.title": {
-    "message": "プレリリース"
+    "message": "公開前の検証にはプレリリース"
   },
   "home.fit.pre.body": {
-    "message": "次の安定版を基準に、alpha、beta、rc ビルドを作成できます。"
+    "message": "次の安定版に alpha、beta、rc を付けて、検証用バージョンを作成できます。"
   },
   "home.fit.manifests.title": {
-    "message": "マニフェストの同期"
+    "message": "ファイル内のバージョンも更新"
   },
   "home.fit.manifests.body": {
-    "message": "新しいバージョンを Cargo.toml、package.json、pyproject.toml など、任意のファイルに反映できます。"
+    "message": "Cargo.toml、package.json、pyproject.toml などのマニフェストや、指定したファイルに新しいバージョンを書き込みます。"
   },
   "home.keywords": {
     "message": "セマンティックバージョニング CLI, Git リリース自動化, Conventional Commits バージョン管理, Git タグ ワークフロー, GitHub リリース アクション, 変更履歴生成"
@@ -39,19 +39,19 @@
     "message": "flopha の紹介画像"
   },
   "home.lead": {
-    "message": "flopha は Git タグとコミットメッセージを読み取り、次のセマンティックバージョンを決めて、タグ、変更履歴、GitHub リリースを作成します。開発言語を問わず、1 つのバイナリをローカルや任意の CI 環境で実行でき、GitHub Action としても使えます。"
+    "message": "flopha はコミット履歴に応じて次のバージョンを計算し、タグと変更履歴を作成します。GitHub リリースの公開にも対応。ターミナルや CI から実行でき、GitHub Action としても使えます。"
   },
   "home.start": {
-    "message": "次のリリースにタグを付ける"
+    "message": "リリースの手順を見る"
   },
   "home.docs": {
-    "message": "ドキュメントを読む →"
+    "message": "ドキュメント一覧 →"
   },
   "home.platforms": {
-    "message": "macOS と Linux x86_64 に対応しています。ほかのプラットフォームでは{build}してください。"
+    "message": "macOS・Linux x86_64 向けのバイナリを用意しています。ほかの環境では{build}でインストールできます。"
   },
   "home.buildSource": {
-    "message": "ソースからビルド"
+    "message": "ソースからのビルド"
   },
   "home.release.label": {
     "message": "GitHub リリース"
@@ -60,22 +60,22 @@
     "message": "v1.2.3 から v1.3.0 に上がる階段状の経路と、その横にいる flopha のタコ"
   },
   "home.run.title": {
-    "message": "2 つの実行方法"
+    "message": "バージョンの確認から公開まで"
   },
   "home.run.preview": {
-    "message": "どのリポジトリでも、設定なしで次のバージョンを確認できます。"
+    "message": "設定ファイルを用意せずに、コミット履歴から次のバージョンを確認できます。"
   },
   "home.run.publish": {
-    "message": "リリースを公開するには、{config} をリポジトリにコミットしてから {command} を実行します。GitHub リリースを作るには、{token} を設定するか、{auth} で認証してください。"
+    "message": "GitHub リリースを公開する場合は、{config} をリポジトリにコミットして {command} を実行します。認証には {token} を設定するか、ローカルで {auth} を使ってログインします。"
   },
   "home.run.action": {
-    "message": "ワークフローの 1 ステップでタグを作成して公開できます。設定ファイルは不要です。"
+    "message": "GitHub Actions では、次のステップでタグの作成と GitHub リリースの公開を行えます。flopha の設定ファイルは不要です。"
   },
   "home.fit.title": {
-    "message": "今のリリースフローに合わせて使えます"
+    "message": "リポジトリごとの運用に合わせて"
   },
   "site.description": {
-    "message": "flopha は Git タグとコミットメッセージを読み取り、次のセマンティックバージョンを決めて、タグ、変更履歴、GitHub リリースを作成します。"
+    "message": "flopha はコミット履歴から次のバージョンを計算する開発ツールです。タグと変更履歴の作成から GitHub リリースの公開まで対応します。"
   },
   "theme.CodeBlock.copied": {
     "message": "コピーしました",

@@ -1,0 +1,38 @@
+---
+id: installation
+description: 安装适用于 macOS 或 Linux 的 flopha 可执行文件，或使用 Cargo 从源码构建，并验证安装结果。
+title: 安装
+---
+
+# 安装
+
+## 安装可执行文件 {/* #install-the-binary */}
+
+我们为 macOS（Intel、Apple silicon）和 Linux x86_64 提供预编译的可执行文件：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sjquant/flopha/main/scripts/install.sh | sh
+```
+
+安装脚本默认将可执行文件放在 `~/.flopha/bin` 下；如果已设置 `FLOPHA_INSTALL`，则使用指定的安装位置。安装后如果找不到 `flopha` 命令，请在 shell 配置文件中加入以下内容，设置 `PATH`：
+
+```bash
+export FLOPHA_INSTALL="$HOME/.flopha"
+export PATH="$FLOPHA_INSTALL/bin:$PATH"
+```
+
+## 从源码构建 {/* #build-from-source */}
+
+在其他平台上使用，或想使用 `main` 分支的最新代码时，可以通过 Cargo 安装：
+
+```bash
+cargo install --git https://github.com/sjquant/flopha --locked
+```
+
+## 验证安装 {/* #verify */}
+
+```bash
+flopha --version
+```
+
+接下来可以阅读[快速开始](/zh/docs/quick-start)。

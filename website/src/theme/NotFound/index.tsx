@@ -7,8 +7,9 @@ import OriginalNotFound from '@theme-original/NotFound';
 import OpenGraphLocale from '@site/src/components/OpenGraphLocale';
 import korean from '@site/i18n/ko/code.json';
 import japanese from '@site/i18n/ja/code.json';
+import chinese from '@site/i18n/zh/code.json';
 
-const recoveryMessages = {ko: korean, ja: japanese};
+const recoveryMessages = {ko: korean, ja: japanese, zh: chinese};
 
 export default function NotFound(): ReactNode {
   const {pathname} = useLocation();
@@ -16,24 +17,25 @@ export default function NotFound(): ReactNode {
   const locale = pathname.split('/')[1];
 
   // The static host serves the English 404 entry for every unknown path.
-  if (!isBrowser || (locale !== 'ko' && locale !== 'ja')) {
+  if (!isBrowser || (locale !== 'ko' && locale !== 'ja' && locale !== 'zh')) {
     return <OriginalNotFound />;
   }
 
   const messages = recoveryMessages[locale];
   const title = messages['theme.NotFound.title'].message;
   const description = messages['theme.NotFound.p1'].message;
+  const language = locale === 'zh' ? 'zh-CN' : locale;
 
   return (
     <>
       <PageMetadata title={title} description={description} />
-      <OpenGraphLocale locale={locale} />
+      <OpenGraphLocale locale={locale === 'zh' ? 'zh-Hans' : locale} />
       <Head>
-        <html lang={locale} />
+        <html lang={language} />
         <meta name="twitter:title" content={`flopha | ${title}`} />
         <meta name="twitter:description" content={description} />
       </Head>
-      <main className="container margin-vert--xl" lang={locale}>
+      <main className="container margin-vert--xl" lang={language}>
         <div className="row">
           <div className="col col--6 col--offset-3">
             <h1 className="hero__title">{title}</h1>

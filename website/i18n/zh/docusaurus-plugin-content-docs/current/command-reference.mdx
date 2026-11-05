@@ -1,0 +1,210 @@
+---
+id: command-reference
+description: 查阅 flopha 的命令、参数、JSON 输出和 flopha.toml 配置，了解版本计算、更新日志、清单文件和发布操作。
+title: 命令参考
+---
+
+# 命令参考
+
+## `flopha last-version` {/* #flopha-last-version */}
+
+输出与模式匹配的最新版本。
+
+```bash
+flopha last-version [--pattern <pattern>] [--source <tag|branch>] [--checkout] [--format <text|json>]
+```
+
+参数：
+
+- `--pattern`, `-p`：匹配自定义版本格式。`{semver}` 会展开为 `{major}.{minor}.{patch}`。
+- `--source`, `-s`：从标签或分支读取版本，默认为 `tag`。
+- `--checkout`：输出找到的版本后，检出该版本。
+- `--format`, `-f`：输出格式，可选 `text`（默认）或 `json`。
+
+## `flopha next-version` {/* #flopha-next-version */}
+
+计算下一个版本。
+
+```bash
+flopha next-version \
+  [--initial-version <MAJOR.MINOR.PATCH>] \
+  [--increment <major|minor|patch>] \
+  [--auto] \
+  [--rule <level:regex>] \
+  [--pre <channel>] \
+  [--pattern <pattern>] \
+  [--source <tag|branch>] \
+  [--create] \
+  [--tag-message <message>] \
+  [--push] \
+  [--format <text|json>]
+```
+
+参数：
+
+- `--initial-version`：没有版本匹配模式时，直接使用不带前后缀的 `MAJOR.MINOR.PATCH` 作为初始版本；存在匹配版本时，仍按正常规则递增。
+- `--increment`, `-i`：明确指定版本递增级别，默认为 `patch`。
+- `--auto`：根据上个版本以来的提交消息判断递增级别。
+- `--rule`：替换内置的自动判断规则，需要同时使用 `--auto`。
+- `--pre`：创建带有 `-alpha.1` 或 `-rc.1` 等后缀的预发布标签。
+- `--pattern`, `-p`：使用自定义版本格式查找和生成版本。`{semver}` 会展开为 `{major}.{minor}.{patch}`。
+- `--source`, `-s`：从标签或分支读取版本，默认为 `tag`。
+- `--create`：输出新版本后，创建对应的标签或分支。
+- `--tag-message`：用指定消息创建附注标签，需要同时指定 `--create`，并以标签作为版本来源。
+- `--push`：将创建的标签或分支推送到 `origin`，需要同时指定 `--create`。
+- `--format`, `-f`：输出格式，可选 `text`（默认）或 `json`。
+
+## `flopha log` {/* #flopha-log */}
+
+按从新到旧的顺序列出匹配的版本。
+
+```bash
+flopha log [--pattern <pattern>] [--source <tag|branch>] [--limit <number>] [--format <text|json>]
+```
+
+参数：
+
+- `--pattern`, `-p`：匹配自定义版本格式。`{semver}` 会展开为 `{major}.{minor}.{patch}`。
+- `--source`, `-s`：从标签或分支读取版本，默认为 `tag`。
+- `--limit`, `-n`：限制显示的行数。
+- `--format`, `-f`：输出格式，可选 `text`（默认）或 `json`。
+
+## `flopha changelog` {/* #flopha-changelog */}
+
+根据上个版本或指定版本以来的提交生成更新日志。
+
+```bash
+flopha changelog \
+  [--from <tag>] \
+  [--to <tag>] \
+  [--pattern <pattern>] \
+  [--source <tag|branch>] \
+  [--group <TITLE:REGEX>] \
+  [--other <title>] \
+  [--title <template>] \
+  [--output <file>] \
+  [--overwrite] \
+  [--format <text|json>]
+```
+
+参数：
+
+- `--from`：起始标签，默认为与模式匹配的最新标签。
+- `--to`：更新日志范围的终点，必须是 Git 中已经存在的标签或引用，因为它会限制包含哪些提交。在 `--title` 中可通过 `{to}` 引用此值。
+- `--pattern`, `-p`：匹配自定义版本格式。`{semver}` 会展开为 `{major}.{minor}.{patch}`。
+- `--source`, `-s`：从标签或分支读取版本，默认为 `tag`。
+- `--group`：以 `TITLE:REGEX` 格式指定分组规则，可重复使用。只要指定了任何 `--group`，就会完全替换内置规则。不匹配任何规则的提交会归入兜底分组。
+- `--other`：不匹配任何分组的提交所用的标题。传入空字符串会将这些提交完全排除在输出之外，默认为 `"Other Changes"`。
+- `--title`：标题模板。`{from}` 表示起始标签，指定 `--to` 后可用 `{to}` 表示终点。有 `--to` 时默认为 `"Changes in {to}"`，否则为 `"Changelog since {from}"`。如果要在标签尚未创建时使用即将发布的版本作为标题，请直接通过 `--title` 指定。
+- `--output`, `-o`：写入文件而不是标准输出。默认将新内容**添加到现有文件内容的开头**。
+- `--overwrite`：覆盖输出文件，而不是在开头追加。
+- `--format`, `-f`：输出格式，可选 `text`（默认，Markdown 格式）或 `json`。
+
+### 默认分组 {/* #default-groups */}
+
+未指定 `--group` 时，提交按以下规则分类：
+
+| 类别 | 匹配的提交 |
+|---------|----------------|
+| 破坏性变更 | `BREAKING CHANGE`、`BREAKING-CHANGE` 或 `type!:` |
+| 新功能 | `feat:` 或 `feat(scope):` |
+| 缺陷修复 | `fix:` 或 `fix(scope):` |
+| 其他变更 | 其余所有提交 |
+
+### JSON 输出结构 {/* #json-output-schema */}
+
+```json
+{
+  "title": "Changes in v1.2.0",
+  "from": "v1.1.0",
+  "to": "v1.2.0",
+  "groups": [
+    {
+      "title": "Features",
+      "entries": [
+        { "subject": "add search command", "hash": "abc1234" }
+      ]
+    }
+  ]
+}
+```
+
+只有指定 `--to` 时才会包含 `to` 字段。没有匹配提交的分组会被省略。
+
+## `flopha release` {/* #flopha-release */}
+
+使用 `flopha.toml` 准备或发布版本。
+
+```bash
+flopha release [--config <file>] [--initial-version <MAJOR.MINOR.PATCH>] [--prepare | --require-version-match] [--dry-run] [--format <text|json>]
+```
+
+- `--config`, `-c`：相对于仓库根目录的配置文件路径，默认为 `flopha.toml`。
+- `--initial-version`：覆盖用于首次发布的 `[version].initial_version`。
+- `--prepare`：只更新配置的清单文件，将修改保留为未暂存状态，供发布 PR 审核。不会创建提交、标签，不会推送，也不会创建 GitHub Release。
+- `--require-version-match`：清单文件中的版本与计算结果不一致时失败；一致时直接发布，不创建版本更新提交。实际发布需要文件已经提交。不能与 `--prepare` 同时使用。
+- `--dry-run`：预览将执行的操作，不写文件、不发布。与 `--require-version-match` 同时使用时，也会验证已准备好的文件。
+- `--format`, `-f`：预览和发布准备结果的输出格式，可选 `text`（默认）或 `json`。准备结果的 JSON 为 `{"version":"<tag>"}`，无需操作时返回 `null`。
+
+`--prepare` 和 `--require-version-match` 都要求至少配置一个 `[[manifest]]` 目标。两个选项都未指定时，`release` 会先更新并提交清单文件，再创建标签和发布。PR 准备和恢复步骤见[发布工作流](./release-workflows)。
+
+### `flopha.toml` {/* #flophatoml */}
+
+所有配置项都可省略。空文件会使用下面的默认配置进行发布，但不会创建 GitHub Release。
+
+```toml
+[version]
+# initial_version = "0.1.0"            # used directly only when no matching version tag exists
+pattern = "v{major}.{minor}.{patch}"   # default
+auto = true                            # detect bump level from conventional commits (default)
+# increment = "patch"                  # used instead of auto-detection when auto = false
+# rules = ["major:BREAKING CHANGE", "minor:^feat"]
+# pre = "beta"                         # pre-release channel, e.g. v1.2.3-beta.1
+# tag_message = "Release {tag}"        # annotated tag message; supports {tag} and {version}
+
+[changelog]
+enabled = true
+# groups = ["Breaking Changes:BREAKING CHANGE", "Features:^feat"]
+# other = "Other Changes"
+# title = "Changes in {to}"
+
+[release]
+create = true                         # default: false; publish a GitHub Release
+draft = false
+# title = "{tag}"                     # supports {tag} and {version}
+# body = "..."                        # falls back to the generated changelog, then generate_notes
+# generate_notes = false
+# repo = "owner/repo"                 # defaults to parsing the `origin` remote
+
+[[manifest]]
+path = "Cargo.toml"
+type = "cargo"                        # sets [package].version (or [workspace.package].version) and Cargo.lock
+
+[[manifest]]
+path = "package.json"
+type = "npm"                          # sets the top-level "version" field
+
+[[manifest]]
+path = "pyproject.toml"
+type = "pyproject"                    # sets [project].version, falling back to [tool.poetry].version
+
+[[manifest]]
+path = "docs/VERSION"
+type = "regex"
+pattern = "(?m)^version=.*$"
+replacement = "version={version}"     # {version} is substituted with the new version
+```
+
+- 可以安全地重复运行：如果当前提交已有标签，`release` 只会完成该次发布（推送标签、创建缺失的 GitHub Release），不会创建新版本；没有新提交时则不执行任何操作。
+- 发布时如果要自动提交清单文件，工作区必须干净，且分支必须与 `origin` 同步到最新状态。如果发布提交推送失败，本地提交和标签会被撤销。
+- `release.create` 需要通过 `GH_TOKEN` 或 `GITHUB_TOKEN` 提供 GitHub 令牌。本地已有的 `gh auth login` 登录凭据也可使用。
+- 目标为 Cargo 工作区时，使用 `cargo metadata --no-deps --offline --locked` 识别继承工作区版本的包，因此需要安装 Cargo。版本固定的成员不会被修改。
+- 不支持 `version.source = "branch"`。基于分支管理版本时，请使用 `flopha next-version --source branch --create`。
+
+## 通用行为 {/* #global-behavior */}
+
+- `--verbose`, `-v` 启用调试日志。
+- CLI 会先从 `origin` 远程仓库拉取引用（fetch），再解析版本。
+- 默认版本模式为 `v{major}.{minor}.{patch}`，可简写为 `v{semver}`。
+
+没有版本匹配模式时，`next-version` 和 `release` 会失败，除非指定初始版本；`--auto` 不会替你选择初始版本。初始版本由三个无符号 32 位整数组成，不能有前导零、标签前缀、预发布后缀或构建元数据。预发布请使用 `--pre` 或 `version.pre`。示例见[首次发布](./release-workflows#first-release)。

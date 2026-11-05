@@ -10,14 +10,19 @@ const localizedText: Record<string, {tagline: string; keywords: string; builtWit
     builtWith: 'Built with Docusaurus.',
   },
   ko: {
-    tagline: '머지한 커밋으로 다음 릴리스에 태그를 붙이세요',
+    tagline: '커밋 기록으로 다음 버전을 정합니다',
     keywords: '시맨틱 버전 관리 CLI, Git 릴리스 자동화, Conventional Commits 버전 관리, Git 태그 릴리스 워크플로, 브랜치 버전 관리 도구, 사전 릴리스 자동화',
     builtWith: 'Docusaurus로 만들었습니다.',
   },
   ja: {
-    tagline: 'マージしたコミットから、次のタグ付きリリースへ',
+    tagline: '次のバージョンは、コミット履歴から。',
     keywords: 'セマンティックバージョニング CLI, Git リリース自動化, Conventional Commits バージョン管理, Git タグ リリースワークフロー, ブランチ バージョン管理, プレリリース自動化',
     builtWith: 'Docusaurus で構築しています。',
+  },
+  'zh-Hans': {
+    tagline: '从提交记录确定下一个版本',
+    keywords: '语义化版本 CLI, Git 发布自动化, 约定式提交版本管理, Git 标签工作流, 预发布版本管理',
+    builtWith: '使用 Docusaurus 构建。',
   },
 };
 const text = localizedText[locale] ?? localizedText.en;
@@ -45,11 +50,12 @@ const config: Config = {
   onBrokenLinks: 'throw',
   i18n: {
     defaultLocale: 'en',
-    locales: ['en', 'ko', 'ja'],
+    locales: ['en', 'ko', 'ja', 'zh-Hans'],
     localeConfigs: {
       en: {label: 'English', htmlLang: 'en'},
       ko: {label: '한국어', htmlLang: 'ko'},
       ja: {label: '日本語', htmlLang: 'ja'},
+      'zh-Hans': {label: '简体中文', htmlLang: 'zh-CN', path: 'zh', baseUrl: '/zh/'},
     },
   },
   customFields: {

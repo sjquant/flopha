@@ -4,3 +4,4 @@ Allow: /
 Sitemap: https://flopha.solaqua.dev/sitemap.xml
 Sitemap: https://flopha.solaqua.dev/ko/sitemap.xml
 Sitemap: https://flopha.solaqua.dev/ja/sitemap.xml
+Sitemap: https://flopha.solaqua.dev/zh/sitemap.xml
